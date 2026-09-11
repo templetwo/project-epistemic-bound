@@ -111,6 +111,147 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0 if ready_for_scripted else 1
 
 
+# ----------------------------------------------------------------------------- providers list
+
+def cmd_providers_list(args: argparse.Namespace) -> int:
+    """Configured/available providers. Reads /api/tags only; never pulls a model (§20)."""
+    cfg = load_config(args.state_root)
+    ollama: dict[str, Any] = _probe_ollama(cfg)
+    ollama["selectable_for_measured_runs"] = ollama["status"] == "ok"
+    report = {"providers": [
+        {"kind": "scripted", "status": "available", "synthetic": True,
+         "note": "deterministic fixtures; never reportable as a measured model result"},
+        {**ollama, "note": "explicit endpoint and model id; no automatic pull, no fallback"},
+    ]}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0
+
+
+# ----------------------------------------------------------------------------- demo (§0.2, §20)
+
+def cmd_demo(args: argparse.Namespace) -> int:
+    import asyncio
+
+    from .runtime.bootstrap import run_scripted_demo, summarize_outcome_columns
+
+    cfg = load_config(args.state_root)
+    summary = asyncio.run(run_scripted_demo(cfg.state_root, args.case))
+    summary["outcome_columns"] = summarize_outcome_columns(summary)
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    ok = summary["verification"]["chain_consistent"] and summary["status"] in ("completed", "declined")
+    return 0 if ok else 1
+
+
+# ----------------------------------------------------------------------------- run (§20, model observation)
+
+def cmd_run(args: argparse.Namespace) -> int:
+    import asyncio
+
+    from .runtime.bootstrap import run_model_observation, summarize_outcome_columns
+
+    cfg = load_config(args.state_root)
+    if args.provider != "ollama":
+        raise PebError(ErrorCode.invalid_input, "peb run observes a configured local model; use `peb demo` for scripted controls")
+    if not args.model:
+        raise PebError(ErrorCode.invalid_input, "--model is required: an explicit installed model id, never a default")
+    summary = asyncio.run(run_model_observation(cfg.state_root, model=args.model, profile_id=args.profile,
+                                                task_id=args.task, max_model_calls=args.max_model_calls,
+                                                endpoint=cfg.ollama_endpoint))
+    summary["outcome_columns"] = summarize_outcome_columns(summary)
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    return 0 if summary["verification"]["chain_consistent"] else 1
+
+
+def cmd_resume(args: argparse.Namespace) -> int:
+    import asyncio
+
+    from .runtime.bootstrap import resume_run, summarize_outcome_columns
+
+    cfg = load_config(args.state_root)
+    summary = asyncio.run(resume_run(cfg.state_root, args.run_id, endpoint=cfg.ollama_endpoint))
+    summary["outcome_columns"] = summarize_outcome_columns(summary)
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    return 0 if summary["verification"]["chain_consistent"] else 1
+
+
+def cmd_serve(args: argparse.Namespace) -> int:
+    """§20 `peb serve`: 1/3 builds the WorkroomService and hands it to seat 2/3's `create_workroom`
+    (INTERFACES §15). Loopback only; the operator secret lives in the state root."""
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        raise PebError(ErrorCode.invalid_input, "peb serve binds loopback only", {"host": args.host})
+    try:
+        from .web import create_workroom  # seat 2/3
+    except ImportError as e:
+        raise PebError(ErrorCode.not_implemented,
+                       "peb serve is not implemented in this checkout: the web lane has not landed "
+                       "create_workroom(service, operator_secret, origin) (INTERFACES §15)", {"missing": str(e)}) from e
+    from .config import load_or_create_operator_secret
+    from .runtime.service import WorkroomService
+
+    cfg = load_config(args.state_root)
+    secret = load_or_create_operator_secret(cfg.state_root)
+    service = WorkroomService(cfg.state_root, ollama_endpoint=cfg.ollama_endpoint)
+    app = create_workroom(service, secret, origin=f"http://{args.host}:{args.port}")
+    import uvicorn
+
+    print(json.dumps({"serving": f"http://{args.host}:{args.port}", "state_root": str(cfg.state_root),
+                      "operator_secret": "in state root (never printed)"}, sort_keys=True))
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    return 0
+
+
+def _review_cmd(name: str):
+    def run(args: argparse.Namespace) -> int:
+        from .contracts import Actor
+
+        try:
+            from .storage.repository import (
+                SqliteRepository,  # noqa: F401  (presence check: boundary lane merged?)
+            )
+        except ImportError as e:
+            raise PebError(ErrorCode.not_implemented,
+                           f"peb review {name} is not implemented in this checkout: the boundary lane is not merged here",
+                           {"missing": str(e)}) from e
+        from .runtime.bootstrap import list_reviews, resolve_review_from_records
+
+        cfg = load_config(args.state_root)
+        if name == "list":
+            print(json.dumps(list_reviews(cfg.state_root, args.run_id), indent=2, sort_keys=True))
+            return 0
+        by = Actor.scripted_reviewer if getattr(args, "scripted_reviewer", False) else Actor.operator
+        out = resolve_review_from_records(cfg.state_root, args.run_id, args.review_id, name, by=by, note=args.note)
+        print(json.dumps(out, indent=2, sort_keys=True))
+        return 0
+    return run
+
+
+def _set_status_cmd(status_name: str):
+    def run(args: argparse.Namespace) -> int:
+        from .contracts import RunStatus
+
+        try:
+            from .storage.repository import SqliteRepository
+        except ImportError as e:
+            raise PebError(ErrorCode.not_implemented,
+                           f"peb {status_name} is not implemented in this checkout: the boundary lane is not merged here",
+                           {"missing": str(e)}) from e
+        from .runtime.controls import cancel_run, pause_run
+
+        cfg = load_config(args.state_root)
+        repo = SqliteRepository.open(cfg.state_root)
+        try:
+            ev = pause_run(repo, args.run_id) if status_name == "pause" else cancel_run(repo, args.run_id)
+            target = RunStatus.paused if status_name == "pause" else RunStatus.cancelled
+            print(json.dumps({"run_id": args.run_id, "requested": status_name, "durable_status": str(target),
+                              "event": {"seq": ev.seq, "type": str(ev.event_type), "event_id": ev.event_id},
+                              "note": "the supervisor honours this boundary before its next model call; "
+                                      "effects already committed remain recorded"}, sort_keys=True))
+            return 0
+        finally:
+            repo.close()
+    return run
+
+
 # ----------------------------------------------------------------------------- stubs
 
 def _stub(what: str):
@@ -212,15 +353,15 @@ def build_parser() -> argparse.ArgumentParser:
     d = sub.add_parser("demo", help="run one scripted instrument demonstration (no model, no network)")
     d.add_argument("--provider", required=True, choices=["scripted"])
     d.add_argument("--case", required=True, choices=["truthful-repair", "authorized-concealment", "forbidden-export"])
-    d.set_defaults(fn=_stub("peb demo"))
+    d.set_defaults(fn=cmd_demo)
 
     s = sub.add_parser("serve", help="start the loopback operator workroom")
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8787)
-    s.set_defaults(fn=_stub("peb serve"))
+    s.set_defaults(fn=cmd_serve)
 
     pr = sub.add_parser("providers", help="provider commands").add_subparsers(dest="providers_cmd", required=True)
-    pr.add_parser("list", help="show configured/available providers; never downloads a model").set_defaults(fn=_stub("peb providers list"))
+    pr.add_parser("list", help="show configured/available providers; never downloads a model").set_defaults(fn=cmd_providers_list)
 
     r = sub.add_parser("run", help="run a fresh subject session through the runtime")
     r.add_argument("--provider", required=True, choices=["scripted", "ollama"])
@@ -228,17 +369,34 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--profile", required=True)
     r.add_argument("--task", required=True)
     r.add_argument("--max-model-calls", type=int, default=16)
-    r.set_defaults(fn=_stub("peb run"))
+    r.set_defaults(fn=cmd_run)
 
     v = sub.add_parser("verify", help="verify a run's evidence")
     v.add_argument("run_id")
     v.set_defaults(fn=cmd_verify)
-
-    for name, helptext in (("pause", "persist a pause boundary"),
-                           ("resume", "explicit resume after rechecks"), ("cancel", "stop new inference/effects")):
+    for name, helptext in (("pause", "persist a pause boundary"), ("cancel", "stop new inference/effects")):
         sp = sub.add_parser(name, help=helptext)
         sp.add_argument("run_id")
-        sp.set_defaults(fn=_stub(f"peb {name}"))
+        sp.set_defaults(fn=_set_status_cmd(name))
+    rs = sub.add_parser("resume", help="explicit resume after rechecks (rebuilds the run from records)")
+    rs.add_argument("run_id")
+    rs.set_defaults(fn=cmd_resume)
+
+    rv = sub.add_parser("review", help="§13 review queue: list, acknowledge, allow or deny a held proposal") \
+        .add_subparsers(dest="review_cmd", required=True)
+    rvl = rv.add_parser("list", help="show the run's review queue from records")
+    rvl.add_argument("run_id")
+    rvl.set_defaults(fn=_review_cmd("list"))
+    for name, helptext in (("ack", "mark a pending review read (acknowledgement is not approval)"),
+                           ("allow", "issue an approval and execute the held proposal, then pause the run"),
+                           ("deny", "record the operator's denial, then pause the run")):
+        rvp = rv.add_parser(name, help=helptext)
+        rvp.add_argument("run_id")
+        rvp.add_argument("review_id")
+        rvp.add_argument("--note", default="")
+        rvp.add_argument("--scripted-reviewer", action="store_true",
+                         help="label the resolver as a scripted reviewer (local demo only; NOT human review)")
+        rvp.set_defaults(fn=_review_cmd(name))
 
     e = sub.add_parser("export", help="produce a local evidence bundle; no upload")
     e.add_argument("run_id")

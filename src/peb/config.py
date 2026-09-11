@@ -42,3 +42,25 @@ def load_config(state_root: str | os.PathLike[str] | None = None) -> AppConfig:
         ollama_endpoint=env.get("PEB_OLLAMA_ENDPOINT", DEFAULT_OLLAMA_ENDPOINT),
         ollama_model=env.get("PEB_OLLAMA_MODEL") or None,
     )
+
+
+OPERATOR_SECRET_FILE = "operator.secret"
+
+
+def load_or_create_operator_secret(state_root: str | os.PathLike[str]) -> str:
+    """The workroom's operator credential lives ONLY in the state root (0600), never in source, logs or
+    model input (BUILD_SPEC §16). Created on first `peb serve`; rotated by deleting the file."""
+    import secrets
+
+    path = Path(state_root) / OPERATOR_SECRET_FILE
+    if path.exists():
+        value = path.read_text(encoding="utf-8").strip()
+        if len(value) < 32:
+            raise RuntimeError(f"operator secret at {path} is too short; delete it to regenerate")
+        return value
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        value = secrets.token_hex(32)
+        f.write(value + "\n")
+    return value

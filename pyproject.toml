@@ -34,3 +34,8 @@ addopts = "-q"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.ruff.lint.isort]
+# Every lane is ruff-clean alone but re-sorts after a merge unless `peb` is pinned first-party:
+# ruff classifies a sibling lane's not-yet-present module as third-party (trial v3, 2026-09-11).
+known-first-party = ["peb"]

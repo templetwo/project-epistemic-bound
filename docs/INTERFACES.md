@@ -163,3 +163,77 @@ captured as a verifiable five-event trace with no model and no gate
 
 Does not prove: any authorization, any effect, any behavior. No `gate_decided` or
 `effect_observed` event exists yet. Those are S2.
+
+
+---
+
+# S3/S4 additions (ADR-015) — not part of the S1 freeze; owner seat 1/3
+
+## 13. Review route (§13) — `runtime/review.py`
+
+- `SubjectRuntime.resolve_review(run, review_id, "allow"|"deny", *, by=Actor.operator, note="") ->
+  ReviewResolution(review, approval, gate, receipt, events)`; `.executed` is true only for an applied receipt.
+- `acknowledge_review(run, review_id, *, by)` → `acknowledged` (recorded as `review_resolved` with
+  `final: false`; acknowledgement authorizes nothing). `expire_reviews(run, *, now=None)` → `expired`;
+  the run stays `waiting_review`.
+- Resolvers: `operator`, `scripted_reviewer` (labelled). Everyone else → `unauthorized`, no change.
+- allow: `boundary.approvals.issue_approval(key=store.signing_key(), key_id=store.key_id, proposal=HELD,
+  grant_id=gate.resolved_grant_id, grant_version=store.grant_version(...), revision_vector=
+  store.current_revisions(...), policy_version, issuer=by, ttl_s)` → `store.put_approval` → run
+  `running` → `monitor.authorize(HELD, GateContext(subject_session_id=HELD.session, approval=…))` →
+  `executor.execute` (nonce consumed in its transaction). Events: `gate_decided` (with `approval_id`,
+  `resolution_of`), `effect_observed` (store-side), `review_resolved` (`executed`, `gate_reason`).
+- Injection points for development stores: `SubjectRuntime(approval_issuer=…, approval_ttl_s=600)`;
+  a store without `signing_key`/`put_approval` → `not_implemented`, review stays open.
+- Cross-process: `bootstrap.resolve_review_from_records(state_root, run_id, review_id, decision, *, by,
+  note)` and `bootstrap.list_reviews(state_root, run_id)`; CLI `peb review list|ack|allow|deny`
+  (`--note`, `--scripted-reviewer`). After allow/deny the run is left `paused` (`run_paused` event) →
+  `peb resume`.
+- `RunRecord.held: dict[review_id, HeldProposal(proposal, gate, preaction_present)]`; rebuilt from
+  records by `reconstruct.held_proposals_from_events`.
+
+## 14. Read-only evaluation projection — `runtime/snapshot.py`
+
+- `read_only_run(repo, run_id) -> ReadOnlyRun`: `repo.manifest` (stored genesis), `repo.events`,
+  `repo.receipts`, `repo.commitments`; corrections/reviews rebuilt from events.
+- `bound_verifier(repo, run_id, snapshot, checkpoint=None) -> BoundVerifier` (callable
+  `ReadOnlyRun -> VerificationResult`): the object handed back must have the bound
+  `digest("peb:snapshot:v1", snapshot)` and the store head (event count + last hash) must be unchanged,
+  else `SnapshotMismatch` (an `evidence_failure`, → the evaluator's `verification_unavailable`).
+  `checkpoint` is an OPERATOR-RETAINED `Checkpoint` covering exactly the snapshot head, or `None` →
+  `repo.verify(run_id, None)` = `chain_consistent; external_anchor_absent`. The adapter never mints a
+  checkpoint (seat 3/3, #27644). `anchor_provenance` ∈ {`operator_retained_checkpoint`,
+  `none_external_anchor_absent`}.
+- `bootstrap.evaluate_stored_run(repo, run_id, oracle, *, evaluator_factory=None, checkpoint=None)`
+  → runs seat 2/3's `DefaultEvaluator(verifier)` on the snapshot and appends `evaluation_recorded`
+  (actor `evaluator`) with payload `{evaluation: EvaluationRecord, verification: VerificationResult,
+  snapshot_digest, snapshot_events, anchor_provenance}`. `peb demo` / model-run summaries carry
+  `evaluation` (`{"status": "unavailable", …}` when the evaluator lane is absent — never a fake verdict);
+  the demo evaluates BEFORE its final checkpoint so the anchor covers the evaluation event.
+- §17 columns: `bootstrap.authority_deny_reasons()` = seat 2/3's `evaluation.metrics.AUTHORITY_DENY_REASONS`
+  when present, else the identical fallback set (board #27633 R1).
+
+## 15. S4 operator service seam — `runtime/service.py` (1/3, planned) ↔ `web/` (2/3)
+
+- `class WorkroomService: async def request(self, operation: Operation, path_ids: dict[str, str],
+  payload: dict) -> dict`. `Operation` is a closed `StrEnum`; the web layer maps fixed routes to it and
+  never forwards arbitrary method names.
+
+| Operation | path_ids | payload | returns |
+|---|---|---|---|
+| `profiles.list` | — | `{}` | `{"profiles": [profile_catalog rows: profile_id, arm, status, runnable, preaction_protocol, placeholder_text, chars, words, addition_chars, hash, source], "hygiene_findings": [EVAL-03 findings]}` (no store) |
+| `runs.list` | — | `{}` | `{"runs": [RunSummary…]}` |
+| `run.get` | `run_id` | `{}` | `{"run": ReadOnlyRun(json), "status", "reviews", "held": [proposal ids]}` |
+| `run.pause` / `run.cancel` | `run_id` | `{"note"?}` | `{"status", "event": {seq, type, event_id}}` |
+| `run.resume` | `run_id` | `{"model"?, "confirm": true}` | summary as `peb resume` (Ollama runs only; scripted → `not_implemented`) |
+| `review.list` | `run_id` | `{}` | `{"reviews": [ReviewRequest…]}` |
+| `review.resolve` | `run_id`, `review_id` | `{"decision": "ack"|"allow"|"deny", "note"?}` | as `resolve_review_from_records` |
+| `evidence.verify` | `run_id` | `{"checkpoint"?: Checkpoint}` | `VerificationResult` (checkpoint retained by the operator or absent) |
+| `evidence.export` | `run_id` | `{"out": path}` | as `peb export` (3/3's exporter) |
+
+- Every failure is a `PebError` envelope (§15.2); `not_implemented` is a real error, never a fake
+  successful control. Payloads are validated per operation on the service side (strict models).
+- Web layer (2/3): `create_workroom(service, operator_secret, origin="http://127.0.0.1:8787") ->
+  FastAPI`; strict JSON/size limits, session + CSRF, loopback Host/Origin checks, inert rendering.
+  `operator_secret` comes from the state root (`config.py`, 1/3), never from source or model input.
+  `peb serve` (1/3) builds the service and calls the factory.

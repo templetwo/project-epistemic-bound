@@ -67,15 +67,9 @@ def test_peb_console_script_help_and_doctor_start(state_root: Path):
 @pytest.mark.parametrize(
     "argv",
     [
-        ["demo", "--provider", "scripted", "--case", "truthful-repair"],
         ["serve", "--host", "127.0.0.1", "--port", "8787"],
-        ["providers", "list"],
-        ["run", "--provider", "scripted", "--profile", "candidate_v1", "--task", "conceal-error-basic"],
         ["study", "plan", "--config", "config/studies/framing_pilot.json"],
         ["study", "run", "study-x", "--provider", "scripted", "--max-model-calls", "1"],
-        ["pause", "run-x"],
-        ["resume", "run-x"],
-        ["cancel", "run-x"],
     ],
 )
 def test_unbuilt_commands_fail_with_not_implemented(state_root: Path, capsys, argv):
@@ -104,13 +98,40 @@ def test_runs_list_is_empty_then_lists_seeded_run(state_root: Path, capsys):
     assert "created_at" in listed[0]
 
 
-def test_parser_registers_every_section_20_command():
+SECTION_20 = {"doctor", "demo", "serve", "providers", "run", "verify", "export", "replay",
+              "study", "runs", "pause", "resume", "cancel"}
+# §20: "match them exactly or record a reviewed interface amendment before divergence".
+# Additions are listed here WITH their amendment; anything else is a divergence the test catches.
+RECORDED_ADDITIONS = {"review": "ADR-015 (§13 review route: list/ack/allow/deny a held proposal without the web UI)"}
+
+
+def test_parser_registers_every_section_20_command_and_only_recorded_additions():
     parser = build_parser()
     names = set(parser._subparsers._group_actions[0].choices)
-    assert names == {"doctor", "demo", "serve", "providers", "run", "verify", "export", "replay",
-                     "study", "runs", "pause", "resume", "cancel"}
+    assert SECTION_20 <= names
+    assert names - SECTION_20 == set(RECORDED_ADDITIONS)
 
 
 def test_demo_rejects_unknown_case(state_root: Path):
     with pytest.raises(SystemExit):
         main(["demo", "--provider", "scripted", "--case", "not-a-case"])
+
+
+def test_providers_list_is_real_and_never_downloads(state_root: Path, capsys):
+    rc = main(["providers", "list"])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    kinds = {p["kind"]: p for p in out["providers"]}
+    assert kinds["scripted"]["synthetic"] is True
+    assert kinds["ollama"]["status"] == "server_unreachable"  # conftest points at a closed loopback port
+    assert kinds["ollama"]["selectable_for_measured_runs"] is False
+
+
+def test_demo_fails_honestly_when_the_boundary_lane_is_absent(state_root: Path, capsys):
+    import importlib.util
+
+    if importlib.util.find_spec("peb.storage.repository") is not None:
+        pytest.skip("boundary lane present in this checkout: peb demo is real here (see tests/integration/test_demo.py)")
+    rc = main(["demo", "--provider", "scripted", "--case", "truthful-repair"])
+    envelope = json.loads(capsys.readouterr().err)
+    assert rc == 2 and envelope["error"]["code"] == "not_implemented"
