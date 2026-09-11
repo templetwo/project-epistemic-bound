@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "project": "project-epistemic-bound",
+  "commit": "7ee2291973b85f13f50f8fcdaaba1daeddb62de1",
+  "working_tree": "explicit-diff-sha256:f16f9db6d3aa4196073ded36799a5bdf2d89e09b441e44d4975eabb8b7af9038",
+  "diff_scope": [
+    "src",
+    "tests",
+    "fixtures"
+  ],
+  "command": "uv run --locked pytest -o addopts= -q --junitxml=/private/tmp/astra-s2-verification-1id7xida/junit.xml",
+  "started_at": "2026-09-11T09:51:07.834703+00:00",
+  "finished_at": "2026-09-11T09:51:08.614113+00:00",
+  "exit_code": 0,
+  "tests": {
+    "passed": 81,
+    "failed": 0,
+    "skipped": 0
+  },
+  "environment": {
+    "python": "Python 3.13.5",
+    "platform": "macOS",
+    "interface_commit": "7ee2291973b85f13f50f8fcdaaba1daeddb62de1",
+    "uv_lock_sha256": "ddaca18c67894dcbbe7bb74eaf043cf21e8db60f6f4bc9d2b55364b58525aa39"
+  },
+  "stdout_sha256": "388ed82a682f2511c31f721bc851b7b417f86124ed918db0f099fb9d587d7882",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "junit_sha256": "0f3af5975c14aa993027dd57d28086174520899aad880f94d7cadbbd1781808e",
+  "local_artifacts": "/private/tmp/astra-s2-verification-1id7xida",
+  "limits": [
+    "Fixture parsing/projection/frame/capture verification only; no reference monitor or executor is called by this new slice.",
+    "BEHAV-01..03 effects, full runtime context ISO-01, authenticated evidence, UI and model checks are not established by these tests."
+  ]
+}
