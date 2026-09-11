@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "project": "project-epistemic-bound",
+  "commit": "993a3af69c5a31fc7ff57c5d26af33b46b2eab56",
+  "working_tree": "993a3af plus docs/receipts and docs/lanes/grok.md in the follow-up commit",
+  "command": "uv run --locked pytest -o addopts='' -q",
+  "started_at": "2026-09-11T09:56:47Z",
+  "finished_at": "2026-09-11T09:56:48Z",
+  "exit_code": 0,
+  "tests": {"passed": 81, "failed": 0, "skipped": 0},
+  "environment": "CPython 3.13.5; uv locked; ruff check src/peb tests clean",
+  "stdout_sha256": "07535c554a0c9878f831bf264d74fe08b5afb07c7d1bcd28dd3b3733fefc5e79",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "limits": [
+    "peb demo / subject runtime loop / UI not implemented (1/3 and 2/3)",
+    "pause/resume/cancel CLI still not_implemented (repository.set_run_status exists)",
+    "LIVE-01 not run"
+  ]
+}
