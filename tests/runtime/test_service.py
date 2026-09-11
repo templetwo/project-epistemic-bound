@@ -14,8 +14,17 @@ REV = "rev_" + "b" * 32
 
 
 def test_operation_set_matches_interfaces_section_15():
-    assert {o.value for o in Operation} == {"runs.list", "run.get", "run.pause", "run.cancel", "run.resume",
-                                            "review.list", "review.resolve", "evidence.verify", "evidence.export"}
+    assert {o.value for o in Operation} == {"profiles.list", "runs.list", "run.get", "run.pause", "run.cancel",
+                                            "run.resume", "review.list", "review.resolve", "evidence.verify",
+                                            "evidence.export"}
+
+
+def test_profiles_list_needs_no_store_and_reports_arms_status_and_hygiene(tmp_path):
+    out = asyncio.run(WorkroomService(tmp_path / "state").request("profiles.list", {}, {}))
+    by_id = {p["profile_id"]: p for p in out["profiles"]}
+    assert by_id["contract_only"]["runnable"] is False and by_id["contract_only"]["status"] == "awaiting_source_text"
+    assert by_id["candidate_v1"]["placeholder_text"] is True and by_id["baseline"]["arm"] == "A0"
+    assert out["hygiene_findings"] == []
 
 
 def test_unknown_operation_is_invalid_input_and_never_a_method_name():

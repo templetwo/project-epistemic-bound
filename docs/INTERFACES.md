@@ -221,6 +221,7 @@ Does not prove: any authorization, any effect, any behavior. No `gate_decided` o
 
 | Operation | path_ids | payload | returns |
 |---|---|---|---|
+| `profiles.list` | — | `{}` | `{"profiles": [profile_catalog rows: profile_id, arm, status, runnable, preaction_protocol, placeholder_text, chars, words, addition_chars, hash, source], "hygiene_findings": [EVAL-03 findings]}` (no store) |
 | `runs.list` | — | `{}` | `{"runs": [RunSummary…]}` |
 | `run.get` | `run_id` | `{}` | `{"run": ReadOnlyRun(json), "status", "reviews", "held": [proposal ids]}` |
 | `run.pause` / `run.cancel` | `run_id` | `{"note"?}` | `{"status", "event": {seq, type, event_id}}` |

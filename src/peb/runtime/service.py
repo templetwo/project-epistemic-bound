@@ -25,6 +25,7 @@ from ..errors import ErrorCode, PebError
 
 
 class Operation(StrEnum):
+    profiles_list = "profiles.list"
     runs_list = "runs.list"
     run_get = "run.get"
     run_pause = "run.pause"
@@ -66,12 +67,14 @@ class ExportPayload(StrictModel):
 
 
 PAYLOADS: dict[Operation, type[StrictModel]] = {
+    Operation.profiles_list: EmptyPayload,
     Operation.runs_list: EmptyPayload, Operation.run_get: EmptyPayload,
     Operation.run_pause: NotePayload, Operation.run_cancel: NotePayload, Operation.run_resume: ResumePayload,
     Operation.review_list: EmptyPayload, Operation.review_resolve: ReviewResolvePayload,
     Operation.evidence_verify: VerifyPayload, Operation.evidence_export: ExportPayload,
 }
 PATH_IDS: dict[Operation, tuple[str, ...]] = {
+    Operation.profiles_list: (),
     Operation.runs_list: (), Operation.run_get: ("run_id",), Operation.run_pause: ("run_id",),
     Operation.run_cancel: ("run_id",), Operation.run_resume: ("run_id",), Operation.review_list: ("run_id",),
     Operation.review_resolve: ("run_id", "review_id"), Operation.evidence_verify: ("run_id",),
@@ -159,6 +162,14 @@ class WorkroomService:
             raise PebError(ErrorCode.invalid_input, "unknown run_id", {"run_id": run_id})
 
     # -- operations -------------------------------------------------------------------------------
+
+    def _profiles_list(self, ids: dict[str, str], body: StrictModel) -> dict[str, Any]:
+        """§15.1 `GET /api/profiles`: versioned candidate and control configurations with source/status labels,
+        plus the EVAL-03 hygiene findings so the UI can show why an arm is or is not runnable. No store."""
+        from .profiles import check_arm_hygiene, profile_catalog
+
+        return {"profiles": profile_catalog(), "hygiene_findings": check_arm_hygiene(),
+                "note": "a profile is configuration, not law (ADR-006); [PLACEHOLDER] text is never the source contract"}
 
     def _runs_list(self, ids: dict[str, str], body: StrictModel) -> dict[str, Any]:
         repo = self._open()
