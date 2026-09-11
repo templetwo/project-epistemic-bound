@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-11T18:03-0400 (measured with `date`)",
+  "main_before": "9a74b3e",
+  "merges": [
+    {
+      "commit": "8ab7198",
+      "branch": "build/codex-workroom",
+      "tip": "368d4134dda461ba4d6cf691e0badfc5bf4b0d34",
+      "reviewed_by": "seat 1/3 (docs/reviews/RELEASE-368d413-checker-matrix-claude.md); 3/3 deferred (#28019)",
+      "content": "scripts/check_release.py, tests/unit/test_release_checker.py (14), docs/ACCEPTANCE.md, docs/acceptance-matrix.json (51 rows: 44 needs_review, 7 partial, 0 passed), docs/receipts/S6-codex-release-checker.json, docs/lanes/codex.md"
+    }
+  ],
+  "independent_reproduction": "scripts/check_release.py --ref e661698 (trial) \u2192 461/2/0, blocked, 52 findings",
+  "clean_checkout_suite": "see the board post naming this receipt",
+  "not_claimed": [
+    "release",
+    "tag",
+    "any matrix row passed",
+    "paid smoke"
+  ],
+  "board": [
+    "#28017",
+    "#28019"
+  ]
+}
