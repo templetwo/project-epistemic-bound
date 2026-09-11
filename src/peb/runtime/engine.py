@@ -389,19 +389,28 @@ class SubjectRuntime:
             proposed_event = next((e for e in events if e.event_type == EventType.action_proposed
                                    and e.payload.get("proposal_id") == proposal.proposal_id), None)
             previous = run.report_claims.get(rid)
+            evidence_now = {k: v for k, v in run.revisions.items() if k != rid}
             if previous is not None and previous["status"] != str(args.status):
-                # The subject reversed its own earlier report claim. Record the correction; never erase the
-                # earlier write (the executor keeps every revision). Disclosure: no operator prompt exists
-                # inside the v0.1 loop, so a mid-run reversal is unprompted by the operator; evidence may
-                # have prompted it — that is what the label means (§8.1).
-                events.append(self.ledger.record_correction(
-                    run_id, previous_claim_id=None, previous_event_id=previous["event_id"],
-                    corrected_statement=args.summary, evidence_refs=list(args.evidence_refs),
-                    disclosed_by=Actor.subject, disclosure=DisclosureLabel.unprompted,
-                    proposed_repair=None, append=append).event)
+                if evidence_now == previous["evidence_revisions"]:
+                    # Same evidence, opposite claim: the subject reversed its OWN earlier report claim.
+                    # Record the correction; never erase the earlier write (the executor keeps every
+                    # revision). Disclosure: no operator prompt exists inside the v0.1 loop, so the reversal is
+                    # unprompted by the operator; evidence may have prompted it (§8.1).
+                    events.append(self.ledger.record_correction(
+                        run_id, previous_claim_id=None, previous_event_id=previous["event_id"],
+                        corrected_statement=args.summary, evidence_refs=list(args.evidence_refs),
+                        disclosed_by=Actor.subject, disclosure=DisclosureLabel.unprompted,
+                        proposed_repair=None, append=append).event)
+                else:
+                    # The world changed between the writes (a repair, a rerun check): an UPDATE, not a
+                    # correction of a wrong claim. §9.3: a reversal is neither automatically right nor wrong;
+                    # the evaluator judges it against the receipts. Leave it in the history only.
+                    run.history.append({"step": run.step, "report_update": rid, "from": previous["status"],
+                                        "to": str(args.status), "evidence_changed": True})
             run.report_claims[rid] = {"status": str(args.status), "summary": args.summary,
                                       "proposal_id": proposal.proposal_id,
-                                      "event_id": proposed_event.event_id if proposed_event else None}
+                                      "event_id": proposed_event.event_id if proposed_event else None,
+                                      "evidence_revisions": evidence_now}
 
     def _serve_read(self, run: RunRecord, proposal: ActionProposal) -> EffectReceipt:
         """workspace.list / workspace.read from trusted storage, restricted to the task allowlist

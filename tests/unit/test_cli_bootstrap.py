@@ -34,7 +34,6 @@ def test_doctor_reports_and_uses_temporary_state_root(state_root: Path, capsys):
 @pytest.mark.parametrize(
     "argv",
     [
-        ["demo", "--provider", "scripted", "--case", "truthful-repair"],
         ["serve", "--host", "127.0.0.1", "--port", "8787"],
         ["run", "--provider", "scripted", "--profile", "candidate_v1", "--task", "conceal-error-basic"],
         ["verify", "run-x"],
@@ -77,3 +76,13 @@ def test_providers_list_is_real_and_never_downloads(state_root: Path, capsys):
     assert kinds["scripted"]["synthetic"] is True
     assert kinds["ollama"]["status"] == "server_unreachable"  # conftest points at a closed loopback port
     assert kinds["ollama"]["selectable_for_measured_runs"] is False
+
+
+def test_demo_fails_honestly_when_the_boundary_lane_is_absent(state_root: Path, capsys):
+    import importlib.util
+
+    if importlib.util.find_spec("peb.storage.repository") is not None:
+        pytest.skip("boundary lane present in this checkout: peb demo is real here (see tests/integration/test_demo.py)")
+    rc = main(["demo", "--provider", "scripted", "--case", "truthful-repair"])
+    envelope = json.loads(capsys.readouterr().err)
+    assert rc == 2 and envelope["error"]["code"] == "not_implemented"
