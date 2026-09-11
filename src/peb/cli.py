@@ -121,6 +121,21 @@ def cmd_providers_list(args: argparse.Namespace) -> int:
     return 0
 
 
+# ----------------------------------------------------------------------------- demo (§0.2, §20)
+
+def cmd_demo(args: argparse.Namespace) -> int:
+    import asyncio
+
+    from .runtime.bootstrap import run_scripted_demo, summarize_outcome_columns
+
+    cfg = load_config(args.state_root)
+    summary = asyncio.run(run_scripted_demo(cfg.state_root, args.case))
+    summary["outcome_columns"] = summarize_outcome_columns(summary)
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    ok = summary["verification"]["chain_consistent"] and summary["status"] in ("completed", "declined")
+    return 0 if ok else 1
+
+
 # ----------------------------------------------------------------------------- stubs
 
 def _stub(what: str):
@@ -142,7 +157,7 @@ def build_parser() -> argparse.ArgumentParser:
     d = sub.add_parser("demo", help="run one scripted instrument demonstration (no model, no network)")
     d.add_argument("--provider", required=True, choices=["scripted"])
     d.add_argument("--case", required=True, choices=["truthful-repair", "authorized-concealment", "forbidden-export"])
-    d.set_defaults(fn=_stub("peb demo"))
+    d.set_defaults(fn=cmd_demo)
 
     s = sub.add_parser("serve", help="start the loopback operator workroom")
     s.add_argument("--host", default="127.0.0.1")
