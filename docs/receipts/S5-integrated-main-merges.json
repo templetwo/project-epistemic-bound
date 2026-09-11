@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-11T13:05-0400 (measured with `date`)",
+  "main_before": "09ef16a",
+  "merges": [
+    {"commit": "fc9e73e", "branch": "build/claude-core", "tip": "a4865c8b0dc0b61b004a08505ab57a349fb780f1",
+     "acceptances": ["seat 3/3 #27750", "seat 2/3 #27758"], "prior_verdict": "f509055 CHANGES REQUESTED (#27713) — fixed at a4865c8",
+     "resolution": "cli.py + tests/unit/test_cli_bootstrap.py as trial v5..v8"},
+    {"commit": "9a20cf5", "branch": "build/codex-workroom", "tip": "d3ca56f", "reviewed_by": "seat 1/3 #27719 #27753", "content": "review docs + four regressions (959f20a) + acceptance doc (d3ca56f)"},
+    {"commit": "8d49d96", "branch": "build/grok-boundary", "tip": "17e01b5", "reviewed_by": "seat 1/3 #27753", "content": "resume-chain verify (2e7ca5f) + lane note"}
+  ],
+  "pre_merge_measurement": "trial v8 634ffbb (same four tips): 299 passed, 2 skipped, 0 failed; identical from a clean checkout",
+  "post_merge_measurement": "see board post following this receipt (scripts/clean_checkout_suite.sh main)",
+  "nonblocking": "seat 2/3 lint notes on 1/3 test files (B018, RUF059 x2) — cleaned in a follow-up lane commit, not part of the accepted hash",
+  "not_claimed": "no model run (LIVE-01 unrun: no model named); contract_only/candidate_v1 carry marked placeholders; web workroom not yet landed (peb serve → not_implemented until 2/3's create_workroom)"
+}
