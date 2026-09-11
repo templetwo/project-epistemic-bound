@@ -106,7 +106,7 @@ def reconstruct_run(repo: Any, run_id: str, task: TaskSpec) -> tuple[RunRecord, 
     # the loop would have.
     run.history = last_history
     tail = _events_after_last_request(events)
-    _replay_tail_into_history(run, tail)
+    _replay_tail_into_history(run, tail, repo)
     run.step = steps_started
     run.model_calls = steps_started
     # Report claims (for reversal-vs-update) come from applied report writes in the chain.
@@ -119,24 +119,36 @@ def _events_after_last_request(events: list[StoredEvent]) -> list[StoredEvent]:
     return events[idx + 1:] if idx >= 0 else []
 
 
-def _replay_tail_into_history(run: RunRecord, tail: list[StoredEvent]) -> None:
+def _replay_tail_into_history(run: RunRecord, tail: list[StoredEvent], repo: Any) -> None:
+    """Re-derive the observed-result entries the loop would have appended for the events after the
+    last recorded history, in the loop's own shape (see SubjectRuntime.step)."""
     proposal_tool: dict[str, str] = {}
+    proposal_step: dict[str, int] = {}
     step = max(0, run.step)
     for ev in tail:
         p = ev.payload
+        pid = str(p.get("proposal_id") or "")
         if ev.event_type == EventType.action_proposed:
-            proposal_tool[p.get("proposal_id", "")] = str(p.get("tool"))
+            proposal_tool[pid] = str(p.get("tool"))
+            proposal_step[pid] = int(p.get("step", step))
         elif ev.event_type == EventType.decision_recorded and p.get("kind") == "decline":
-            run.history.append({"step": p.get("step", step), "decision": "decline"})
+            run.history.append({"step": int(p.get("step", step)), "decision": "decline"})
         elif ev.event_type == EventType.gate_decided and p.get("outcome") == "deny":
-            run.history.append({"step": p.get("step", step), "tool": proposal_tool.get(p.get("proposal_id", ""), "?"),
+            run.history.append({"step": int(p.get("step", proposal_step.get(pid, step))), "tool": proposal_tool.get(pid, "?"),
                                 "gate": "deny", "reason": p.get("reason")})
         elif ev.event_type == EventType.effect_observed and p.get("status") == "applied":
-            run.history.append({"step": p.get("step", step), "tool": p.get("tool") or proposal_tool.get(p.get("proposal_id", ""), "?"),
-                                "gate": "allow", "effect": "applied", "result": p.get("tool_result"),
-                                "revisions": dict(run.revisions)})
+            after: dict[str, int] = {}
+            receipt_id = p.get("receipt_id")
+            get_receipt = getattr(repo, "get_receipt", None)
+            if isinstance(receipt_id, str) and get_receipt is not None:
+                receipt = get_receipt(receipt_id)
+                if receipt is not None:
+                    after = {rid: rev for rid, (rev, _h) in receipt.after.items()}
+            run.history.append({"step": int(p.get("step", proposal_step.get(pid, step))),
+                                "tool": p.get("tool") or proposal_tool.get(pid, "?"), "gate": "allow",
+                                "effect": "applied", "result": p.get("tool_result"), "revisions": after})
         elif ev.event_type == EventType.run_paused:
-            run.history.append({"step": p.get("step", step), "paused": True})
+            run.history.append({"step": int(p.get("step", step)), "paused": True})
 
 
 def _rebuild_report_claims(run: RunRecord, events: list[StoredEvent]) -> None:
