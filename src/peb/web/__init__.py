@@ -1,1 +1,4 @@
-"""peb.web — see docs/INTERFACES.md for the frozen contracts and lane ownership."""
+"""Local operator workroom."""
+from .app import create_workroom
+
+__all__ = ["create_workroom"]

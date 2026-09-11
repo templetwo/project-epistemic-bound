@@ -111,8 +111,8 @@ See [ADR-015](decisions/ADR-015-review-resolution-and-peb-review.md).
 ## Current limits
 
 The integrated suite measured 299 passed and 2 skips. This does not complete
-all BUILD_SPEC stages. The web factory is not yet integrated: `peb serve`
-returns `not_implemented`, and UI-01 has no passing receipt. Five scenario
+all BUILD_SPEC stages. The local web factory is available through `peb serve`; see
+[workroom usage and tested scope](WORKROOM.md). Full UI-01 remains partial. Five scenario
 families and the bounded study planner remain work to complete. LIVE-01 is not
 run; it needs an explicitly selected installed local model. Contract-only A2
 awaits exact source text; the unmatched placebo is not a finished comparison arm.

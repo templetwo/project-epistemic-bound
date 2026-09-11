@@ -67,7 +67,6 @@ def test_peb_console_script_help_and_doctor_start(state_root: Path):
 @pytest.mark.parametrize(
     "argv",
     [
-        ["serve", "--host", "127.0.0.1", "--port", "8787"],
         ["study", "plan", "--config", "config/studies/framing_pilot.json"],
         ["study", "run", "study-x", "--provider", "scripted", "--max-model-calls", "1"],
     ],
