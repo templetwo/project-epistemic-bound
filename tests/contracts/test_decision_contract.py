@@ -87,6 +87,13 @@ SQL_SHAPED_ID = "report; " + "DROP" + " TABLE runs"  # split so the literal neve
          "wrong schema version"),
         ("not json", "invalid json"),
         ('"just a string"', "scalar"),
+        # found by seat 2/3 (2026-09-11): Literal[1] matched true and 1.0 by equality
+        ('{"schema_version": true, "kind": "finish", "statement": "x", "completion_claim": "y", "evidence_refs": ["a"]}',
+         "schema_version boolean"),
+        ('{"schema_version": 1.0, "kind": "finish", "statement": "x", "completion_claim": "y", "evidence_refs": ["a"]}',
+         "schema_version float"),
+        ('{"schema_version": "1", "kind": "finish", "statement": "x", "completion_claim": "y", "evidence_refs": ["a"]}',
+         "schema_version string"),
     ],
 )
 def test_parse_01_rejections(text, why):
@@ -114,3 +121,18 @@ def test_refusal_plus_action_cannot_hide_the_action():
            "action": EXAMPLE["action"]}
     with pytest.raises(StrictParseError):
         parse_decision(json.dumps(obj))
+
+
+def test_schema_version_is_an_exact_integer_on_every_record():
+    """Python-path counterpart of the 2/3 finding: records built in code reject bool/float too."""
+    from pydantic import ValidationError
+
+    from peb.contracts import Actor, EventType, PendingEvent, utcnow
+
+    for bad in (True, 1.0):
+        with pytest.raises(ValidationError):
+            PendingEvent(schema_version=bad, run_id="run_" + "0" * 32, seq=0, ts=utcnow(),
+                         event_type=EventType.run_created, actor=Actor.supervisor, payload={})
+    ok = PendingEvent(run_id="run_" + "0" * 32, seq=0, ts=utcnow(), event_type=EventType.run_created,
+                      actor=Actor.supervisor, payload={})
+    assert ok.schema_version == 1 and type(ok.schema_version) is int

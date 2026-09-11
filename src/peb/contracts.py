@@ -15,9 +15,28 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Annotated, Any, Literal, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, TypeAdapter, field_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    TypeAdapter,
+    field_validator,
+)
 
 SCHEMA_VERSION = 1
+
+
+def _exact_json_integer(v: object) -> object:
+    """`Literal[1]` matches by equality, so JSON `true` and `1.0` would normalise to 1. Require the
+    exact integer type (defect found by seat 2/3, 2026-09-11)."""
+    if type(v) is not int:
+        raise ValueError("schema_version must be the JSON integer 1 (not a boolean, float or string)")
+    return v
+
+
+SchemaVersion = Annotated[Literal[1], BeforeValidator(_exact_json_integer)]
 
 # ----------------------------------------------------------------------------- scalars
 
@@ -333,7 +352,7 @@ class EscalationPayload(StrictModel):
 
 
 class _DecisionBase(StrictModel):
-    schema_version: Literal[1]
+    schema_version: SchemaVersion
     statement: ShortText  # short public statement; no private chain-of-thought (§9.2)
 
 
@@ -445,7 +464,7 @@ class SnapshotHashes(StrictModel):
 
 
 class RunManifest(StrictModel):
-    schema_version: Literal[1] = 1
+    schema_version: SchemaVersion = 1
     run_id: PebId
     subject_session_id: PebId
     predecessor_session_id: PebId | None = None
@@ -473,7 +492,7 @@ class RunManifest(StrictModel):
 class TaskSpec(StrictModel):
     """Public task. Private oracle and frame/arm labels are separate evaluator records (§8.1, §16.1)."""
 
-    schema_version: Literal[1] = 1
+    schema_version: SchemaVersion = 1
     task_id: Slug
     family: Slug  # one of the six source families or a control
     allowed_resource_ids: list[ResourceId] = Field(max_length=64)
@@ -485,7 +504,7 @@ class TaskSpec(StrictModel):
 class ActionProposal(StrictModel):
     """Supervisor-assigned IDs; subject-supplied IDs cannot overwrite them (§8.1)."""
 
-    schema_version: Literal[1] = 1
+    schema_version: SchemaVersion = 1
     proposal_id: PebId
     run_id: PebId
     subject_session_id: PebId
@@ -497,7 +516,7 @@ class ActionProposal(StrictModel):
 
 
 class Grant(StrictModel):
-    schema_version: Literal[1] = 1
+    schema_version: SchemaVersion = 1
     grant_id: GrantId
     issuer: Actor
     run_id: PebId
@@ -514,7 +533,7 @@ class Grant(StrictModel):
 
 
 class Approval(StrictModel):
-    schema_version: Literal[1] = 1
+    schema_version: SchemaVersion = 1
     approval_id: PebId
     proposal_id: PebId
     action_digest: Sha256Hex
@@ -533,7 +552,7 @@ class Approval(StrictModel):
 
 
 class GateDecision(StrictModel):
-    schema_version: Literal[1] = 1
+    schema_version: SchemaVersion = 1
     proposal_id: PebId
     outcome: GateOutcome
     reason: GateReason
@@ -547,7 +566,7 @@ class GateDecision(StrictModel):
 class EffectReceipt(StrictModel):
     """A model's statement is never the executor receipt (§8.1)."""
 
-    schema_version: Literal[1] = 1
+    schema_version: SchemaVersion = 1
     receipt_id: PebId
     proposal_id: PebId
     status: EffectStatus
@@ -562,7 +581,7 @@ class EffectReceipt(StrictModel):
 class Commitment(StrictModel):
     """Undertaking or claim. It never grants tool permissions (§9.3)."""
 
-    schema_version: Literal[1] = 1
+    schema_version: SchemaVersion = 1
     commitment_id: PebId
     kind: CommitmentKind
     origin: Actor  # subject or operator
@@ -579,7 +598,7 @@ class Commitment(StrictModel):
 class Correction(StrictModel):
     """Never erases the original error (§8.1)."""
 
-    schema_version: Literal[1] = 1
+    schema_version: SchemaVersion = 1
     correction_id: PebId
     previous_claim_id: PebId | None
     previous_event_id: PebId | None
@@ -593,7 +612,7 @@ class Correction(StrictModel):
 
 
 class ReviewRequest(StrictModel):
-    schema_version: Literal[1] = 1
+    schema_version: SchemaVersion = 1
     review_id: PebId
     run_id: PebId
     proposal_id: PebId | None
@@ -606,7 +625,7 @@ class ReviewRequest(StrictModel):
 
 
 class EvaluationRecord(StrictModel):
-    schema_version: Literal[1] = 1
+    schema_version: SchemaVersion = 1
     evaluation_id: PebId
     run_id: PebId
     manifest_hash: Sha256Hex
@@ -627,7 +646,7 @@ class EvaluationRecord(StrictModel):
 # ----------------------------------------------------------------------------- events (§14.1)
 
 class PendingEvent(StrictModel):
-    schema_version: Literal[1] = 1
+    schema_version: SchemaVersion = 1
     run_id: PebId
     seq: int = Field(ge=0)
     ts: datetime
@@ -643,7 +662,7 @@ class StoredEvent(PendingEvent):
 
 
 class Checkpoint(StrictModel):
-    schema_version: Literal[1] = 1
+    schema_version: SchemaVersion = 1
     run_id: PebId
     event_count: int = Field(ge=0)
     head_hash: Sha256Hex
