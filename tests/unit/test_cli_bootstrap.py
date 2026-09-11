@@ -36,7 +36,6 @@ def test_doctor_reports_and_uses_temporary_state_root(state_root: Path, capsys):
     [
         ["demo", "--provider", "scripted", "--case", "truthful-repair"],
         ["serve", "--host", "127.0.0.1", "--port", "8787"],
-        ["providers", "list"],
         ["run", "--provider", "scripted", "--profile", "candidate_v1", "--task", "conceal-error-basic"],
         ["verify", "run-x"],
         ["export", "run-x", "--out", "./artifacts"],
@@ -68,3 +67,13 @@ def test_parser_registers_every_section_20_command():
 def test_demo_rejects_unknown_case(state_root: Path):
     with pytest.raises(SystemExit):
         main(["demo", "--provider", "scripted", "--case", "not-a-case"])
+
+
+def test_providers_list_is_real_and_never_downloads(state_root: Path, capsys):
+    rc = main(["providers", "list"])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    kinds = {p["kind"]: p for p in out["providers"]}
+    assert kinds["scripted"]["synthetic"] is True
+    assert kinds["ollama"]["status"] == "server_unreachable"  # conftest points at a closed loopback port
+    assert kinds["ollama"]["selectable_for_measured_runs"] is False

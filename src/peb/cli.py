@@ -105,6 +105,22 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0 if ready_for_scripted else 1
 
 
+# ----------------------------------------------------------------------------- providers list
+
+def cmd_providers_list(args: argparse.Namespace) -> int:
+    """Configured/available providers. Reads /api/tags only; never pulls a model (§20)."""
+    cfg = load_config(args.state_root)
+    ollama: dict[str, Any] = _probe_ollama(cfg)
+    ollama["selectable_for_measured_runs"] = ollama["status"] == "ok"
+    report = {"providers": [
+        {"kind": "scripted", "status": "available", "synthetic": True,
+         "note": "deterministic fixtures; never reportable as a measured model result"},
+        {**ollama, "note": "explicit endpoint and model id; no automatic pull, no fallback"},
+    ]}
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0
+
+
 # ----------------------------------------------------------------------------- stubs
 
 def _stub(what: str):
@@ -134,7 +150,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(fn=_stub("peb serve"))
 
     pr = sub.add_parser("providers", help="provider commands").add_subparsers(dest="providers_cmd", required=True)
-    pr.add_parser("list", help="show configured/available providers; never downloads a model").set_defaults(fn=_stub("peb providers list"))
+    pr.add_parser("list", help="show configured/available providers; never downloads a model").set_defaults(fn=cmd_providers_list)
 
     r = sub.add_parser("run", help="run a fresh subject session through the runtime")
     r.add_argument("--provider", required=True, choices=["scripted", "ollama"])
