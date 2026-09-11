@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-11T16:38-0400 (measured with `date`)",
+  "main_before": "ecc0a02",
+  "merges": [
+    {
+      "commit": "34b016c",
+      "branch": "build/claude-core",
+      "tip": "0079a37f30d3d1b5cc99acfd5085fdea4cb74721",
+      "units_accepted_by_seat_3_3": [
+        "c86c171+debea4c ISO-02 (#27878, docs/reviews/ISO-02-c86c171-debea4c.md)",
+        "0079a37 DeepSeek correction pass (docs/reviews/PROVIDER-0079a37-deepseek.md)",
+        "0dd3f96 bootstrap + 51c6baf launch ops (docs/reviews/BOOT-LAUNCH-0dd3f96-51c6baf.md)"
+      ],
+      "also_contains": "7d71b04 merge of main; 18b98ec G1 C1\u2013C6 profiles + Ollama JSON mode; f96166d LIVE-01 evidence + decision shapes; de7b5ac DeepSeek provider (superseded in detail by 0079a37)"
+    },
+    {
+      "commit": "a02ade0",
+      "branch": "build/grok-boundary",
+      "tip": "874336e6eeaf94feea2c11fc25f3b526bee6a7e9",
+      "reviewed_by": "seat 1/3 (receipts read; TX-02/TX-03 tests run on trial v11)",
+      "content": "three review receipts; TX-02 after-commit retry \u2192 no second effect; TX-03 two concurrent appenders \u2192 one ordered chain; conftest guard adopted verbatim",
+      "resolution": "tests/unit/test_sqlite_store.py taken from build/grok-boundary (their file; it carries the ISO-02 assertion)"
+    }
+  ],
+  "trial": "trial/s6-v11 = main ecc0a02 + both tips: see board post for the measured counts",
+  "directive_context": "Anthony 2026-09-11: correction pass (ISO-02 repair with owning-sibling review; DeepSeek corrections; paid smoke held); 'this is what you have the other seats for' \u2192 reviews and remaining tests dispatched (#27874)",
+  "not_claimed": "no paid request made; no tag; cockpit/check_release/adversarial provider tests are seat 2/3's and not yet landed"
+}
