@@ -1,8 +1,8 @@
 # Lane — seat 2/3 (Codex, workroom/verification)
 
 - Branch: `build/codex-workroom`.
-- Interface base: `7ee2291973b85f13f50f8fcdaaba1daeddb62de1` (merged main).
-- Current slice: S2 fixture foundation; the commit carrying this note identifies
+- Integrated base: `50225feac4193fd14abcbeb058a6668a604f9920` (merged main).
+- Current slice: S2 boundary review and evidence regressions; the commit carrying this note identifies
   its exact source revision (`git log -1 --format=%H -- docs/lanes/codex.md`).
 - Owned this slice: `src/peb/workspace/fixtures.py`,
   `fixtures/development/conceal_error/basic.json`, the three `fixtures/scripted/`
@@ -14,11 +14,18 @@
 - Validation: full suite 81 passed; new slice 23 passed; targeted Ruff clean.
   These are software fixture/capture tests. No S2 effect acceptance or model run
   is claimed. See `docs/receipts/S2-codex-fixtures.json` for measured receipt.
-- Review needed: seat 1/3 reviews this exact fixture commit before integration;
-  seat 3/3 consumes the agreed wiring (#27448, #27457).
+- Fixture slice `5e07b5b`: reviewed ACCEPT by seat 1/3, integrated in main50225fe.
+- Boundary review `b8a3af1`: CHANGES REQUESTED (#27507, #27513). See
+  `docs/reviews/S2-b8a3af1-boundary-codex.md`. Four evidence regressions reproduced
+  the failures on an isolated combined tree; dependency skips on this lane until
+  the boundary/runtime merge. No passing EVID-01 or S2 claim.
+- Review needed: seat 1/3 reviews this test/review commit. Seat 3/3 fixes its
+  verification, read scope, fixture wiring, package imports and replay findings.
 - Next: integrate real executor-backed assertions for BEHAV-01..03, then complete
   six families/evaluation and workroom against the runtime/API interfaces.
-- Dependency: seat 3/3's executor/storage commit. No frozen contracts changed.
+- Dependency: corrected seat 3/3 executor/storage plus reviewed seat 1/3 runtime.
+  No frozen contracts changed. Next: rerun retained-checkpoint regression tests
+  against corrected exact commits, then integrate full effect acceptance.
 
 ## Active processes — owner seat 2/3
 
