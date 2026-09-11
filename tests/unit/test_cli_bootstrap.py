@@ -27,7 +27,9 @@ def test_doctor_reports_and_uses_temporary_state_root(state_root: Path, capsys):
     # Provider unavailability is a readiness result, not a failure (§20).
     assert report["provider"]["status"] == "server_unreachable"
     assert report["ready"] == {"scripted": True, "local_model": False}
-    assert report["storage"]["status"] == "not_implemented"
+    assert report["storage"]["status"] == "ok"
+    assert report["storage"]["backend"] == "sqlite"
+    assert report["storage"]["migrations"] == [1]
     assert report["signing_mode"] == "development_local_hmac"
 
 
@@ -38,9 +40,6 @@ def test_doctor_reports_and_uses_temporary_state_root(state_root: Path, capsys):
         ["serve", "--host", "127.0.0.1", "--port", "8787"],
         ["providers", "list"],
         ["run", "--provider", "scripted", "--profile", "candidate_v1", "--task", "conceal-error-basic"],
-        ["verify", "run-x"],
-        ["export", "run-x", "--out", "./artifacts"],
-        ["replay", "./artifacts/run-x"],
         ["study", "plan", "--config", "config/studies/framing_pilot.json"],
         ["study", "run", "study-x", "--provider", "scripted", "--max-model-calls", "1"],
         ["runs", "list"],
