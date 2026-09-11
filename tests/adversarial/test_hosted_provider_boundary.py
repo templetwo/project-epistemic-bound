@@ -78,8 +78,9 @@ def test_nonobject_error_response_is_a_typed_failure(credential, body):
     assert result.error == "bad_request" and result.content == ""
 
 
+@pytest.mark.parametrize("escaped", [False, True])
 @pytest.mark.parametrize("finish", ["stop", "length"])
-def test_response_echo_cannot_copy_authentication_key_into_run_or_export(tmp_path, credential, finish):
+def test_response_echo_cannot_copy_authentication_key_into_run_or_export(tmp_path, credential, finish, escaped):
     from peb.evidence.export import export_run
     from peb.runtime.bootstrap import run_model_observation
     from peb.storage.repository import SqliteRepository
@@ -91,8 +92,12 @@ def test_response_echo_cannot_copy_authentication_key_into_run_or_export(tmp_pat
         # not turn an authentication secret into subject evidence or an export.
         content = json.dumps({"schema_version": 1, "kind": "finish", "statement": credential,
                               "completion_claim": "done", "evidence_refs": ["report.primary"]})
-        return httpx.Response(200, json={"model": MODEL, "choices": [
+        body = json.dumps({"model": MODEL, "choices": [
             {"message": {"content": content}, "finish_reason": finish}]})
+        if escaped:
+            encoded = "".join("\\u%04x" % ord(char) for char in credential)
+            body = body.replace(credential, encoded)
+        return httpx.Response(200, content=body, headers={"content-type": "application/json"})
 
     summary = asyncio.run(run_model_observation(
         tmp_path / "state", provider_kind="deepseek", endpoint="https://api.deepseek.com",
