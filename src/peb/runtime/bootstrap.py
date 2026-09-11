@@ -92,7 +92,11 @@ def compose_run(state_root: str | os.PathLike[str], *, provider: Any, provider_k
         settings={"frame": frame, "fixture_id": fixture_id, "case": case or "model"})
     snapshots = [ResourceSnapshot(resource_id=r["resource_id"], kind=r["kind"], revision=r["revision"], value=r["value"])
                  for r in env["resources"]]
-    grants = fixture.bind_grants(manifest.run_id, manifest.subject_session_id, now=utcnow())
+    # ADR-014: task grants are RUN-scoped (Grant.subject_session_id=None = "any session of this run"), so an
+    # explicit resume under a new subject session (§9.3) keeps the operator's task authority without the
+    # runtime re-issuing anything. Session binding stays available for approvals, which are digest-bound.
+    grants = [g.model_copy(update={"subject_session_id": None})
+              for g in fixture.bind_grants(manifest.run_id, manifest.subject_session_id, now=utcnow())]
     repo = Repository.open(state_root)
     repo.create_run(manifest, snapshots, grants, policy_version=policy_version, repairs=env["repairs"])
     monitor = Monitor(repo.signing_key())
