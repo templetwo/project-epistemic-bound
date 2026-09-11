@@ -135,29 +135,49 @@ MODEL_LABEL = ("MODEL OBSERVATION — a fresh subject session of an explicitly c
                "here scores or fixes it. mode=model_observation.")
 
 
+def _build_provider(provider_kind: str, *, endpoint: str, model: str, limits: Limits, transport: Any):
+    """The two model providers, constructed the same way everywhere (CLI, service, dry run). Never a default model."""
+    if provider_kind == "ollama":
+        from ..providers.ollama import OllamaProvider
+        return OllamaProvider(endpoint=endpoint, model=model, limits=limits, transport=transport)
+    if provider_kind == "deepseek":
+        from ..providers.deepseek import DeepSeekProvider
+        return DeepSeekProvider(endpoint=endpoint, model=model, limits=limits, transport=transport)
+    raise PebError(ErrorCode.invalid_input, f"unknown model provider {provider_kind!r}", {"providers": ["ollama", "deepseek"]})
+
+
+def _provider_settings(provider: Any, endpoint: str, limits: Limits) -> dict[str, str | int | bool]:
+    """The ACTUAL provider settings used, pinned in the manifest (§8.1). Never a key, never a key's value."""
+    from urllib.parse import urlparse
+    out: dict[str, str | int | bool] = {
+        "provider_endpoint_host": str(urlparse(endpoint).hostname or ""), "response_format": str(provider.response_format),
+        "max_output_tokens": limits.max_output_tokens, "request_timeout_s": limits.request_timeout_s,
+        "max_model_calls": limits.max_model_calls,
+    }
+    if hasattr(provider, "api_key_env"):
+        out["api_key_env"] = str(provider.api_key_env)  # the NAME of the variable; the value never leaves the provider
+        out["temperature"] = int(provider.temperature) if float(provider.temperature).is_integer() else str(provider.temperature)
+    return out
+
+
 async def compose_model_run(state_root: str | os.PathLike[str], *, model: str, profile_id: str, task_id: str,
                             max_model_calls: int, endpoint: str, frame: str = "ordinary",
-                            transport: Any = None) -> ComposedRun:
-    """§20 `peb run --provider ollama`: explicit model, explicit profile, real probe first, no fallback."""
-    from ..providers.ollama import OllamaProvider, response_schema_for_decisions
+                            transport: Any = None, provider_kind: str = "ollama",
+                            max_output_tokens: int | None = None) -> ComposedRun:
+    """§20 `peb run --provider ollama|deepseek`: explicit model, explicit profile, real probe first, no fallback."""
+    from ..providers.ollama import response_schema_for_decisions
     from .profiles import load_profile, require_runnable
 
     if task_id != "conceal-error-basic":
         raise PebError(ErrorCode.invalid_input, f"unknown task {task_id!r}", {"tasks": ["conceal-error-basic"]})
     profile = require_runnable(load_profile(profile_id))  # §16.2: a placeholder arm is not that arm
-    limits = Limits(max_model_calls=max_model_calls)
-    provider = OllamaProvider(endpoint=endpoint, model=model, limits=limits, transport=transport)
+    limits = Limits(max_model_calls=max_model_calls, **({"max_output_tokens": max_output_tokens} if max_output_tokens else {}))
+    provider = _build_provider(provider_kind, endpoint=endpoint, model=model, limits=limits, transport=transport)
     probe = await provider.probe()
     if probe["status"] != "ok":
-        raise PebError(ErrorCode.provider_unavailable, f"ollama provider not ready: {probe['status']}", probe)
-    from urllib.parse import urlparse
-    # The ACTUAL provider settings used, pinned in the manifest (§8.1 "actual settings used").
-    settings: dict[str, str | int | bool] = {
-        "provider_endpoint_host": str(urlparse(endpoint).hostname or ""), "response_format": provider.response_format,
-        "max_output_tokens": limits.max_output_tokens, "request_timeout_s": limits.request_timeout_s,
-        "max_model_calls": limits.max_model_calls,
-    }
-    return compose_run(state_root, provider=provider, provider_kind=ProviderKind.ollama, mode=RunMode.model_observation,
+        raise PebError(ErrorCode.provider_unavailable, f"{provider_kind} provider not ready: {probe['status']}", probe)
+    settings = _provider_settings(provider, endpoint, limits)
+    return compose_run(state_root, provider=provider, provider_kind=ProviderKind(provider_kind), mode=RunMode.model_observation,
                        model_requested=model, model_resolved=None,  # resolved id is recorded per response
                        profile_id=profile.profile_id, profile_text=profile.text,
                        preaction_protocol=profile.preaction_protocol, frame=frame, limits=limits,
@@ -217,12 +237,14 @@ async def run_scripted_demo(state_root: str | os.PathLike[str], case: str, **kw)
 
 async def run_model_observation(state_root: str | os.PathLike[str], *, model: str, profile_id: str, task_id: str,
                                 max_model_calls: int, endpoint: str, inference_lock_path: str | None = None,
-                                transport: Any = None) -> dict[str, Any]:
+                                transport: Any = None, provider_kind: str = "ollama",
+                                max_output_tokens: int | None = None) -> dict[str, Any]:
     """§20 `peb run`. Holds the state-root supervisor lock and the MacBook-wide inference lock for the run."""
     from .locks import InferenceLock, SupervisorLock
 
     with SupervisorLock(state_root), InferenceLock(inference_lock_path):
         composed = await compose_model_run(state_root, model=model, profile_id=profile_id, task_id=task_id,
+                                           provider_kind=provider_kind, max_output_tokens=max_output_tokens,
                                            max_model_calls=max_model_calls, endpoint=endpoint, transport=transport)
         rt, run, repo = composed.runtime, composed.run, composed.repo
         try:
@@ -243,6 +265,7 @@ async def run_model_observation(state_root: str | os.PathLike[str], *, model: st
             return {
                 "label": MODEL_LABEL, "run_id": run_id, "mode": str(run.manifest.mode), "provider": str(run.manifest.provider_kind),
                 "settings": dict(run.manifest.settings), "evaluation": evaluation,
+                "provider_usage": composed.provider.usage_report() if hasattr(composed.provider, "usage_report") else None,
                 "model_requested": model, "model_resolved": resolved, "profile_id": profile_id,
                 "profile_placeholder_text": "[PLACEHOLDER" in rt._context.profile_text,
                 "preaction_protocol": str(run.manifest.preaction_protocol),
@@ -510,3 +533,80 @@ def resolve_review_from_records(state_root: str | os.PathLike[str], run_id: str,
                     "next": f"peb resume {run_id}"}
         finally:
             repo.close()
+
+
+# ----------------------------------------------------------------------------- outbound-data scope (dry run)
+
+NEVER_SENT = ("the private oracle / expected results", "any API key or operator secret", "other runs' records",
+              "builder transcripts or this repository's documents", "the evaluator's predicates or labels")
+
+
+class _MustNotBeCalled:
+    """Provider stand-in for a dry run: composing a run never contacts a provider."""
+
+    response_format = "n/a"
+
+    async def probe(self):  # pragma: no cover - never reached
+        raise PebError(ErrorCode.internal, "dry run contacted a provider")
+
+    async def generate(self, request):  # pragma: no cover - never reached
+        raise PebError(ErrorCode.internal, "dry run contacted a provider")
+
+
+def outbound_scope(*, provider_kind: str, endpoint: str, model: str, profile_id: str, task_id: str,
+                   max_model_calls: int, max_output_tokens: int | None = None, frame: str = "ordinary") -> dict[str, Any]:
+    """What would leave this machine for one run, and the maximum budget — computed WITHOUT any network call and
+    without touching the operator's state root (a temporary root is composed and discarded). This is the report
+    Anthony sees before any paid request (ADR-017)."""
+    import shutil
+    import tempfile
+    from urllib.parse import urlparse
+
+    from ..providers.ollama import response_schema_for_decisions
+    from .profiles import load_profile, require_runnable
+
+    if provider_kind not in ("ollama", "deepseek"):
+        raise PebError(ErrorCode.invalid_input, f"unknown model provider {provider_kind!r}", {"providers": ["ollama", "deepseek"]})
+    profile = require_runnable(load_profile(profile_id))
+    limits = Limits(max_model_calls=max_model_calls, **({"max_output_tokens": max_output_tokens} if max_output_tokens else {}))
+    tmp = tempfile.mkdtemp(prefix="peb-dry-run-")
+    try:
+        composed = compose_run(tmp, provider=_MustNotBeCalled(), provider_kind=ProviderKind(provider_kind),
+                               mode=RunMode.model_observation, model_requested=model, model_resolved=None,
+                               profile_id=profile.profile_id, profile_text=profile.text,
+                               preaction_protocol=profile.preaction_protocol, frame=frame, limits=limits,
+                               response_schema=response_schema_for_decisions(), case="dry-run",
+                               profile_status=profile.status, profile_placeholder=profile.placeholder, arm=profile.arm)
+        try:
+            messages = composed.runtime._context.build(composed.run)
+        finally:
+            composed.repo.close()
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    per_role = [{"role": m.role, "chars": len(m.content)} for m in messages]
+    total_chars = sum(r["chars"] for r in per_role)
+    est_prompt_tokens = -(-total_chars // 4)  # ceiling of chars/4: an ESTIMATE; exact tokens are measured per response
+    return {
+        "provider": provider_kind, "endpoint_host": urlparse(endpoint).hostname, "endpoint_scheme": urlparse(endpoint).scheme,
+        "model": model, "profile_id": profile.profile_id, "arm": profile.arm, "task_id": task_id, "frame": frame,
+        "outbound_per_call": {
+            "what": "exactly the allowlisted messages the context builder renders for the subject: profile text, task "
+                    "instructions, synthetic resource values, public grant descriptions, decision instructions, and "
+                    "the observed results so far",
+            "step_0_messages": per_role, "step_0_chars": total_chars, "step_0_prompt_tokens_estimate": est_prompt_tokens,
+            "grows_with": "observed results appended each step (bounded by the decision ceiling per step)",
+            "plus": ["model id", "stream:false", "temperature", "max_tokens", "response_format"],
+        },
+        "never_sent": list(NEVER_SENT),
+        "budget": {
+            "max_model_calls": limits.max_model_calls, "max_output_tokens_per_call": limits.max_output_tokens,
+            "max_output_tokens_total": limits.max_model_calls * limits.max_output_tokens,
+            "prompt_tokens_lower_bound_total": limits.max_model_calls * est_prompt_tokens,
+            "request_timeout_s": limits.request_timeout_s,
+            "note": "prompt tokens per call grow with history; the lower bound uses the step-0 size. Exact usage is "
+                    "recorded per response (prompt/completion and, for deepseek, cache hit/miss tokens). No price is asserted.",
+        },
+        "network": "none for this report; a real run first probes the provider's model list, then makes at most max_model_calls requests",
+        "key": ("read from the DEEPSEEK_API_KEY environment variable at run time; never sent anywhere but the Authorization "
+                "header; never recorded" if provider_kind == "deepseek" else "none (loopback provider)"),
+    }

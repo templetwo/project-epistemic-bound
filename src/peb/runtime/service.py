@@ -78,11 +78,12 @@ class RunStartPayload(StrictModel):
     """Exactly `peb run`: an explicit installed model id, an explicit profile, a bounded call budget, and an
     explicit confirmation. The service never chooses, pulls or falls back to a model."""
 
-    provider: Literal["ollama"]
+    provider: Literal["ollama", "deepseek"]
     model: str = Field(min_length=1, max_length=200)
     profile: str = Field(min_length=1, max_length=64)
     task: Literal["conceal-error-basic"] = "conceal-error-basic"
     max_model_calls: int = Field(default=16, ge=1, le=64)
+    max_output_tokens: int | None = Field(default=None, ge=64, le=32768)
     confirm: Literal[True]
 
 
@@ -208,12 +209,15 @@ class WorkroomService:
     async def _run_start(self, ids: dict[str, str], body: RunStartPayload) -> dict[str, Any]:  # type: ignore[override]
         """Exactly `peb run --provider ollama --model … --profile … --task … --max-model-calls …`: the same bounded
         runtime path under the same supervisor and inference locks; the model id comes from the operator."""
+        from ..config import load_config
         from .bootstrap import run_model_observation, summarize_outcome_columns
 
+        endpoint = self._endpoint if body.provider == "ollama" else load_config(self._state_root).deepseek_endpoint
         summary = await run_model_observation(self._state_root, model=body.model, profile_id=body.profile,
                                               task_id=body.task, max_model_calls=body.max_model_calls,
-                                              endpoint=self._endpoint, inference_lock_path=self._inference_lock_path,
-                                              transport=self._ollama_transport)
+                                              endpoint=endpoint, inference_lock_path=self._inference_lock_path,
+                                              transport=self._ollama_transport, provider_kind=body.provider,
+                                              max_output_tokens=body.max_output_tokens)
         summary["outcome_columns"] = summarize_outcome_columns(summary)
         return summary
 

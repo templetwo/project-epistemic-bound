@@ -184,3 +184,77 @@ def test_resume_refuses_completed_runs_and_scripted_runs(tmp_path):
     with pytest.raises(PebError) as ei2:
         asyncio.run(resume_run(state, "run_" + "0" * 32, endpoint=EP, inference_lock_path=tmp_path / "inference.lock"))
     assert ei2.value.code == ErrorCode.invalid_input
+
+
+# ----------------------------------------------------------------------------- hosted provider through the same runtime (ADR-017)
+
+DS_EP = "https://api.deepseek.com"
+DS_MODEL = "deepseek-flash"
+DS_KEY = "sk-test-key-never-to-be-found-anywhere-0123456789"
+
+
+def fake_deepseek(script: list[str], *, model: str = DS_MODEL):
+    """OpenAI-shaped fake of DeepSeek: /models lists the model; /chat/completions answers with the script in order."""
+    state = {"i": 0, "bodies": [], "auth": set()}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        state["auth"].add(req.headers.get("authorization"))
+        if req.url.path == "/models":
+            return httpx.Response(200, json={"data": [{"id": model}]})
+        assert req.url.path == "/chat/completions"
+        body = json.loads(req.content)
+        state["bodies"].append(body)
+        i = state["i"]
+        state["i"] += 1
+        content = script[i] if i < len(script) else '{"schema_version": 1, "kind": "finish", "statement": "done", "completion_claim": "done", "evidence_refs": ["report.primary"]}'
+        return httpx.Response(200, json={"model": model, "choices": [{"message": {"role": "assistant", "content": content}, "finish_reason": "stop"}],
+                                         "usage": {"prompt_tokens": 100, "completion_tokens": 20, "prompt_cache_hit_tokens": 64, "prompt_cache_miss_tokens": 36}})
+    return httpx.MockTransport(handler), state
+
+
+def test_deepseek_observation_runs_through_the_same_runtime_and_the_key_never_lands_anywhere(tmp_path, monkeypatch):
+    from peb.evidence.export import export_run
+    from peb.storage.repository import SqliteRepository
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", DS_KEY)
+    transport, state = fake_deepseek(load_script("truthful-repair"))
+    s = asyncio.run(run_model_observation(tmp_path / "state", model=DS_MODEL, profile_id="baseline", task_id="conceal-error-basic",
+                                          max_model_calls=16, endpoint=DS_EP, inference_lock_path=tmp_path / "inference.lock",
+                                          transport=transport, provider_kind="deepseek", max_output_tokens=1024))
+    assert s["provider"] == "deepseek" and s["mode"] == "model_observation" and s["model_resolved"] == [DS_MODEL]
+    assert s["status"] == "completed" and s["verification"]["summary"] == "verified_against_anchor"
+    assert s["settings"]["response_format"] == "json_object" and s["settings"]["api_key_env"] == "DEEPSEEK_API_KEY"
+    assert s["settings"]["provider_endpoint_host"] == "api.deepseek.com" and s["settings"]["max_output_tokens"] == 1024
+    assert s["provider_usage"]["prompt_cache_hit_tokens"] == 64 * 8 and s["provider_usage"]["calls"] == 8
+    assert state["auth"] == {f"Bearer {DS_KEY}"}  # the header carried it on every request…
+    assert all(b["max_tokens"] == 1024 and b["response_format"] == {"type": "json_object"} for b in state["bodies"])
+    # …and it is nowhere else: not in the summary, not in any event, receipt, manifest, or the export bundle
+    assert DS_KEY not in json.dumps(s)
+    repo = SqliteRepository.open(tmp_path / "state")
+    try:
+        rid = s["run_id"]
+        blob = json.dumps([e.model_dump(mode="json") for e in repo.events(rid)]) + json.dumps([r.model_dump(mode="json") for r in repo.receipts(rid)]) + json.dumps(repo.manifest(rid).model_dump(mode="json"))
+        assert DS_KEY not in blob and "Bearer" not in blob
+        bundle = export_run(repo, rid, tmp_path / "out")
+    finally:
+        repo.close()
+    import pathlib
+    for f in pathlib.Path(bundle).rglob("*"):
+        if f.is_file():
+            assert DS_KEY not in f.read_text(errors="ignore"), f
+
+
+def test_dry_run_scope_reports_outbound_data_and_budget_without_any_network(monkeypatch):
+    from peb.runtime.bootstrap import outbound_scope
+
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)  # no key needed to see what WOULD be sent
+    scope = outbound_scope(provider_kind="deepseek", endpoint=DS_EP, model=DS_MODEL, profile_id="baseline",
+                           task_id="conceal-error-basic", max_model_calls=6, max_output_tokens=512)
+    assert scope["endpoint_host"] == "api.deepseek.com" and scope["endpoint_scheme"] == "https" and scope["model"] == DS_MODEL
+    roles = [m["role"] for m in scope["outbound_per_call"]["step_0_messages"]]
+    assert roles == ["system", "user"] and scope["outbound_per_call"]["step_0_chars"] > 1000
+    assert scope["budget"] == {"max_model_calls": 6, "max_output_tokens_per_call": 512, "max_output_tokens_total": 3072,
+                               "prompt_tokens_lower_bound_total": 6 * scope["outbound_per_call"]["step_0_prompt_tokens_estimate"],
+                               "request_timeout_s": 120, "note": scope["budget"]["note"]}
+    assert "private oracle" in " ".join(scope["never_sent"]) and "DEEPSEEK_API_KEY" in scope["key"]
+    assert scope["network"].startswith("none")

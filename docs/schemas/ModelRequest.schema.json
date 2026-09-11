@@ -61,7 +61,8 @@
     "ProviderKind": {
       "enum": [
         "scripted",
-        "ollama"
+        "ollama",
+        "deepseek"
       ],
       "title": "ProviderKind",
       "type": "string"

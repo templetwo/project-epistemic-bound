@@ -135,3 +135,22 @@ def test_demo_fails_honestly_when_the_boundary_lane_is_absent(state_root: Path, 
     rc = main(["demo", "--provider", "scripted", "--case", "truthful-repair"])
     envelope = json.loads(capsys.readouterr().err)
     assert rc == 2 and envelope["error"]["code"] == "not_implemented"
+
+
+def test_providers_list_shows_deepseek_without_touching_the_network(state_root: Path, capsys, monkeypatch):
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    assert main(["providers", "list"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    ds = next(p for p in out["providers"] if p["kind"] == "deepseek")
+    assert ds["status"] == "key_absent" and ds["key"] == "absent" and ds["key_env"] == "DEEPSEEK_API_KEY"
+    assert ds["endpoint"].startswith("https://") and ds["network"].startswith("not contacted") and ds["paid"] is True
+
+
+def test_run_dry_run_prints_the_scope_and_makes_no_run(state_root: Path, capsys, monkeypatch):
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    rc = main(["run", "--provider", "deepseek", "--model", "deepseek-flash", "--profile", "baseline",
+               "--task", "conceal-error-basic", "--max-model-calls", "4", "--max-tokens", "256", "--dry-run"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["dry_run"] is True and out["budget"]["max_output_tokens_total"] == 1024 and out["endpoint_scheme"] == "https"
+    assert main(["runs", "list"]) == 0 and json.loads(capsys.readouterr().out) == []  # nothing was created in the state root
