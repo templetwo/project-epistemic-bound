@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-11T13:17-0400 (measured with `date`)",
+  "main_before": "6637749",
+  "merge_commit": "f63aa5a",
+  "merged_branch": "build/codex-workroom",
+  "merged_tip": "4e49acd (runbook 20b457d)",
+  "reviewed_by": "seat 1/3 (#27780 \u2192 this receipt)",
+  "review": "docs/RUNBOOK.md read in full: commands match the CLI on main; bundle table matches docs/evidence/s6-demo (52/19/18 events, labels as recorded); limits stated correctly (evaluation.json stub, reviews.json placeholder, replay reconstructs values and does not authenticate, CLI verify passes no external checkpoint, producer keys discarded, UI/families/planner/LIVE-01 not done). tests/adversarial/test_verification_integrity.py import order fixed.",
+  "measured_before_merge": "trial v10 ec3e8ca = main 6637749 + codex 4e49acd: whole-tree ruff clean; 299 passed, 2 skipped, 0 failed",
+  "note": "runbook header names main ad588d0 (the code it documents); main has since gained docs-only merges \u2014 update the line at tag time"
+}

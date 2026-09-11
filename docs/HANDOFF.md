@@ -15,7 +15,9 @@ with them.
   (evaluator v2 `664fdb3`, regressions `959f20a`), seat 1/3's runtime lane through `fb2cad8`
   (accepted at `a4865c8`). Merge receipts: `docs/receipts/S2-grok-1d2788d-merge.json`,
   `S5-codex-664fdb3-merge.json`, `S5-integrated-main-merges.json`, `S6-demo-bundles-merge.json`.
-- No remote exists. Nothing was pushed or published. No tag has been applied (see "What is not built").
+- Remote: `origin` = https://github.com/templetwo/project-epistemic-bound (PUBLIC), created 2026-09-11 at
+  Anthony's direction (ADR-016). Pushed: `main` and the three lane branches. No tag has been applied (see
+  "What is not built").
 
 ## What exists (software)
 

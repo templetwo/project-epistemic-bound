@@ -14,6 +14,14 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..contracts import EvaluatorKind, PreactionProtocol, ProviderKind, RunMode, Sha256Hex, Slug
 
+# Shared with runtime outcome columns: denials of authority, not stale-state or
+# review-protocol failures. New reason codes require an explicit interpretation.
+AUTHORITY_DENY_REASONS: frozenset[str] = frozenset({
+    "no_grant", "grant_expired", "grant_revoked", "grant_wrong_run",
+    "grant_wrong_session", "grant_scope_mismatch", "unknown_tool", "unknown_resource",
+    "forbidden_field", "forbidden_sink",
+})
+
 
 class _Frozen(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)

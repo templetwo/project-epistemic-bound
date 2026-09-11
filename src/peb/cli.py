@@ -84,6 +84,12 @@ def _dep_versions() -> dict[str, str]:
     return out
 
 
+def _storage_report(state_root: Path) -> dict[str, Any]:
+    from .storage.repository import storage_report
+
+    return storage_report(state_root)
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     cfg = load_config(args.state_root)
     report = {
@@ -93,7 +99,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         "executable": sys.executable,
         "dependencies": _dep_versions(),
         "state_root": _probe_state_root(cfg.state_root),
-        "storage": {"status": "not_implemented", "note": "S2 (boundary/evidence lane) — migrations not yet built"},
+        "storage": _storage_report(cfg.state_root),
         "port": _probe_port(cfg.host, cfg.port),
         "signing_mode": cfg.signing_mode,
         "provider": _probe_ollama(cfg),
@@ -255,6 +261,86 @@ def _stub(what: str):
     return run
 
 
+def cmd_verify(args: argparse.Namespace) -> int:
+    from .evidence.verify import verify_run
+    from .storage.repository import SqliteRepository
+
+    cfg = load_config(args.state_root)
+    repo = SqliteRepository.open(cfg.state_root)
+    try:
+        result = verify_run(repo, args.run_id, checkpoint=None)
+    finally:
+        repo.close()
+    print(json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True))
+    return 0 if result.chain_consistent and not result.failures else 1
+
+
+def cmd_export(args: argparse.Namespace) -> int:
+    from .evidence.export import export_run
+    from .storage.repository import SqliteRepository
+
+    cfg = load_config(args.state_root)
+    repo = SqliteRepository.open(cfg.state_root)
+    try:
+        bundle = export_run(repo, args.run_id, args.out)
+    finally:
+        repo.close()
+    print(json.dumps({"exported": str(bundle)}, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_replay(args: argparse.Namespace) -> int:
+    from datetime import datetime
+
+    from .contracts import StoredEvent
+    from .evidence.replay import replay_applied_from_events
+
+    bundle = Path(args.bundle_dir)
+    events_path = bundle / "events.jsonl"
+    if not events_path.is_file():
+        raise PebError(ErrorCode.invalid_input, "bundle is missing events.jsonl",
+                       {"bundle": str(bundle)})
+    events: list[StoredEvent] = []
+    for line in events_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        raw = json.loads(line)
+        raw["ts"] = datetime.fromisoformat(raw["ts"])
+        from .contracts import Actor, EventType
+
+        raw["event_type"] = EventType(raw["event_type"])
+        raw["actor"] = Actor(raw["actor"])
+        events.append(StoredEvent.model_validate(raw))
+    current = replay_applied_from_events(events)
+    print(json.dumps({"resources": current, "provider_invoked": False}, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_runs_list(args: argparse.Namespace) -> int:
+    from .storage.repository import SqliteRepository
+
+    cfg = load_config(args.state_root)
+    repo = SqliteRepository.open(cfg.state_root)
+    try:
+        items = repo.list_runs()
+    finally:
+        repo.close()
+    print(json.dumps(
+        [
+            {
+                "run_id": item.run_id,
+                "status": item.status,
+                "mode": item.mode,
+                "created_at": item.created_at.isoformat(),
+            }
+            for item in items
+        ],
+        indent=2,
+        sort_keys=True,
+    ))
+    return 0
+
+
 # ----------------------------------------------------------------------------- parser
 
 def build_parser() -> argparse.ArgumentParser:
@@ -287,7 +373,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     v = sub.add_parser("verify", help="verify a run's evidence")
     v.add_argument("run_id")
-    v.set_defaults(fn=_stub("peb verify"))  # real implementation arrives with the boundary lane's cli wiring
+    v.set_defaults(fn=cmd_verify)
     for name, helptext in (("pause", "persist a pause boundary"), ("cancel", "stop new inference/effects")):
         sp = sub.add_parser(name, help=helptext)
         sp.add_argument("run_id")
@@ -315,11 +401,11 @@ def build_parser() -> argparse.ArgumentParser:
     e = sub.add_parser("export", help="produce a local evidence bundle; no upload")
     e.add_argument("run_id")
     e.add_argument("--out", required=True)
-    e.set_defaults(fn=_stub("peb export"))
+    e.set_defaults(fn=cmd_export)
 
     rp = sub.add_parser("replay", help="reconstruct a run from an exported bundle without a model")
     rp.add_argument("bundle_dir")
-    rp.set_defaults(fn=_stub("peb replay"))
+    rp.set_defaults(fn=cmd_replay)
 
     st = sub.add_parser("study", help="study planner").add_subparsers(dest="study_cmd", required=True)
     sp = st.add_parser("plan", help="materialize a bounded case schedule; no model execution")
@@ -333,7 +419,7 @@ def build_parser() -> argparse.ArgumentParser:
     sr.set_defaults(fn=_stub("peb study run"))
 
     rl = sub.add_parser("runs", help="run inventory").add_subparsers(dest="runs_cmd", required=True)
-    rl.add_parser("list", help="list runs in the state root").set_defaults(fn=_stub("peb runs list"))
+    rl.add_parser("list", help="list runs in the state root").set_defaults(fn=cmd_runs_list)
     return p
 
 

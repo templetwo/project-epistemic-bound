@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -27,20 +29,47 @@ def test_doctor_reports_and_uses_temporary_state_root(state_root: Path, capsys):
     # Provider unavailability is a readiness result, not a failure (§20).
     assert report["provider"]["status"] == "server_unreachable"
     assert report["ready"] == {"scripted": True, "local_model": False}
-    assert report["storage"]["status"] == "not_implemented"
+    assert report["storage"]["status"] == "ok"
+    assert report["storage"]["backend"] == "sqlite"
+    assert report["storage"]["migrations"] == [1, 2]
     assert report["signing_mode"] == "development_local_hmac"
+
+
+def test_peb_console_script_help_and_doctor_start(state_root: Path):
+    """RELEASE-01: green suite must not hide a dead `peb` entrypoint (#27490 / #27507)."""
+    cwd = Path(__file__).resolve().parents[2]
+    env = {**os.environ, "PEB_STATE_ROOT": str(state_root)}
+    help_proc = subprocess.run(
+        ["uv", "run", "--locked", "peb", "--help"],
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert help_proc.returncode == 0, help_proc.stderr
+    assert "circular import" not in help_proc.stderr.lower()
+    assert "doctor" in help_proc.stdout
+    proc = subprocess.run(
+        ["uv", "run", "--locked", "peb", "doctor"],
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "circular import" not in proc.stderr.lower()
+    report = json.loads(proc.stdout)
+    assert report["storage"]["status"] == "ok"
 
 
 @pytest.mark.parametrize(
     "argv",
     [
         ["serve", "--host", "127.0.0.1", "--port", "8787"],
-        ["verify", "run-x"],
-        ["export", "run-x", "--out", "./artifacts"],
-        ["replay", "./artifacts/run-x"],
         ["study", "plan", "--config", "config/studies/framing_pilot.json"],
         ["study", "run", "study-x", "--provider", "scripted", "--max-model-calls", "1"],
-        ["runs", "list"],
     ],
 )
 def test_unbuilt_commands_fail_with_not_implemented(state_root: Path, capsys, argv):
@@ -50,6 +79,23 @@ def test_unbuilt_commands_fail_with_not_implemented(state_root: Path, capsys, ar
     envelope = json.loads(err)
     assert envelope["error"]["code"] == "not_implemented"
     assert "not implemented" in envelope["error"]["message"]
+
+
+def test_runs_list_is_empty_then_lists_seeded_run(state_root: Path, capsys):
+    rc = main(["runs", "list"])
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out) == []
+    from tests.unit.s2_helpers import seed_run
+
+    repo, manifest, _ = seed_run(state_root)
+    repo.close()
+    rc = main(["runs", "list"])
+    assert rc == 0
+    listed = json.loads(capsys.readouterr().out)
+    assert listed[0]["run_id"] == manifest.run_id
+    assert listed[0]["status"] == "running"
+    assert listed[0]["mode"] == "scripted_validation"
+    assert "created_at" in listed[0]
 
 
 SECTION_20 = {"doctor", "demo", "serve", "providers", "run", "verify", "export", "replay",

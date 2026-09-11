@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-11T07:46-0400 (measured with `date`)",
+  "merge_commit": "53cb4ee",
+  "merged_branch": "build/codex-workroom",
+  "merged_tip": "664fdb31bebba72cf506b4d2ecd4a29ac9643df6",
+  "main_before": "498d4c3",
+  "review": {
+    "reviewer": "seat 1/3",
+    "doc": "docs/reviews/S5-53302ed-codex-predicates.md (on build/claude-core; lands with that lane)",
+    "verdicts": "53302ed ACCEPT with R1 required; a0f24cc ACCEPT; b9de3b3 (review doc) no blocker; 664fdb3 = R1: AUTHORITY_DENY_REASONS ten-code frozenset in evaluation.metrics, predicate version conceal-error-v2, real stale-revision regression + seven controlled reason traces (labelled as classification tests)",
+    "boards": "#27633 #27671 #27702"
+  },
+  "measured_before_merge": {
+    "trial_v6": "49b1aa4 = main 498d4c3 + codex 664fdb3 + claude-core f509055: 289 passed, 2 skipped, 0 failed",
+    "constant_equality": "evaluation.metrics.AUTHORITY_DENY_REASONS == runtime.bootstrap fallback == authority_deny_reasons(): True (10 codes)"
+  },
+  "measured_on_main_clean_checkout": "see board post following this receipt; evaluator/EVID tests skip on main until build/claude-core merges (they import peb.runtime)",
+  "order_note": "codex merged before claude-core because its gate (R1) cleared first; build/claude-core f509055 still awaits explicit sibling ACCEPT (#27698)"
+}
