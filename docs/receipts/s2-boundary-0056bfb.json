@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "project": "project-epistemic-bound",
+  "commit": "0056bfb74859e99cf40c251deb2bedb2cea598d6",
+  "item2_fix": "34e95592f042146dd6fef64be4dc7b9ed42697c2",
+  "merged_main": "37d493010c725ee51b355b77cec6240963fa790f",
+  "working_tree": "0056bfb plus this receipt and lane update in the follow-up commit",
+  "command": "uv run --locked pytest -o addopts='' -q",
+  "started_at": "2026-09-11T17:05:00Z",
+  "finished_at": "2026-09-11T17:05:01Z",
+  "exit_code": 0,
+  "tests": {"passed": 138, "failed": 0, "skipped": 7},
+  "environment": "CPython 3.13.5; uv locked; ruff on 3/3 owned paths clean",
+  "stdout_sha256": "b784a4c07f519c138d53e90548c09a60bcba1f2f7701baeff40dd8f57d9c0a33",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "limits": [
+    "7 skipped: tests/adversarial/test_verification_integrity.py needs S3 runtime (1/3) on this lane",
+    "LIVE-01 not run",
+    "bind_grants untouched (ADR-014 is composition-side)"
+  ]
+}
