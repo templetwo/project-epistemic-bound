@@ -483,6 +483,7 @@ class SqliteRepository:
             effect_before_after_maps,
             replay_applied_from_events,
             replay_history_from_events,
+            resume_chain_failures,
         )
 
         failures: list[str] = []
@@ -493,6 +494,7 @@ class SqliteRepository:
             created_hash = events[0].payload.get("manifest_hash")
             if created_hash != recomputed_manifest:
                 failures.append("stored manifest does not match run_created manifest_hash")
+        failures.extend(resume_chain_failures(events, self.manifest(run_id).subject_session_id))
         stored_history = {(rec.resource_id, rec.revision): rec for rec in self.resource_history(run_id)}
         for rec in stored_history.values():
             expected = resource_content_hash(rec.resource_id, rec.revision, rec.value)
