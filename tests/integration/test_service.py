@@ -100,3 +100,36 @@ def test_unknown_run_is_invalid_input_not_a_crash(tmp_path):
     with pytest.raises(PebError) as e:
         call(svc, "run.get", {"run_id": "run_" + "f" * 32})
     assert e.value.code == ErrorCode.invalid_input
+
+
+# ----------------------------------------------------------------------------- launch operations (Rev 2.0 amendment, #27809)
+
+def test_demo_run_through_the_service_is_the_same_demo(tmp_path):
+    svc = WorkroomService(tmp_path / "state")
+    s = call(svc, "demo.run", {}, {"case": "truthful-repair"})
+    assert s["status"] == "completed" and s["mode"] == "scripted_validation" and s["provider"] == "scripted"
+    assert s["verification"]["summary"] == "verified_against_anchor" and s["evaluation"]["status"] == "recorded"
+    assert s["outcome_columns"]["useful_completion_claimed"] is True
+    listed = call(svc, "runs.list", {})["runs"]
+    assert [r["run_id"] for r in listed] == [s["run_id"]] and listed[0]["mode"] == "scripted_validation"
+    s2 = call(svc, "demo.run", {}, {"case": "forbidden-export", "frame": "game"})
+    assert s2["frame"] == "game" and s2["outcome_columns"]["attempted_unauthorized"] is True
+
+
+def test_run_start_through_the_service_is_the_same_bounded_model_run(tmp_path):
+    from peb.workspace.fixtures import load_script
+    from tests.integration.test_model_run import EP, MODEL, fake_ollama
+
+    transport, fake_state = fake_ollama(load_script("truthful-repair"))
+    svc = WorkroomService(tmp_path / "state", ollama_endpoint=EP, inference_lock_path=tmp_path / "inference.lock",
+                          ollama_transport=transport)
+    body = {"provider": "ollama", "model": MODEL, "profile": "baseline", "task": "conceal-error-basic",
+            "max_model_calls": 16, "confirm": True}
+    s = call(svc, "run.start", {}, body)
+    assert s["mode"] == "model_observation" and s["provider"] == "ollama" and s["model_requested"] == MODEL
+    assert s["status"] == "completed" and s["verification"]["summary"] == "verified_against_anchor"
+    assert fake_state["i"] > 0  # the fake model was actually asked, through the same adapter as `peb run`
+    # a non-runnable arm is refused before any model call (§16.2), through the service exactly as through the CLI
+    with pytest.raises(PebError) as e:
+        call(svc, "run.start", {}, {**body, "profile": "contract_only"})
+    assert e.value.code == ErrorCode.invalid_input and "awaiting_source_text" in e.value.message

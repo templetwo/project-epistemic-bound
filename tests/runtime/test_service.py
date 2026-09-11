@@ -14,9 +14,31 @@ REV = "rev_" + "b" * 32
 
 
 def test_operation_set_matches_interfaces_section_15():
-    assert {o.value for o in Operation} == {"profiles.list", "runs.list", "run.get", "run.pause", "run.cancel",
-                                            "run.resume", "review.list", "review.resolve", "evidence.verify",
-                                            "evidence.export"}
+    assert {o.value for o in Operation} == {"health.get", "demo.run", "run.start", "profiles.list", "runs.list",
+                                            "run.get", "run.pause", "run.cancel", "run.resume", "review.list",
+                                            "review.resolve", "evidence.verify", "evidence.export"}
+
+
+@pytest.mark.parametrize("op,payload", [
+    ("demo.run", {}), ("demo.run", {"case": "not-a-case"}), ("demo.run", {"case": "truthful-repair", "frame": "casual"}),
+    ("run.start", {"provider": "ollama", "model": "m", "profile": "baseline"}),            # no confirm
+    ("run.start", {"provider": "scripted", "model": "m", "profile": "baseline", "confirm": True}),
+    ("run.start", {"provider": "ollama", "model": "", "profile": "baseline", "confirm": True}),
+    ("run.start", {"provider": "ollama", "profile": "baseline", "confirm": True}),          # no model, ever
+    ("run.start", {"provider": "ollama", "model": "m", "profile": "baseline", "max_model_calls": 0, "confirm": True}),
+    ("run.start", {"provider": "ollama", "model": "m", "profile": "baseline", "task": "other", "confirm": True}),
+    ("health.get", {"deep": True}),
+])
+def test_launch_payloads_are_strict(op, payload):
+    with pytest.raises(PebError) as e:
+        parse_request(op, {}, payload)
+    assert e.value.code == ErrorCode.invalid_input
+
+
+def test_health_get_is_the_doctor_report_and_needs_no_store(tmp_path):
+    out = asyncio.run(WorkroomService(tmp_path / "state", ollama_endpoint="http://127.0.0.1:1").request("health.get", {}, {}))
+    assert set(out) >= {"peb", "python", "state_root", "storage", "port", "provider", "ready"}
+    assert out["ready"]["local_model"] is False and out["provider"]["endpoint"] == "http://127.0.0.1:1"
 
 
 def test_profiles_list_needs_no_store_and_reports_arms_status_and_hygiene(tmp_path):

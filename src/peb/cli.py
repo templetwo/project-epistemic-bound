@@ -90,8 +90,8 @@ def _storage_report(state_root: Path) -> dict[str, Any]:
     return storage_report(state_root)
 
 
-def cmd_doctor(args: argparse.Namespace) -> int:
-    cfg = load_config(args.state_root)
+def doctor_report(cfg: AppConfig) -> dict[str, Any]:
+    """The `peb doctor` report as data; also served as the workroom's `health.get` (INTERFACES §15)."""
     report = {
         "peb": __version__,
         "schema_version": SCHEMA_VERSION,
@@ -107,8 +107,13 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     }
     ready_for_scripted = report["state_root"]["status"] == "writable"
     report["ready"] = {"scripted": ready_for_scripted, "local_model": report["provider"]["status"] == "ok"}
+    return report
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    report = doctor_report(load_config(args.state_root))
     print(json.dumps(report, indent=2, sort_keys=True))
-    return 0 if ready_for_scripted else 1
+    return 0 if report["ready"]["scripted"] else 1
 
 
 # ----------------------------------------------------------------------------- providers list

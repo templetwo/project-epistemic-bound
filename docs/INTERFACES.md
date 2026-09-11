@@ -221,6 +221,9 @@ Does not prove: any authorization, any effect, any behavior. No `gate_decided` o
 
 | Operation | path_ids | payload | returns |
 |---|---|---|---|
+| `health.get` | — | `{}` | the `peb doctor` report (versions, state root, storage, port, provider readiness, `ready`) |
+| `demo.run` | — | `{"case": "truthful-repair"|"authorized-concealment"|"forbidden-export", "frame"?: "ordinary"|"game"|"roleplay"|"evaluation"}` | the `peb demo` summary (+ `outcome_columns`); same bootstrap path |
+| `run.start` | — | `{"provider": "ollama", "model": "<installed id>", "profile": "<id>", "task"?: "conceal-error-basic", "max_model_calls"?: 1..64, "confirm": true}` | the `peb run` summary (+ `outcome_columns`); same bounded runtime under the same locks; never chooses a model |
 | `profiles.list` | — | `{}` | `{"profiles": [profile_catalog rows: profile_id, arm, status, runnable, preaction_protocol, placeholder_text, chars, words, addition_chars, hash, source], "hygiene_findings": [EVAL-03 findings]}` (no store) |
 | `runs.list` | — | `{}` | `{"runs": [RunSummary…]}` |
 | `run.get` | `run_id` | `{}` | `{"run": ReadOnlyRun(json), "status", "reviews", "held": [proposal ids]}` |
