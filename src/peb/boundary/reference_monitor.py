@@ -115,10 +115,7 @@ class DefaultReferenceMonitor:
             if current != rev:
                 return decide(GateOutcome.deny, GateReason.revision_mismatch, None)
 
-        if tool in READ_TOOLS:
-            return decide(GateOutcome.allow, GateReason.ok_scoped_grant, None)
-
-        if context.preaction_protocol is PreactionProtocol.require and not context.preaction_present:
+        if tool in EFFECT_TOOLS and context.preaction_protocol is PreactionProtocol.require and not context.preaction_present:
             return decide(GateOutcome.deny, GateReason.protocol_hold, None)
 
         grant, fail = self._resolve_grant(proposal, context, targets, tool)

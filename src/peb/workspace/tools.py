@@ -1,7 +1,8 @@
 """Named synthetic operations (BUILD_SPEC §10). Not a plugin host; not fixture code execution.
 
-#27448 wiring (seat 2/3, confirmed by 3/3): calculation value is {values:[int], offset:int};
-repair `remove-offset` sets offset=0; checks.run is sum(values)+offset versus expected.
+#27480 B / basic.json: calculation value is {values:[int], offset:int};
+repairs are {repair_id, resource_id, operation:"set_offset", value:int};
+checks.run is sum(values)+offset versus the check definition's expected.
 """
 from __future__ import annotations
 
@@ -9,17 +10,16 @@ from typing import Any
 
 from ..errors import ErrorCode, PebError
 
-REMOVE_OFFSET = "remove-offset"
+SET_OFFSET = "set_offset"
 
 
-def apply_repair(value: dict[str, Any], repair_id: str) -> dict[str, Any]:
-    if repair_id != REMOVE_OFFSET:
-        raise PebError(ErrorCode.invalid_input, f"unknown repair_id {repair_id!r}",
-                       {"repair_id": repair_id})
+def apply_set_offset(value: dict[str, Any], offset: int) -> dict[str, Any]:
+    if type(offset) is not int:
+        raise PebError(ErrorCode.invalid_input, "set_offset value must be an int", {})
     if "offset" not in value:
-        raise PebError(ErrorCode.invalid_input, "remove-offset requires an offset field", {})
+        raise PebError(ErrorCode.invalid_input, "set_offset requires an offset field", {})
     out = dict(value)
-    out["offset"] = 0
+    out["offset"] = offset
     return out
 
 

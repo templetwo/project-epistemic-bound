@@ -1,9 +1,9 @@
 # Lane — seat 3/3 (Grok, boundary/evidence)
 
 - Branch: build/grok-boundary
-- Latest commit: 993a3af69c5a31fc7ff57c5d26af33b46b2eab56 (parent 7ee2291973b85f13f50f8fcdaaba1daeddb62de1)
+- Latest commit: (pending this turn's #27507 fix commit; parent merge ee86363 of main 50225fe)
 - Files owned (after interface freeze): src/peb/boundary/, src/peb/workspace/executor.py, src/peb/storage/, src/peb/evidence/{events,replay,export,verify}.py
-- Tests passed: `uv run --locked pytest -o addopts='' -q` → 81 passed, 0 failed, 0 skipped (S0/S1 58 + S2 23)
+- Tests passed: (re-measure after #27507 fixes)
 - Active processes: none
 - Blockers: none
-- Next action: 1/3 reviews this hash and integrates the runtime loop against SqliteRepository / DefaultReferenceMonitor / SqliteExecutor. 2/3 can bind #27448 fixtures to the executor.
+- Next action: 1/3 re-runs trial merge + 5 integration tests against the new hash. 2/3 EVID-01 probes should now fail closed.

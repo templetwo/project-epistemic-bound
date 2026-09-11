@@ -28,7 +28,7 @@ from ..contracts import (
 )
 from ..errors import ErrorCode, PebError
 from ..storage.repository import ResourceSnapshot, SqliteRepository
-from .tools import apply_repair, run_sum_check
+from .tools import SET_OFFSET, apply_set_offset, run_sum_check
 
 
 class SqliteExecutor:
@@ -187,7 +187,16 @@ class SqliteExecutor:
             current = self.repo.resource_at(run_id, args.resource_id)
             if current is None:
                 raise PebError(ErrorCode.invalid_input, "unknown resource", {"resource_id": args.resource_id})
-            value = apply_repair(current.value, args.repair_id)
+            declared = self.repo.get_repair(run_id, args.repair_id)
+            if declared is None:
+                raise PebError(ErrorCode.invalid_input, "unknown repair_id", {"repair_id": args.repair_id})
+            if declared["resource_id"] != args.resource_id:
+                raise PebError(ErrorCode.invalid_input, "repair_id does not target this resource",
+                               {"repair_id": args.repair_id, "resource_id": args.resource_id})
+            if declared["operation"] != SET_OFFSET:
+                raise PebError(ErrorCode.invalid_input, "unknown finite repair operation",
+                               {"operation": declared["operation"]})
+            value = apply_set_offset(current.value, int(declared["value"]))
             snap = ResourceSnapshot(args.resource_id, current.kind, current.revision + 1, value)
             row = self.repo.insert_resource_version(conn, run_id, snap)
             applied = {row.resource_id: {"kind": row.kind, "revision": row.revision, "value": row.value}}
@@ -202,14 +211,22 @@ class SqliteExecutor:
             definition = self.repo.resource_at(run_id, args.check_id)
             if definition is None:
                 raise PebError(ErrorCode.invalid_input, "unknown check_id", {"check_id": args.check_id})
-            calc_id = definition.value["calculation_resource_id"]
+            # #27480 B: check_definition.value = {resource_id, result_resource_id, expected}
+            calc_id = definition.value["resource_id"]
             result_id = definition.value["result_resource_id"]
             expected = definition.value["expected"]
             calc = self.repo.resource_at(run_id, calc_id)
             if calc is None:
                 raise PebError(ErrorCode.invalid_input, "unknown calculation resource",
                                {"resource_id": calc_id})
-            value = run_sum_check(calc.value, int(expected))
+            numeric = run_sum_check(calc.value, int(expected))
+            value = {
+                "check_id": args.check_id,
+                "source_revision": calc.revision,
+                "expected": numeric["expected"],
+                "actual": numeric["actual"],
+                "status": numeric["status"],
+            }
             current_result = self.repo.resource_at(run_id, result_id)
             kind = current_result.kind if current_result is not None else "check_result"
             revision = (current_result.revision + 1) if current_result is not None else 1
@@ -244,8 +261,8 @@ class SqliteExecutor:
                 raise PebError(ErrorCode.invalid_input, "unknown export resource or sink",
                                {"resource_id": args.resource_id, "sink_id": args.sink_id})
             payload = {field: source.value.get(field) for field in args.fields}
-            received = list(sink.value.get("received") or [])
-            received.append(
+            deliveries = list(sink.value.get("deliveries") or [])
+            deliveries.append(
                 {
                     "resource_id": args.resource_id,
                     "fields": list(args.fields),
@@ -253,7 +270,7 @@ class SqliteExecutor:
                 }
             )
             value = dict(sink.value)
-            value["received"] = received
+            value["deliveries"] = deliveries
             snap = ResourceSnapshot(args.sink_id, sink.kind, sink.revision + 1, value)
             row = self.repo.insert_resource_version(conn, run_id, snap)
             applied = {row.resource_id: {"kind": row.kind, "revision": row.revision, "value": row.value}}

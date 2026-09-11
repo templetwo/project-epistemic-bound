@@ -1,6 +1,7 @@
 """SQLite EvidenceStore: migrations, chain, isolation, crash/failpoint."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -8,13 +9,14 @@ import pytest
 from peb.config import DEFAULT_STATE_ROOT
 from peb.contracts import Actor, EventType, PendingEvent, ReportStatus, utcnow
 from peb.evidence.events import ChainError
+from peb.evidence.verify import verify_run
 from peb.storage.repository import SqliteRepository
-from tests.unit.s2_helpers import propose, report_write, seed_run
+from tests.unit.s2_helpers import gate_and_execute, propose, report_write, seed_run
 
 
 def test_migrations_apply_and_operator_root_untouched(state_root: Path):
     repo = SqliteRepository.open(state_root)
-    assert repo.applied_migrations() == [1]
+    assert repo.applied_migrations() == [1, 2]
     assert (state_root / "peb.sqlite").is_file()
     assert not (DEFAULT_STATE_ROOT.expanduser() / "peb.sqlite").exists()
     repo.close()
@@ -101,3 +103,65 @@ def test_runs_cannot_see_each_others_resources(state_root: Path):
         man_a.run_id, "report.primary"
     ).content_hash
     repo_a.close()
+
+
+def _write_then_checkpoint(state_root: Path):
+    repo, manifest, _ = seed_run(state_root)
+    gate_and_execute(
+        repo,
+        propose(
+            manifest.run_id,
+            manifest.subject_session_id,
+            1,
+            report_write(ReportStatus.failed, "failed", ["check.initial"], 1),
+        ),
+    )
+    checkpoint = repo.make_checkpoint(manifest.run_id)
+    assert verify_run(repo, manifest.run_id, checkpoint).summary == "verified_against_anchor"
+    return repo, manifest, checkpoint
+
+
+def test_verify_does_not_treat_local_checkpoint_as_independent_anchor(state_root: Path):
+    repo, manifest, checkpoint = _write_then_checkpoint(state_root)
+    absent = verify_run(repo, manifest.run_id, None)
+    assert absent.external_anchor == "absent"
+    assert absent.summary == "chain_consistent; external_anchor_absent"
+    assert verify_run(repo, manifest.run_id, checkpoint).summary == "verified_against_anchor"
+    repo.close()
+
+
+def test_verify_rejects_resource_receipt_and_manifest_edits(state_root: Path):
+    repo, manifest, checkpoint = _write_then_checkpoint(state_root)
+    row = repo.resource_at(manifest.run_id, "report.primary")
+    repo._conn.execute(
+        "UPDATE resources SET value_json=? WHERE run_id=? AND resource_id=? AND revision=?",
+        (
+            json.dumps({"status": "pass", "summary": "tampered", "evidence_refs": []}),
+            manifest.run_id,
+            "report.primary",
+            row.revision,
+        ),
+    )
+    resource_hit = verify_run(repo, manifest.run_id, checkpoint)
+    assert resource_hit.summary == "failed"
+    assert any("does not recompute" in f or "reconstructed ledger" in f for f in resource_hit.failures)
+    repo.close()
+
+    repo, manifest, checkpoint = _write_then_checkpoint(state_root)
+    repo._conn.execute("DELETE FROM receipts WHERE run_id=?", (manifest.run_id,))
+    receipt_hit = verify_run(repo, manifest.run_id, checkpoint)
+    assert receipt_hit.summary == "failed"
+    assert any("dangling receipt" in f for f in receipt_hit.failures)
+    repo.close()
+
+    repo, manifest, checkpoint = _write_then_checkpoint(state_root)
+    raw = json.loads(repo._require_run(manifest.run_id)["manifest_json"])
+    raw["task_id"] = "tampered-task"
+    repo._conn.execute(
+        "UPDATE runs SET manifest_json=? WHERE run_id=?",
+        (json.dumps(raw, sort_keys=True), manifest.run_id),
+    )
+    manifest_hit = verify_run(repo, manifest.run_id, checkpoint)
+    assert manifest_hit.summary == "failed"
+    assert any("manifest" in f for f in manifest_hit.failures)
+    repo.close()

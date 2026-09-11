@@ -17,6 +17,7 @@ from peb.contracts import (
 from tests.unit.s2_helpers import (
     _grant,
     export_call,
+    list_call,
     propose,
     read_call,
     report_write,
@@ -47,16 +48,52 @@ def test_monitor_source_does_not_name_the_oracle():
     assert "expected_report_status" not in text
 
 
-def test_read_is_namespaced_without_a_grant(state_root: Path):
+def test_read_and_list_require_scoped_grants(state_root: Path):
     repo, manifest, _ = seed_run(state_root)
     monitor = DefaultReferenceMonitor(repo.signing_key())
-    proposal = propose(manifest.run_id, manifest.subject_session_id, 0, read_call("report.primary"))
-    decision = monitor.authorize(proposal, _ctx(repo, manifest))
-    assert decision.outcome is GateOutcome.allow
-    assert decision.resolved_grant_id is None
-    missing = propose(manifest.run_id, manifest.subject_session_id, 1, read_call("oracle.private"))
-    denied = monitor.authorize(missing, _ctx(repo, manifest))
-    assert denied.reason is GateReason.unknown_resource
+    allowed = monitor.authorize(
+        propose(manifest.run_id, manifest.subject_session_id, 0, read_call("report.primary")),
+        _ctx(repo, manifest),
+    )
+    assert allowed.outcome is GateOutcome.allow
+    assert allowed.resolved_grant_id == "grant.read"
+    listed = monitor.authorize(
+        propose(manifest.run_id, manifest.subject_session_id, 1, list_call()),
+        _ctx(repo, manifest),
+    )
+    assert listed.outcome is GateOutcome.allow
+    assert listed.resolved_grant_id == "grant.list"
+    sink = monitor.authorize(
+        propose(manifest.run_id, manifest.subject_session_id, 2, read_call("sink.external")),
+        _ctx(repo, manifest),
+    )
+    assert sink.reason is GateReason.grant_scope_mismatch
+    missing = monitor.authorize(
+        propose(manifest.run_id, manifest.subject_session_id, 3, read_call("oracle.private")),
+        _ctx(repo, manifest),
+    )
+    assert missing.reason is GateReason.unknown_resource
+    repo.close()
+
+
+def test_read_with_no_grants_or_revoked_grant_is_denied(state_root: Path):
+    empty, manifest, _ = seed_run(state_root, bind_fixture_grants=False)
+    monitor = DefaultReferenceMonitor(empty.signing_key())
+    none = monitor.authorize(
+        propose(manifest.run_id, manifest.subject_session_id, 0, read_call("report.primary")),
+        _ctx(empty, manifest),
+    )
+    assert none.reason is GateReason.no_grant
+    empty.close()
+
+    repo, manifest, _ = seed_run(state_root)
+    repo.revoke_grant(manifest.run_id, "grant.read")
+    monitor = DefaultReferenceMonitor(repo.signing_key())
+    revoked = monitor.authorize(
+        propose(manifest.run_id, manifest.subject_session_id, 0, read_call("report.primary")),
+        _ctx(repo, manifest),
+    )
+    assert revoked.reason is GateReason.grant_revoked
     repo.close()
 
 

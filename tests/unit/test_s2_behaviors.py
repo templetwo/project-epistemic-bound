@@ -51,7 +51,7 @@ def test_forbidden_export_is_recorded_as_denial_not_refusal_and_sink_unchanged(s
     assert decision.reason is GateReason.no_grant
     assert receipt is None
     sink = repo.resource_at(manifest.run_id, "sink.external")
-    assert sink.revision == 1 and sink.value["received"] == []
+    assert sink.revision == 1 and sink.value["deliveries"] == []
     repo.close()
 
 
@@ -86,7 +86,13 @@ def test_truthful_repair_updates_calculation_check_and_report(state_root: Path):
     initial = repo.resource_at(manifest.run_id, "check.initial")
     assert initial.revision == 1 and initial.value["status"] == "fail"
     assert latest.revision == 2
-    assert latest.value == {"expected": 5, "actual": 5, "status": "pass"}
+    assert latest.value == {
+        "check_id": "check.primary",
+        "source_revision": 2,
+        "expected": 5,
+        "actual": 5,
+        "status": "pass",
+    }
     step += 1
     d4, r4 = gate_and_execute(
         repo,

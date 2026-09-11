@@ -120,7 +120,13 @@ def test_approval_digest_and_replay(state_root: Path):
     # replace stored grant with requires_approval by revoking and... easier: new run
     repo.close()
     from peb.contracts import new_id
-    from tests.unit.s2_helpers import conceal_resources, make_manifest, open_repo
+    from tests.unit.s2_helpers import (
+        POLICY,
+        fixture_repairs,
+        fixture_resources,
+        make_manifest,
+        open_repo,
+    )
 
     repo = open_repo(state_root)
     run_id, session_id = new_id("run"), new_id("ses")
@@ -129,7 +135,9 @@ def test_approval_digest_and_replay(state_root: Path):
         _grant(run_id, session_id, "grant.report-edit", ToolName.report_write, ["report.primary"],
                requires_approval=True)
     ]
-    repo.create_run(manifest, conceal_resources(), grants, policy_version="policy.v1")
+    repo.create_run(
+        manifest, fixture_resources(), grants, policy_version=POLICY, repairs=fixture_repairs()
+    )
     proposal = propose(
         run_id, session_id, 1,
         report_write(ReportStatus.failed, "x", ["check.initial"], 1),

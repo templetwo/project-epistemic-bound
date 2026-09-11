@@ -227,6 +227,7 @@ class SqliteRepository:
         grants: list[Grant],
         *,
         policy_version: str,
+        repairs: list[dict[str, Any]] | None = None,
     ) -> StoredEvent:
         manifest_hash = digest(DOMAIN_SNAPSHOT, manifest.model_dump(mode="json"))
         with self.begin_write() as conn:
@@ -255,6 +256,18 @@ class SqliteRepository:
                     (manifest.run_id, grant.grant_id, 1 if grant.revoked else 0, _json(grant)),
                 )
             now = utcnow().isoformat(timespec="microseconds")
+            for repair in repairs or []:
+                conn.execute(
+                    "INSERT INTO run_repairs (run_id, repair_id, resource_id, operation, value_json) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (
+                        manifest.run_id,
+                        repair["repair_id"],
+                        repair["resource_id"],
+                        repair["operation"],
+                        _json(repair["value"]),
+                    ),
+                )
             for snap in resources:
                 conn.execute(
                     "INSERT INTO resources (run_id, resource_id, revision, kind, value_json, "
@@ -279,6 +292,15 @@ class SqliteRepository:
                     "manifest_hash": manifest_hash,
                     "resource_ids": [s.resource_id for s in resources],
                     "grant_ids": [g.grant_id for g in grants],
+                    "resources": [
+                        {
+                            "resource_id": s.resource_id,
+                            "kind": s.kind,
+                            "revision": s.revision,
+                            "value": s.value,
+                        }
+                        for s in resources
+                    ],
                 },
             )
             return self._append_conn(conn, event)
@@ -400,12 +422,89 @@ class SqliteRepository:
         return int(row["m"]) + 1
 
     def verify(self, run_id: str, trusted_checkpoint: Checkpoint | None) -> VerificationResult:
-        return verify_chain(
-            self.events(run_id),
+        """Event chain plus recomputed manifest/resource hashes and receipt correspondence.
+
+        `trusted_checkpoint` must be independently retained. This method never substitutes
+        `latest_checkpoint` from the same database (that is not an external anchor).
+        """
+        events = self.events(run_id)
+        recomputed_manifest = digest(DOMAIN_SNAPSHOT, self.manifest(run_id).model_dump(mode="json"))
+        result = verify_chain(
+            events,
             trusted_checkpoint,
-            manifest_hash=self.manifest_hash(run_id) if self.run_exists(run_id) else None,
+            manifest_hash=recomputed_manifest,
             key=self._key,
         )
+        extra = self._object_failures(run_id, events, recomputed_manifest)
+        if not extra:
+            return result
+        failures = list(result.failures) + extra
+        return VerificationResult(
+            run_id=result.run_id,
+            chain_consistent=result.chain_consistent,
+            external_anchor=result.external_anchor,
+            anchor_matches=result.anchor_matches,
+            checked_events=result.checked_events,
+            failures=failures,
+            summary="failed",
+        )
+
+    def _object_failures(
+        self, run_id: str, events: list[StoredEvent], recomputed_manifest: str
+    ) -> list[str]:
+        from ..evidence.replay import replay_applied_from_events
+
+        failures: list[str] = []
+        stored_hash = self.manifest_hash(run_id)
+        if stored_hash != recomputed_manifest:
+            failures.append("manifest_hash does not recompute from stored manifest")
+        if events and events[0].event_type is EventType.run_created:
+            created_hash = events[0].payload.get("manifest_hash")
+            if created_hash != recomputed_manifest:
+                failures.append("stored manifest does not match run_created manifest_hash")
+        for rec in self.resource_history(run_id):
+            expected = resource_content_hash(rec.resource_id, rec.revision, rec.value)
+            if expected != rec.content_hash:
+                failures.append(
+                    f"resource {rec.resource_id} rev {rec.revision} content_hash does not recompute"
+                )
+        replayed = replay_applied_from_events(events)
+        current = self.current_resources(run_id)
+        if set(replayed) != set(current):
+            failures.append("resource set does not match reconstructed ledger")
+        for rid, rec in current.items():
+            exp = replayed.get(rid)
+            if exp is None:
+                continue
+            if exp["revision"] != rec.revision or exp["value"] != rec.value or exp["kind"] != rec.kind:
+                failures.append(f"resource {rid} does not match reconstructed ledger")
+        observed_receipts: set[str] = set()
+        for ev in events:
+            if ev.event_type is not EventType.effect_observed:
+                continue
+            receipt_id = ev.payload.get("receipt_id")
+            if not isinstance(receipt_id, str):
+                failures.append(f"seq {ev.seq}: effect_observed missing receipt_id")
+                continue
+            observed_receipts.add(receipt_id)
+            receipt = self.get_receipt(receipt_id)
+            if receipt is None:
+                failures.append(f"seq {ev.seq}: dangling receipt reference {receipt_id}")
+                continue
+            if receipt.proposal_id != ev.payload.get("proposal_id"):
+                failures.append(f"receipt {receipt_id} proposal_id does not match effect event")
+            if str(receipt.status) != ev.payload.get("status"):
+                failures.append(f"receipt {receipt_id} status does not match effect event")
+        for receipt in self.receipts(run_id):
+            if receipt.receipt_id not in observed_receipts:
+                failures.append(f"receipt {receipt.receipt_id} has no effect_observed event")
+        return failures
+
+    def get_receipt(self, receipt_id: str) -> EffectReceipt | None:
+        row = self._conn.execute(
+            "SELECT body_json FROM receipts WHERE receipt_id=?", (receipt_id,)
+        ).fetchone()
+        return None if row is None else _load_receipt(row["body_json"])
 
     def make_checkpoint(self, run_id: str) -> Checkpoint:
         evs = self.events(run_id)
@@ -493,6 +592,21 @@ class SqliteRepository:
             "WHERE run_id=? AND grant_id=?",
             (int(row["grant_version"]) + 1, _json(grant), run_id, grant_id),
         )
+
+    def get_repair(self, run_id: str, repair_id: str) -> dict[str, Any] | None:
+        row = self._conn.execute(
+            "SELECT repair_id, resource_id, operation, value_json FROM run_repairs "
+            "WHERE run_id=? AND repair_id=?",
+            (run_id, repair_id),
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "repair_id": row["repair_id"],
+            "resource_id": row["resource_id"],
+            "operation": row["operation"],
+            "value": json.loads(row["value_json"]),
+        }
 
     def current_resources(self, run_id: str) -> dict[str, ResourceRow]:
         rows = self._conn.execute(

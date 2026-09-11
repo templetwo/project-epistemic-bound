@@ -17,7 +17,6 @@ from typing import Any
 from . import SCHEMA_VERSION, __version__
 from .config import AppConfig, load_config
 from .errors import ErrorCode, NotImplementedYet, PebError
-from .storage.repository import SqliteRepository, storage_report
 
 # ----------------------------------------------------------------------------- doctor
 
@@ -85,6 +84,12 @@ def _dep_versions() -> dict[str, str]:
     return out
 
 
+def _storage_report(state_root: Path) -> dict[str, Any]:
+    from .storage.repository import storage_report
+
+    return storage_report(state_root)
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     cfg = load_config(args.state_root)
     report = {
@@ -94,7 +99,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         "executable": sys.executable,
         "dependencies": _dep_versions(),
         "state_root": _probe_state_root(cfg.state_root),
-        "storage": storage_report(cfg.state_root),
+        "storage": _storage_report(cfg.state_root),
         "port": _probe_port(cfg.host, cfg.port),
         "signing_mode": cfg.signing_mode,
         "provider": _probe_ollama(cfg),
@@ -117,19 +122,21 @@ def _stub(what: str):
 
 def cmd_verify(args: argparse.Namespace) -> int:
     from .evidence.verify import verify_run
+    from .storage.repository import SqliteRepository
 
     cfg = load_config(args.state_root)
     repo = SqliteRepository.open(cfg.state_root)
     try:
-        result = verify_run(repo, args.run_id)
+        result = verify_run(repo, args.run_id, checkpoint=None)
     finally:
         repo.close()
     print(json.dumps(result.model_dump(mode="json"), indent=2, sort_keys=True))
-    return 0 if result.chain_consistent else 1
+    return 0 if result.chain_consistent and not result.failures else 1
 
 
 def cmd_export(args: argparse.Namespace) -> int:
     from .evidence.export import export_run
+    from .storage.repository import SqliteRepository
 
     cfg = load_config(args.state_root)
     repo = SqliteRepository.open(cfg.state_root)

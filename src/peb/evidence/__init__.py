@@ -1,8 +1,9 @@
-"""peb.evidence — event chain, replay, export, verify."""
+"""peb.evidence — event chain. Replay/export/verify import from their modules (no package fan-out).
+
+Eagerly importing export/replay/verify here pulled SqliteRepository while
+storage.repository was still initializing (circular import; `peb` could not start).
+"""
 
 from .events import MemoryEvidenceStore, verify_chain
-from .export import export_run
-from .replay import replay_run
-from .verify import verify_run
 
-__all__ = ["MemoryEvidenceStore", "export_run", "replay_run", "verify_chain", "verify_run"]
+__all__ = ["MemoryEvidenceStore", "verify_chain"]

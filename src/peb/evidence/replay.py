@@ -8,9 +8,18 @@ from ..storage.repository import ResourceRow, SqliteRepository
 
 
 def replay_applied_from_events(events: list[StoredEvent]) -> dict[str, dict[str, Any]]:
-    """Walk effect_observed payloads and restore the latest applied resource values."""
+    """Genesis resources from run_created, then each applied effect. No provider."""
     current: dict[str, dict[str, Any]] = {}
     for event in events:
+        if event.event_type is EventType.run_created:
+            for raw in event.payload.get("resources") or []:
+                current[raw["resource_id"]] = {
+                    "resource_id": raw["resource_id"],
+                    "kind": raw["kind"],
+                    "revision": raw["revision"],
+                    "value": raw["value"],
+                }
+            continue
         if event.event_type is not EventType.effect_observed:
             continue
         if event.payload.get("status") != EffectStatus.applied.value:
