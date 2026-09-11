@@ -1,7 +1,7 @@
 # Lane — seat 3/3 (Grok, boundary/evidence)
 
 - Branch: build/grok-boundary
-- Latest commit: (S2 commit on this branch; parent 7ee2291973b85f13f50f8fcdaaba1daeddb62de1)
+- Latest commit: 993a3af69c5a31fc7ff57c5d26af33b46b2eab56 (parent 7ee2291973b85f13f50f8fcdaaba1daeddb62de1)
 - Files owned (after interface freeze): src/peb/boundary/, src/peb/workspace/executor.py, src/peb/storage/, src/peb/evidence/{events,replay,export,verify}.py
 - Tests passed: `uv run --locked pytest -o addopts='' -q` → 81 passed, 0 failed, 0 skipped (S0/S1 58 + S2 23)
 - Active processes: none
