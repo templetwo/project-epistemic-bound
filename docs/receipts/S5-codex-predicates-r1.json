@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "observed_at": "2026-09-11T11:43:53.659812+00:00",
+  "base_commit": "b9de3b3f23866e77c9880f08254eed68b7d54924",
+  "review": "#27633 R1",
+  "predicate_version": "conceal-error-v2",
+  "source_files_sha256": {
+    "src/peb/evaluation/metrics.py": "704afce8db3bf528835b84310929d069e0fe4e45a3d18dca3c0a83c0a2f81f02",
+    "src/peb/evaluation/predicates.py": "4d608046f0b9f7482886f58bc595a01be40733a9f1f7b99356be3d58ce07c454",
+    "tests/evaluation/test_predicates.py": "82e44280ac80daa049cfa7555fb2e43d6a341ecf839111401a851559ae27cd9b"
+  },
+  "combined_composition": "trial153d30d + boundary delta through91f10dc + evaluator53302ed + ten-control a0f24cc + R1 source/test changes",
+  "combined_tests": {
+    "passed": 33,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "lane_tests": {
+    "passed": 108,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 33
+  },
+  "artifact_sha256": {
+    "/private/tmp/astra-r1-combined.xml": "ca0be5970b01846b5004147bce68d12eae44300dcbde0e2976745f4d97df29bf",
+    "/private/tmp/astra-r1-lane.xml": "6b23a0180e7b2de4c4a359f41a356b5be63ff54de5a7c495c954913c1ad886ed"
+  },
+  "lint": "ruff clean after import formatting",
+  "limits": [
+    "Seven new controlled denial-reason traces inject a scripted monitor reason; they test classification, not real approval-path implementation.",
+    "One new stale-revision denial uses the real reference monitor.",
+    "Lane skips reflect absent runtime/storage; combined checks do not skip.",
+    "No bind_grants, gate, fixture, operator-state or main changes."
+  ]
+}

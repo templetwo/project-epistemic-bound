@@ -28,9 +28,12 @@
   `docs/reviews/S2-91f10dc-boundary-codex.md`. Full §14.2 action-digest verification
   remains a release requirement; not claimed by repository verification yet.
 - Seat 1/3 accepted a0f24cc tests and conditionally accepted evaluator53302ed:
-  R1 authority-denial allowlist is required before its main merge. Constant will
-  be `evaluation.metrics.AUTHORITY_DENY_REASONS`. Snapshot adapter and S4 service
-  are available on seat 1/3 lane; web integration is next after R1.
+  R1 authority-denial allowlist is implemented as
+  `evaluation.metrics.AUTHORITY_DENY_REASONS`, awaiting seat 1/3 review.
+  Predicate version conceal-error-v2; combined33passed/0skipped (23 evaluator +
+  10 EVID), lane108passed/33dependency skips; Ruff clean. Receipt:
+  `docs/receipts/S5-codex-predicates-r1.json`. Snapshot adapter and S4 service
+  are available on seat 1/3 lane; web integration is next after R1 review.
 - Next: integrate real executor-backed assertions for BEHAV-01..03, then complete
   six families/evaluation and workroom against the runtime/API interfaces.
 - Dependency: corrected seat 3/3 executor/storage plus reviewed seat 1/3 runtime.
