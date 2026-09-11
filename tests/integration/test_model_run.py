@@ -225,7 +225,10 @@ def test_deepseek_observation_runs_through_the_same_runtime_and_the_key_never_la
     assert s["status"] == "completed" and s["verification"]["summary"] == "verified_against_anchor"
     assert s["settings"]["response_format"] == "json_object" and s["settings"]["api_key_env"] == "DEEPSEEK_API_KEY"
     assert s["settings"]["provider_endpoint_host"] == "api.deepseek.com" and s["settings"]["max_output_tokens"] == 1024
-    assert s["provider_usage"]["prompt_cache_hit_tokens"] == 64 * 8 and s["provider_usage"]["calls"] == 8
+    assert s["provider_usage"]["prompt_cache_hit_tokens"] == 64 * 8 and s["provider_usage"]["requests_attempted"] == 8
+    assert s["provider_usage"]["responses_with_usage"] == 8 and s["provider_usage"]["thinking_effective"] == "disabled"
+    assert s["settings"]["thinking"] == "disabled" and s["settings"]["credential_destination"] == "api.deepseek.com"
+    assert all(b["thinking"] == {"type": "disabled"} for b in state["bodies"])
     assert state["auth"] == {f"Bearer {DS_KEY}"}  # the header carried it on every request…
     assert all(b["max_tokens"] == 1024 and b["response_format"] == {"type": "json_object"} for b in state["bodies"])
     # …and it is nowhere else: not in the summary, not in any event, receipt, manifest, or the export bundle
@@ -253,8 +256,14 @@ def test_dry_run_scope_reports_outbound_data_and_budget_without_any_network(monk
     assert scope["endpoint_host"] == "api.deepseek.com" and scope["endpoint_scheme"] == "https" and scope["model"] == DS_MODEL
     roles = [m["role"] for m in scope["outbound_per_call"]["step_0_messages"]]
     assert roles == ["system", "user"] and scope["outbound_per_call"]["step_0_chars"] > 1000
-    assert scope["budget"] == {"max_model_calls": 6, "max_output_tokens_per_call": 512, "max_output_tokens_total": 3072,
-                               "prompt_tokens_lower_bound_total": 6 * scope["outbound_per_call"]["step_0_prompt_tokens_estimate"],
-                               "request_timeout_s": 120, "note": scope["budget"]["note"]}
+    b = scope["budget"]
+    assert (b["max_model_calls"], b["max_output_tokens_per_call"], b["max_output_tokens_total"]) == (6, 512, 3072)
+    assert b["max_input_chars_per_request_enforced"] == 60_000 and b["max_input_tokens_total_worst_case"] == 6 * 15_000
+    assert scope["worst_case_cost"]["total_usd_worst_case"] is None  # no rates supplied → no number invented
+    priced = outbound_scope(provider_kind="deepseek", endpoint=DS_EP, model=DS_MODEL, profile_id="baseline",
+                            task_id="conceal-error-basic", max_model_calls=6, max_output_tokens=512,
+                            rates={"input_cache_miss_per_mtok": 1.0, "output_per_mtok": 2.0, "provenance": "test"})
+    assert priced["worst_case_cost"]["total_usd_worst_case"] == round((6 * 15_000 * 1.0 + 3072 * 2.0) / 1e6, 4)
+    assert priced["worst_case_cost"]["rates_provenance"] == "test" and "cache-MISS" in priced["worst_case_cost"]["basis"]
     assert "private oracle" in " ".join(scope["never_sent"]) and "DEEPSEEK_API_KEY" in scope["key"]
     assert scope["network"].startswith("none")

@@ -29,6 +29,12 @@ from .base import ProviderError
 
 DEFAULT_ENDPOINT = "https://api.deepseek.com"
 DEFAULT_KEY_ENV = "DEEPSEEK_API_KEY"
+# The ONLY host the credential may be sent to (Anthony, 2026-09-11: "Pin the credential-bearing destination to the
+# approved DeepSeek host"). Not configurable at run time; changing it is a reviewed code change.
+APPROVED_HOSTS = frozenset({"api.deepseek.com"})
+# Enforced whole-request input maximum (characters of the rendered messages; tokens are estimated at chars/4 and
+# measured exactly per response). A request above it is refused BEFORE it is sent: `input_limit_exceeded`.
+DEFAULT_MAX_INPUT_CHARS = 60_000
 
 
 def assert_https(endpoint: str) -> None:
@@ -37,6 +43,9 @@ def assert_https(endpoint: str) -> None:
         raise ProviderError("deepseek endpoint must be an explicit https:// URL", {"endpoint": endpoint})
     if u.username or u.password:
         raise ProviderError("deepseek endpoint must not carry credentials in the URL", {"endpoint_host": u.hostname})
+    if u.hostname not in APPROVED_HOSTS:
+        raise ProviderError("deepseek endpoint host is not the approved credential destination",
+                            {"endpoint_host": u.hostname, "approved": sorted(APPROVED_HOSTS)})
 
 
 @dataclass
@@ -48,15 +57,24 @@ class DeepSeekProvider:
     api_key_env: str = DEFAULT_KEY_ENV
     temperature: float = 0.0
     response_format: str = "json_object"
+    thinking: str = "disabled"  # sent as {"thinking": {"type": "disabled"}}; the effective setting is read back per response
+    max_input_chars: int = DEFAULT_MAX_INPUT_CHARS
 
     def __post_init__(self) -> None:
         assert_https(self.endpoint)
         if not self.model:
             raise ProviderError("deepseek model id must be configured explicitly; there is no default")
+        if self.thinking not in ("disabled", "enabled"):
+            raise ProviderError("deepseek thinking must be 'disabled' or 'enabled'", {"thinking": self.thinking})
         # Not a dataclass field on purpose: never in repr(), dataclasses.asdict(), or anything serialized.
         self._key: str = os.environ.get(self.api_key_env, "") or ""
-        self._usage: dict[str, Any] = {"calls": 0, "prompt_tokens": None, "completion_tokens": None,
-                                       "prompt_cache_hit_tokens": None, "prompt_cache_miss_tokens": None}
+        # Attempted requests vs responses that reported usage — missing usage is visible, never collapsed to zero.
+        self._usage: dict[str, Any] = {"requests_attempted": 0, "responses_received": 0, "responses_with_usage": 0,
+                                       "responses_without_usage": 0, "usage_fields_missing": [],
+                                       "prompt_tokens": None, "completion_tokens": None,
+                                       "prompt_cache_hit_tokens": None, "prompt_cache_miss_tokens": None,
+                                       "thinking_requested": self.thinking, "thinking_effective": None,
+                                       "refused_before_send": 0}
 
     def __repr__(self) -> str:  # the key is never shown, only whether one is present
         return (f"DeepSeekProvider(endpoint={self.endpoint!r}, model={self.model!r}, "
@@ -70,9 +88,11 @@ class DeepSeekProvider:
         return dict(self._usage)
 
     def _client(self, timeout: float) -> httpx.AsyncClient:
-        # trust_env=False: no inherited proxies; the only route is the explicit endpoint.
+        # trust_env=False: no inherited proxies; follow_redirects=False: the credential never follows a redirect
+        # to any other host; the only route is the explicit, approved endpoint.
         return httpx.AsyncClient(base_url=self.endpoint.rstrip("/"), timeout=timeout, trust_env=False,
-                                 transport=self.transport, headers={"Authorization": f"Bearer {self._key}"})
+                                 follow_redirects=False, transport=self.transport,
+                                 headers={"Authorization": f"Bearer {self._key}"})
 
     # -- readiness ----------------------------------------------------------------------------------
 
@@ -111,6 +131,11 @@ class DeepSeekProvider:
         if not any("json" in m.content.lower() for m in request.messages):
             # DeepSeek JSON mode needs the word in the prompt; we never edit the subject's prompt to satisfy a provider.
             return _err(request, "unsupported_setting", "json_object requires the word 'json' in the prompt")
+        input_chars = sum(len(m.content) for m in request.messages)
+        if input_chars > self.max_input_chars:
+            # Enforced whole-request input maximum: refused before anything is sent (no truncation, no retry).
+            self._usage["refused_before_send"] += 1
+            return _err(request, "input_limit_exceeded")
         body: dict[str, Any] = {
             "model": self.model,
             "messages": [{"role": m.role, "content": m.content} for m in request.messages],
@@ -118,7 +143,9 @@ class DeepSeekProvider:
             "temperature": self.temperature,
             "max_tokens": request.limits.max_output_tokens,
             "response_format": {"type": "json_object"},
+            "thinking": {"type": self.thinking},
         }
+        self._usage["requests_attempted"] += 1
         try:
             async with self._client(timeout=float(request.limits.request_timeout_s)) as client:
                 r = await client.post("/chat/completions", json=body)
@@ -126,6 +153,8 @@ class DeepSeekProvider:
             return _err(request, "timeout")
         except httpx.HTTPError as e:
             return _err(request, "server_unreachable", type(e).__name__)
+        if 300 <= r.status_code < 400:
+            return _err(request, "transport", "redirect refused")
         code = _status_code(r.status_code)
         if code is not None:
             detail = _error_message(r)
@@ -140,8 +169,11 @@ class DeepSeekProvider:
         except (ValueError, KeyError, IndexError, TypeError):
             return _err(request, "transport", "malformed completion body")
         resolved = data.get("model")
-        usage = data.get("usage") or {}
+        usage = data.get("usage") if isinstance(data.get("usage"), dict) else None
         self._bump(usage)
+        # Effective thinking: DeepSeek returns reasoning_content when thinking ran. Record what actually happened.
+        effective = "enabled" if choice.get("message", {}).get("reasoning_content") else "disabled"
+        self._usage["thinking_effective"] = effective if self._usage["thinking_effective"] in (None, effective) else "mixed"
         if not isinstance(content, str):
             return _err(request, "transport", "content is not a string")
         if isinstance(resolved, str) and resolved != self.model:
@@ -149,19 +181,28 @@ class DeepSeekProvider:
         if finish == "length":
             # Truncated: keep the bytes for the record; the runtime never parses an errored response.
             return ModelResponse(model_requested=request.model, model_resolved=resolved, content=content,
-                                 finish_reason="length", prompt_tokens=_int_or_none(usage.get("prompt_tokens")),
-                                 completion_tokens=_int_or_none(usage.get("completion_tokens")), duration_ms=None,
+                                 finish_reason="length", prompt_tokens=_int_or_none((usage or {}).get("prompt_tokens")),
+                                 completion_tokens=_int_or_none((usage or {}).get("completion_tokens")), duration_ms=None,
                                  error="truncated")
         return ModelResponse(model_requested=request.model, model_resolved=resolved, content=content,
                              finish_reason="stop" if finish == "stop" else "unknown",
-                             prompt_tokens=_int_or_none(usage.get("prompt_tokens")),
-                             completion_tokens=_int_or_none(usage.get("completion_tokens")), duration_ms=None, error=None)
+                             prompt_tokens=_int_or_none((usage or {}).get("prompt_tokens")),
+                             completion_tokens=_int_or_none((usage or {}).get("completion_tokens")), duration_ms=None, error=None)
 
-    def _bump(self, usage: dict[str, Any]) -> None:
-        self._usage["calls"] += 1
-        for k in ("prompt_tokens", "completion_tokens", "prompt_cache_hit_tokens", "prompt_cache_miss_tokens"):
+    def _bump(self, usage: dict[str, Any] | None) -> None:
+        self._usage["responses_received"] += 1
+        fields = ("prompt_tokens", "completion_tokens", "prompt_cache_hit_tokens", "prompt_cache_miss_tokens")
+        present = [k for k in fields if usage is not None and _int_or_none(usage.get(k)) is not None]
+        if usage is None or not present:
+            self._usage["responses_without_usage"] += 1
+            return
+        self._usage["responses_with_usage"] += 1
+        for k in fields:
             v = _int_or_none(usage.get(k))
-            if v is not None:
+            if v is None:
+                if k not in self._usage["usage_fields_missing"]:
+                    self._usage["usage_fields_missing"].append(k)
+            else:
                 self._usage[k] = (self._usage[k] or 0) + v
 
 

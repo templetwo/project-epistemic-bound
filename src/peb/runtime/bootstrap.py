@@ -135,14 +135,16 @@ MODEL_LABEL = ("MODEL OBSERVATION — a fresh subject session of an explicitly c
                "here scores or fixes it. mode=model_observation.")
 
 
-def _build_provider(provider_kind: str, *, endpoint: str, model: str, limits: Limits, transport: Any):
+def _build_provider(provider_kind: str, *, endpoint: str, model: str, limits: Limits, transport: Any,
+                    max_input_chars: int | None = None):
     """The two model providers, constructed the same way everywhere (CLI, service, dry run). Never a default model."""
     if provider_kind == "ollama":
         from ..providers.ollama import OllamaProvider
         return OllamaProvider(endpoint=endpoint, model=model, limits=limits, transport=transport)
     if provider_kind == "deepseek":
-        from ..providers.deepseek import DeepSeekProvider
-        return DeepSeekProvider(endpoint=endpoint, model=model, limits=limits, transport=transport)
+        from ..providers.deepseek import DEFAULT_MAX_INPUT_CHARS, DeepSeekProvider
+        return DeepSeekProvider(endpoint=endpoint, model=model, limits=limits, transport=transport,
+                                max_input_chars=max_input_chars or DEFAULT_MAX_INPUT_CHARS)
     raise PebError(ErrorCode.invalid_input, f"unknown model provider {provider_kind!r}", {"providers": ["ollama", "deepseek"]})
 
 
@@ -157,13 +159,16 @@ def _provider_settings(provider: Any, endpoint: str, limits: Limits) -> dict[str
     if hasattr(provider, "api_key_env"):
         out["api_key_env"] = str(provider.api_key_env)  # the NAME of the variable; the value never leaves the provider
         out["temperature"] = int(provider.temperature) if float(provider.temperature).is_integer() else str(provider.temperature)
+        out["thinking"] = str(provider.thinking)
+        out["max_input_chars"] = int(provider.max_input_chars)
+        out["credential_destination"] = str(urlparse(endpoint).hostname or "")
     return out
 
 
 async def compose_model_run(state_root: str | os.PathLike[str], *, model: str, profile_id: str, task_id: str,
                             max_model_calls: int, endpoint: str, frame: str = "ordinary",
                             transport: Any = None, provider_kind: str = "ollama",
-                            max_output_tokens: int | None = None) -> ComposedRun:
+                            max_output_tokens: int | None = None, max_input_chars: int | None = None) -> ComposedRun:
     """§20 `peb run --provider ollama|deepseek`: explicit model, explicit profile, real probe first, no fallback."""
     from ..providers.ollama import response_schema_for_decisions
     from .profiles import load_profile, require_runnable
@@ -172,7 +177,8 @@ async def compose_model_run(state_root: str | os.PathLike[str], *, model: str, p
         raise PebError(ErrorCode.invalid_input, f"unknown task {task_id!r}", {"tasks": ["conceal-error-basic"]})
     profile = require_runnable(load_profile(profile_id))  # §16.2: a placeholder arm is not that arm
     limits = Limits(max_model_calls=max_model_calls, **({"max_output_tokens": max_output_tokens} if max_output_tokens else {}))
-    provider = _build_provider(provider_kind, endpoint=endpoint, model=model, limits=limits, transport=transport)
+    provider = _build_provider(provider_kind, endpoint=endpoint, model=model, limits=limits, transport=transport,
+                               max_input_chars=max_input_chars)
     probe = await provider.probe()
     if probe["status"] != "ok":
         raise PebError(ErrorCode.provider_unavailable, f"{provider_kind} provider not ready: {probe['status']}", probe)
@@ -238,13 +244,14 @@ async def run_scripted_demo(state_root: str | os.PathLike[str], case: str, **kw)
 async def run_model_observation(state_root: str | os.PathLike[str], *, model: str, profile_id: str, task_id: str,
                                 max_model_calls: int, endpoint: str, inference_lock_path: str | None = None,
                                 transport: Any = None, provider_kind: str = "ollama",
-                                max_output_tokens: int | None = None) -> dict[str, Any]:
+                                max_output_tokens: int | None = None, max_input_chars: int | None = None) -> dict[str, Any]:
     """§20 `peb run`. Holds the state-root supervisor lock and the MacBook-wide inference lock for the run."""
     from .locks import InferenceLock, SupervisorLock
 
     with SupervisorLock(state_root), InferenceLock(inference_lock_path):
         composed = await compose_model_run(state_root, model=model, profile_id=profile_id, task_id=task_id,
                                            provider_kind=provider_kind, max_output_tokens=max_output_tokens,
+                                           max_input_chars=max_input_chars,
                                            max_model_calls=max_model_calls, endpoint=endpoint, transport=transport)
         rt, run, repo = composed.runtime, composed.run, composed.repo
         try:
@@ -554,7 +561,8 @@ class _MustNotBeCalled:
 
 
 def outbound_scope(*, provider_kind: str, endpoint: str, model: str, profile_id: str, task_id: str,
-                   max_model_calls: int, max_output_tokens: int | None = None, frame: str = "ordinary") -> dict[str, Any]:
+                   max_model_calls: int, max_output_tokens: int | None = None, frame: str = "ordinary",
+                   max_input_chars: int | None = None, rates: dict[str, Any] | None = None) -> dict[str, Any]:
     """What would leave this machine for one run, and the maximum budget — computed WITHOUT any network call and
     without touching the operator's state root (a temporary root is composed and discarded). This is the report
     Anthony sees before any paid request (ADR-017)."""
@@ -586,6 +594,25 @@ def outbound_scope(*, provider_kind: str, endpoint: str, model: str, profile_id:
     per_role = [{"role": m.role, "chars": len(m.content)} for m in messages]
     total_chars = sum(r["chars"] for r in per_role)
     est_prompt_tokens = -(-total_chars // 4)  # ceiling of chars/4: an ESTIMATE; exact tokens are measured per response
+    if max_input_chars is None:
+        from ..providers.deepseek import DEFAULT_MAX_INPUT_CHARS
+        max_input_chars = DEFAULT_MAX_INPUT_CHARS
+    max_input_tokens = -(-max_input_chars // 4)
+    if total_chars > max_input_chars:
+        raise PebError(ErrorCode.invalid_input, "the step-0 request already exceeds the enforced input maximum",
+                       {"step_0_chars": total_chars, "max_input_chars": max_input_chars})
+    worst_input_tokens = limits.max_model_calls * max_input_tokens
+    worst_output_tokens = limits.max_model_calls * limits.max_output_tokens
+    cost: dict[str, Any]
+    if rates and all(k in rates for k in ("input_cache_miss_per_mtok", "output_per_mtok")):
+        cost = {"input_usd": worst_input_tokens * float(rates["input_cache_miss_per_mtok"]) / 1e6,
+                "output_usd": worst_output_tokens * float(rates["output_per_mtok"]) / 1e6}
+        cost["total_usd_worst_case"] = round(cost["input_usd"] + cost["output_usd"], 4)
+        cost["basis"] = "every request at the enforced input maximum, every response at max_output_tokens, all input billed at the cache-MISS rate (peak)"
+        cost["rates"] = {k: rates[k] for k in ("input_cache_miss_per_mtok", "output_per_mtok")}
+        cost["rates_provenance"] = str(rates.get("provenance", "supplied by the operator; not verified by this software"))
+    else:
+        cost = {"total_usd_worst_case": None, "note": "rates not supplied (input_cache_miss_per_mtok, output_per_mtok per 1M tokens); cost not computed"}
     return {
         "provider": provider_kind, "endpoint_host": urlparse(endpoint).hostname, "endpoint_scheme": urlparse(endpoint).scheme,
         "model": model, "profile_id": profile.profile_id, "arm": profile.arm, "task_id": task_id, "frame": frame,
@@ -600,12 +627,17 @@ def outbound_scope(*, provider_kind: str, endpoint: str, model: str, profile_id:
         "never_sent": list(NEVER_SENT),
         "budget": {
             "max_model_calls": limits.max_model_calls, "max_output_tokens_per_call": limits.max_output_tokens,
-            "max_output_tokens_total": limits.max_model_calls * limits.max_output_tokens,
-            "prompt_tokens_lower_bound_total": limits.max_model_calls * est_prompt_tokens,
+            "max_output_tokens_total": worst_output_tokens,
+            "max_input_chars_per_request_enforced": max_input_chars, "max_input_tokens_per_request_estimate": max_input_tokens,
+            "max_input_tokens_total_worst_case": worst_input_tokens,
             "request_timeout_s": limits.request_timeout_s,
-            "note": "prompt tokens per call grow with history; the lower bound uses the step-0 size. Exact usage is "
-                    "recorded per response (prompt/completion and, for deepseek, cache hit/miss tokens). No price is asserted.",
+            "note": "a request above max_input_chars is refused before it is sent (input_limit_exceeded); exact usage is "
+                    "recorded per response (prompt/completion and cache hit/miss tokens); attempted requests and responses "
+                    "with/without usage are counted separately.",
         },
+        "worst_case_cost": cost,
+        "thinking": "disabled (sent as thinking.type=disabled; the effective setting is read from each response and recorded)"
+                    if provider_kind == "deepseek" else "n/a",
         "network": "none for this report; a real run first probes the provider's model list, then makes at most max_model_calls requests",
         "key": ("read from the DEEPSEEK_API_KEY environment variable at run time; never sent anywhere but the Authorization "
                 "header; never recorded" if provider_kind == "deepseek" else "none (loopback provider)"),

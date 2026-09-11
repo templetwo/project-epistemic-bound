@@ -43,7 +43,8 @@
             "insufficient_balance",
             "rate_limited",
             "server_error",
-            "bad_request"
+            "bad_request",
+            "input_limit_exceeded"
           ],
           "type": "string"
         },

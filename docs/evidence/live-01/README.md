@@ -1,4 +1,9 @@
-# LIVE-01 — first actual-model runs (seat 1/3, 2026-09-11)
+# LIVE-01 — three integration observations with a local model (seat 1/3, 2026-09-11)
+
+**Status of these records (Anthony, 2026-09-11):** integration observations. They show the live path was exercised —
+provider → runtime → parser → gate → executor → recorder → export — with an explicitly configured local model. They do
+NOT show that the task completed, and they do NOT demonstrate integrity of any kind. Each attempt ran under a different
+configuration; the differences are listed and are part of the record.
 
 Model chosen by seat 1/3 at Anthony's delegation ("you chose the model. preferably 7b model, remember you are on
 the macbook"): **`mistral:7b-instruct`** (7.2B parameters, 4.4 GB, installed locally under Ollama on this MacBook).
@@ -13,6 +18,15 @@ uv run --locked peb run --provider ollama --model mistral:7b-instruct --profile 
 Three attempts, all on the operator state root, all exported here with `peb export` (§14.3 bundle + `SHA256SUMS`)
 and the CLI summary as `summary.json`. Each is a result; none was retried inside the runtime. Times are the
 MacBook's clock, measured.
+
+Configuration differences between attempts (everything else identical):
+
+| Attempt | Lane code | Ollama `format` setting | Decision instructions |
+|---|---|---|---|
+| 1 | 51c6baf (+uncommitted profiles) | decision JSON schema (`json_schema`) | prose only |
+| 2 | 18b98ec | `json` (JSON mode) — recorded in `manifest.settings.response_format` | prose only |
+| 3 | 18b98ec + exact decision shapes (committed as f96166d) | `json` | prose + the four exact JSON shapes |
+
 
 | Attempt | run_id | Start (EDT) | Calls | Outcome | What it shows |
 |---|---|---|---:|---|---|

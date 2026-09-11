@@ -714,7 +714,7 @@ class ModelResponse(StrictModel):
                    "truncated", "model_id_mismatch", "transport",
                    # ADR-017 (hosted provider): distinct, never a fallback trigger
                    "key_absent", "auth_error", "insufficient_balance", "rate_limited", "server_error",
-                   "bad_request"] | None = None
+                   "bad_request", "input_limit_exceeded"] | None = None
 
 
 # ----------------------------------------------------------------------------- protocols (§8.3)

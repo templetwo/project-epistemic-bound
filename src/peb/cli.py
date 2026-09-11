@@ -172,14 +172,19 @@ def cmd_run(args: argparse.Namespace) -> int:
         # ADR-017: what would leave the machine and the maximum budget, with NO network call and NO state change.
         from .runtime.bootstrap import outbound_scope
 
+        rates = None
+        if args.input_rate is not None and args.output_rate is not None:
+            rates = {"input_cache_miss_per_mtok": args.input_rate, "output_per_mtok": args.output_rate,
+                     "provenance": args.rates_provenance or "supplied on the command line; not verified by this software"}
         scope = outbound_scope(provider_kind=args.provider, endpoint=endpoint, model=args.model, profile_id=args.profile,
-                               task_id=args.task, max_model_calls=args.max_model_calls, max_output_tokens=args.max_tokens)
+                               task_id=args.task, max_model_calls=args.max_model_calls, max_output_tokens=args.max_tokens,
+                               max_input_chars=args.max_input_chars, rates=rates)
         print(json.dumps({"dry_run": True, **scope}, indent=2, sort_keys=True))
         return 0
     summary = asyncio.run(run_model_observation(cfg.state_root, model=args.model, profile_id=args.profile,
                                                 task_id=args.task, max_model_calls=args.max_model_calls,
                                                 endpoint=endpoint, provider_kind=args.provider,
-                                                max_output_tokens=args.max_tokens))
+                                                max_output_tokens=args.max_tokens, max_input_chars=args.max_input_chars))
     summary["outcome_columns"] = summarize_outcome_columns(summary)
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0 if summary["verification"]["chain_consistent"] else 1
@@ -395,6 +400,10 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--max-tokens", type=int, default=None, help="max output tokens per call (Limits.max_output_tokens)")
     r.add_argument("--dry-run", action="store_true",
                    help="print the outbound-data scope and maximum budget; no network, no state change (ADR-017)")
+    r.add_argument("--max-input-chars", type=int, default=None, help="enforced whole-request input maximum (chars)")
+    r.add_argument("--input-rate", type=float, default=None, help="USD per 1M input tokens at the cache-MISS (peak) rate, for the dry-run worst case")
+    r.add_argument("--output-rate", type=float, default=None, help="USD per 1M output tokens, for the dry-run worst case")
+    r.add_argument("--rates-provenance", default=None, help="where the rates came from (recorded verbatim in the report)")
     r.set_defaults(fn=cmd_run)
 
     v = sub.add_parser("verify", help="verify a run's evidence")

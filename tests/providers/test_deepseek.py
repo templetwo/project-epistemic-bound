@@ -55,7 +55,8 @@ def must_not_be_called(req: httpx.Request) -> httpx.Response:
 
 # ----------------------------------------------------------------------------- policy
 
-@pytest.mark.parametrize("bad", ["http://api.deepseek.com", "https://user:pw@api.deepseek.com", "api.deepseek.com", "https://"])
+@pytest.mark.parametrize("bad", ["http://api.deepseek.com", "https://user:pw@api.deepseek.com", "api.deepseek.com", "https://",
+                                 "https://api.deepseek.example", "https://evil.example/api.deepseek.com"])
 def test_endpoint_must_be_https_without_credentials(bad):
     with pytest.raises(ProviderError):
         assert_https(bad)
@@ -130,8 +131,12 @@ def test_generate_sends_the_exact_settings_and_records_usage(monkeypatch):
     assert seen["max_tokens"] == 512 and seen["response_format"] == {"type": "json_object"}
     assert r.error is None and r.finish_reason == "stop" and r.content == '{"schema_version": 1}' and r.model_resolved == MODEL
     assert r.prompt_tokens == 120 and r.completion_tokens == 30
-    assert p.usage_report() == {"calls": 1, "prompt_tokens": 120, "completion_tokens": 30, "prompt_cache_hit_tokens": 100,
-                                "prompt_cache_miss_tokens": 20}
+    u = p.usage_report()
+    assert u["requests_attempted"] == 1 and u["responses_received"] == 1 and u["responses_with_usage"] == 1
+    assert u["responses_without_usage"] == 0 and u["usage_fields_missing"] == []
+    assert (u["prompt_tokens"], u["completion_tokens"], u["prompt_cache_hit_tokens"], u["prompt_cache_miss_tokens"]) == (120, 30, 100, 20)
+    assert u["thinking_requested"] == "disabled" and u["thinking_effective"] == "disabled"
+    assert seen["thinking"] == {"type": "disabled"}
 
 
 def test_generate_refuses_a_prompt_without_the_word_json_instead_of_editing_it(monkeypatch):
@@ -188,5 +193,7 @@ def test_usage_fields_stay_none_when_the_server_omits_them(monkeypatch):
     p = provider(completion("{}", usage={}), monkeypatch)
     r = asyncio.run(p.generate(request()))
     assert r.prompt_tokens is None and r.completion_tokens is None
-    assert p.usage_report() == {"calls": 1, "prompt_tokens": None, "completion_tokens": None, "prompt_cache_hit_tokens": None,
-                                "prompt_cache_miss_tokens": None}
+    u = p.usage_report()
+    assert u["requests_attempted"] == 1 and u["responses_received"] == 1
+    assert u["responses_with_usage"] == 0 and u["responses_without_usage"] == 1  # missing usage is visible, never zero
+    assert u["prompt_tokens"] is None and u["completion_tokens"] is None
