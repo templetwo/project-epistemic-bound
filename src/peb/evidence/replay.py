@@ -80,6 +80,28 @@ def replay_run(repo: SqliteRepository, run_id: str) -> dict[str, dict[str, Any]]
     return replay_applied_from_events(repo.events(run_id))
 
 
+def resume_chain_failures(events: list[StoredEvent], genesis_session_id: str) -> list[str]:
+    """§14.2 event-content check: each run_resumed must name the session that was active.
+
+    Resource replay does not use session identity. Verification does: a hash-valid chain
+    whose resume predecessors skip or rewind is not a verified run.
+    """
+    session = genesis_session_id
+    failures: list[str] = []
+    for event in events:
+        if event.event_type is not EventType.run_resumed:
+            continue
+        predecessor = event.payload.get("predecessor_session_id")
+        nxt = event.payload.get("subject_session_id")
+        if predecessor != session or not isinstance(nxt, str) or not nxt:
+            failures.append(
+                f"seq {event.seq}: run_resumed chain does not follow from the active session"
+            )
+            continue
+        session = nxt
+    return failures
+
+
 def history_as_wiring(rows: list[ResourceRow]) -> list[dict[str, Any]]:
     return [
         {"resource_id": r.resource_id, "kind": r.kind, "revision": r.revision, "value": r.value}

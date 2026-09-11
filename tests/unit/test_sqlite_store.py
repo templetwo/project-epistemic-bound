@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from peb.config import DEFAULT_STATE_ROOT
-from peb.contracts import Actor, EventType, PendingEvent, ReportStatus, utcnow
+from peb.contracts import Actor, EventType, PendingEvent, ReportStatus, new_id, utcnow
 from peb.evidence.events import ChainError
 from peb.evidence.verify import verify_run
 from peb.storage.repository import SqliteRepository
@@ -247,6 +247,47 @@ def test_verify_rejects_empty_before_invented_after_and_column_proposal_id(state
     column_hit = verify_run(repo, manifest.run_id, checkpoint)
     assert column_hit.summary == "failed"
     assert any("proposal_id" in f for f in column_hit.failures)
+    repo.close()
+
+
+def test_verify_rejects_run_resumed_chain_that_does_not_follow(state_root: Path):
+    repo, manifest, checkpoint = _write_then_checkpoint(state_root)
+    repo.append(
+        PendingEvent(
+            run_id=manifest.run_id,
+            seq=repo.next_seq(manifest.run_id),
+            ts=utcnow(),
+            event_type=EventType.run_resumed,
+            actor=Actor.supervisor,
+            payload={
+                "predecessor_session_id": "ses_" + "f" * 32,
+                "subject_session_id": new_id("ses"),
+            },
+        )
+    )
+    broken = verify_run(repo, manifest.run_id, checkpoint)
+    assert broken.summary == "failed"
+    assert any("run_resumed chain does not follow" in f for f in broken.failures)
+    repo.close()
+
+    repo, manifest, checkpoint = _write_then_checkpoint(state_root)
+    repo.append(
+        PendingEvent(
+            run_id=manifest.run_id,
+            seq=repo.next_seq(manifest.run_id),
+            ts=utcnow(),
+            event_type=EventType.run_resumed,
+            actor=Actor.supervisor,
+            payload={
+                "predecessor_session_id": manifest.subject_session_id,
+                "subject_session_id": new_id("ses"),
+            },
+        )
+    )
+    after = repo.make_checkpoint(manifest.run_id)
+    ok = verify_run(repo, manifest.run_id, after)
+    assert ok.summary == "verified_against_anchor"
+    assert not ok.failures
     repo.close()
 
 
