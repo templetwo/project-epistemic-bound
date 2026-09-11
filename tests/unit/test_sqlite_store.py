@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
 
 import pytest
 
-from peb.config import DEFAULT_STATE_ROOT
 from peb.contracts import Actor, EventType, PendingEvent, ReportStatus, new_id, utcnow
 from peb.evidence.events import ChainError
 from peb.evidence.verify import verify_run
@@ -14,11 +14,12 @@ from peb.storage.repository import SqliteRepository
 from tests.unit.s2_helpers import gate_and_execute, propose, report_write, seed_run
 
 
-def test_migrations_apply_and_operator_root_untouched(state_root: Path):
+def test_migrations_apply_and_operator_root_untouched(state_root: Path, operator_state):
     repo = SqliteRepository.open(state_root)
     assert repo.applied_migrations() == [1, 2]
     assert (state_root / "peb.sqlite").is_file()
-    assert not (DEFAULT_STATE_ROOT.expanduser() / "peb.sqlite").exists()
+    assert operator_state.unchanged(), operator_state.diff()
+    assert operator_state.root != state_root
     repo.close()
 
 
@@ -103,6 +104,69 @@ def test_runs_cannot_see_each_others_resources(state_root: Path):
         man_a.run_id, "report.primary"
     ).content_hash
     repo_a.close()
+
+
+def test_crash_after_commit_retry_does_not_duplicate(state_root: Path):
+    """TX-02 after-commit half: reopen and retry the same proposal; no second effect."""
+    repo, manifest, _ = seed_run(state_root)
+    proposal = propose(
+        manifest.run_id,
+        manifest.subject_session_id,
+        1,
+        report_write(ReportStatus.failed, "failed", ["check.initial"], 1),
+    )
+    decision, receipt = gate_and_execute(repo, proposal)
+    assert receipt is not None
+    rev = repo.resource_at(manifest.run_id, "report.primary").revision
+    receipt_id = receipt.receipt_id
+    repo.close()
+    repo2 = SqliteRepository.open(state_root)
+    from peb.workspace.executor import SqliteExecutor
+
+    again = SqliteExecutor(repo2).execute(proposal, decision)
+    assert again.receipt_id == receipt_id
+    assert repo2.resource_at(manifest.run_id, "report.primary").revision == rev
+    assert len([r for r in repo2.receipts(manifest.run_id) if r.proposal_id == proposal.proposal_id]) == 1
+    repo2.close()
+
+
+def test_concurrent_appends_retain_one_ordered_chain(state_root: Path):
+    """TX-03: two writers, one ordered chain (BEGIN IMMEDIATE + unique seq)."""
+    repo, manifest, _ = seed_run(state_root)
+    run_id = manifest.run_id
+    repo.close()
+    errors: list[BaseException] = []
+
+    def worker(n: int) -> None:
+        r = SqliteRepository.open(state_root)
+        try:
+            r.append(
+                PendingEvent(
+                    run_id=run_id,
+                    seq=r.next_seq(run_id),
+                    ts=utcnow(),
+                    event_type=EventType.decision_recorded,
+                    actor=Actor.subject,
+                    payload={"n": n},
+                )
+            )
+        except BaseException as exc:  # noqa: BLE001 — collect any writer failure
+            errors.append(exc)
+        finally:
+            r.close()
+
+    threads = [threading.Thread(target=worker, args=(i,)) for i in (1, 2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    r = SqliteRepository.open(state_root)
+    events = r.events(run_id)
+    seqs = [e.seq for e in events]
+    assert seqs == list(range(len(seqs)))
+    assert r.verify(run_id, None).chain_consistent
+    assert len(events) >= 2  # run_created plus at least one append
+    r.close()
 
 
 def _write_then_checkpoint(state_root: Path):
