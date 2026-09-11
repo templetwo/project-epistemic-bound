@@ -66,10 +66,29 @@ class CaptureResult:
     preaction_present: bool = False
 
 
-async def capture_one_decision(manifest: RunManifest, provider: SubjectProvider, append: AppendFn,
+def _as_append(target: AppendFn | EvidenceStore, run_id: str) -> AppendFn:
+    """Accept either the supervisor's append callable or a bare store that tracks its own
+    sequence (dev-only MemoryEvidenceStore exposes next_seq). Keeps seat 2/3's fixture
+    tests, written against the S1 positional-store signature, valid after S2."""
+    if callable(target) and not hasattr(target, "append"):
+        return target  # type: ignore[return-value]
+    store = target
+    next_seq = getattr(store, "next_seq", None)
+    if next_seq is None:
+        raise TypeError("capture_one_decision needs an append callable or a store exposing next_seq(run_id)")
+
+    def append(event_type: EventType, actor: Actor, payload: dict) -> StoredEvent:
+        return store.append(PendingEvent(run_id=run_id, seq=next_seq(run_id), ts=utcnow(),
+                                         event_type=event_type, actor=actor, payload=payload))
+    return append
+
+
+async def capture_one_decision(manifest: RunManifest, provider: SubjectProvider, append: AppendFn | EvidenceStore,
                                *, step: int, messages: list[ModelMessage]) -> CaptureResult:
-    """§9.1 steps 2–6. `append(event_type, actor, payload)` is the supervisor's event writer."""
+    """§9.1 steps 2–6. `append(event_type, actor, payload)` is the supervisor's event writer;
+    a dev store with `next_seq` is accepted for compatibility (see `_as_append`)."""
     run_id = manifest.run_id
+    append = _as_append(append, run_id)
     events: list[StoredEvent] = []
     input_payload = [m.model_dump(mode="json") for m in messages]
     input_hash = digest(DOMAIN_MODEL_INPUT, {"run_id": run_id, "step": step, "messages": input_payload})

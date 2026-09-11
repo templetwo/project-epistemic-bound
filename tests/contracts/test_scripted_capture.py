@@ -85,3 +85,12 @@ def test_exhausted_scripted_provider_is_an_honest_provider_failure():
     assert result.invalid_reason is not None and result.invalid_reason.startswith("provider_unavailable")
     assert [e.event_type for e in result.events] == [EventType.model_request, EventType.model_response]
     assert result.events[1].payload["error"] == "provider_unavailable"
+
+
+def test_capture_accepts_a_dev_store_positionally_for_s1_compatibility():
+    """Seat 2/3's fixture tests pass the MemoryEvidenceStore itself; that must keep working."""
+    manifest = _manifest()
+    store = MemoryEvidenceStore()
+    result = asyncio.run(capture_one_decision(manifest, ScriptedProvider([json.dumps(EXAMPLE)]), store, step=0,
+                                              messages=[ModelMessage(role="user", content="t")]))
+    assert result.decision is not None and len(store.events(manifest.run_id)) == 5
