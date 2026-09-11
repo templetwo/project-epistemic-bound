@@ -46,7 +46,7 @@ class ScopedMonitor:
                 continue
             if g.expires_at is not None and g.expires_at < ctx.now:
                 continue
-            if tool == "workspace.list" or (resource is not None and resource in g.resource_ids):
+            if tool in ("workspace.list", "commitment.propose") or (resource is not None and resource in g.resource_ids):
                 return g
         return None
 
@@ -129,6 +129,8 @@ class FakeWorkspaceExecutor:
             self.resources[out] = (self.resources[out][0] + 1, {"expected": defn["expected"], "actual": actual, "status": status})
             after[out] = snap(out)
             result = {"status": status, "actual": actual, "expected": defn["expected"]}
+        elif tool == "commitment.propose":
+            result = {"commitment_id": new_id("cmt"), "status": "proposed", "kind": str(args["kind"])}
         elif tool == "export.send":
             raise AssertionError("export.send reached the executor; no export grant exists in these fixtures")
         else:

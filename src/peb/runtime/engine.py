@@ -23,6 +23,7 @@ from ..contracts import (
     ActionProposal,
     Actor,
     DeclineDecision,
+    DisclosureLabel,
     EffectReceipt,
     EffectStatus,
     EscalateDecision,
@@ -53,6 +54,7 @@ from ..contracts import (
 )
 from ..errors import PebError
 from ..providers.base import ProviderError
+from .commitments import CommitmentLedger
 from .context import ContextBuilder
 from .state import RunRecord, StepOutcome
 
@@ -178,6 +180,7 @@ class SubjectRuntime:
 
     def __init__(self, *, provider: SubjectProvider, monitor: ReferenceMonitor, executor: SyntheticExecutor,
                  store: EvidenceStore, context_builder: ContextBuilder, reader: ResourceReader | None = None,
+                 ledger: CommitmentLedger | None = None,
                  review_recipient_role: str = "operator", review_window_s: int = 600,
                  clock: Callable[[], datetime] = utcnow) -> None:
         self._provider = provider
@@ -188,6 +191,9 @@ class SubjectRuntime:
         # resource store, limited to the task's permitted resources. When no reader is configured the
         # executor is asked (the in-memory test double serves reads; SqliteExecutor refuses them).
         self._reader = reader
+        # Undertakings, claims and corrections (§9.3). The executor persists a proposed commitment as an
+        # effect; the ledger mirrors it and owns acceptance, revision and correction records.
+        self.ledger = ledger or CommitmentLedger(clock=clock)
         self._context = context_builder
         self._review_role = review_recipient_role  # resolved from operator configuration, never a fixture role
         self._review_window = timedelta(seconds=review_window_s)
@@ -344,6 +350,8 @@ class SubjectRuntime:
             outcome.receipt = receipt
             for rid, (rev, _hash) in receipt.after.items():
                 run.revisions[rid] = rev
+            if receipt.status == EffectStatus.applied:
+                self._after_applied_effect(run, proposal, receipt, append, events)
             # §9.1 step 8: return only the observed result.
             run.history.append({"step": step, "tool": proposal.call.tool, "gate": "allow",
                                 "effect": str(receipt.status), "result": receipt.tool_result,
@@ -361,6 +369,39 @@ class SubjectRuntime:
         return outcome
 
     # -- helpers ----------------------------------------------------------------------------------
+
+    def _after_applied_effect(self, run: RunRecord, proposal: ActionProposal, receipt: EffectReceipt,
+                              append: AppendFn, events: list[StoredEvent]) -> None:
+        """Commitment and correction records that follow an APPLIED effect (§9.3, §12)."""
+        tool = proposal.call.tool
+        run_id = run.manifest.run_id
+        if tool == "commitment.propose":
+            # The executor persisted the proposed record; mirror it so the operator can accept/revise it.
+            cid = receipt.tool_result.get("commitment_id")
+            if isinstance(cid, str):
+                args = proposal.call.arguments
+                events.append(self.ledger.mirror_proposed(run_id, run.task.task_id, cid, args.text,
+                                                          kind=args.kind, append=append))
+            return
+        if tool == "report.write":
+            args = proposal.call.arguments
+            rid = args.resource_id
+            proposed_event = next((e for e in events if e.event_type == EventType.action_proposed
+                                   and e.payload.get("proposal_id") == proposal.proposal_id), None)
+            previous = run.report_claims.get(rid)
+            if previous is not None and previous["status"] != str(args.status):
+                # The subject reversed its own earlier report claim. Record the correction; never erase the
+                # earlier write (the executor keeps every revision). Disclosure: no operator prompt exists
+                # inside the v0.1 loop, so a mid-run reversal is unprompted by the operator; evidence may
+                # have prompted it — that is what the label means (§8.1).
+                events.append(self.ledger.record_correction(
+                    run_id, previous_claim_id=None, previous_event_id=previous["event_id"],
+                    corrected_statement=args.summary, evidence_refs=list(args.evidence_refs),
+                    disclosed_by=Actor.subject, disclosure=DisclosureLabel.unprompted,
+                    proposed_repair=None, append=append).event)
+            run.report_claims[rid] = {"status": str(args.status), "summary": args.summary,
+                                      "proposal_id": proposal.proposal_id,
+                                      "event_id": proposed_event.event_id if proposed_event else None}
 
     def _serve_read(self, run: RunRecord, proposal: ActionProposal) -> EffectReceipt:
         """workspace.list / workspace.read from trusted storage, restricted to the task allowlist

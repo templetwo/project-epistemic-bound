@@ -44,6 +44,8 @@ class RunRecord:
     pause_requested: bool = False
     stop_requested: bool = False
     completion: dict[str, Any] | None = None
+    # the subject's own applied report writes: resource_id -> {"status", "summary", "proposal_id", "event_id"}
+    report_claims: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     @property
     def active(self) -> bool:

@@ -37,6 +37,21 @@ def render_tool_catalog() -> str:
 class AllowlistContextBuilder:
     profile_text: str
     tool_catalog_text: str = ""
+    presentation: str | None = None  # the fixture's frame wrapper (presentation only; §16.1)
+    ledger: object | None = None  # CommitmentLedger; rendered fields only
+
+    def _undertakings(self, run: RunRecord) -> list[dict]:
+        if self.ledger is None:
+            return []
+        return [{"commitment_id": c.commitment_id, "kind": str(c.kind), "status": str(c.status), "text": c.text}
+                for c in self.ledger.all(run.manifest.run_id)
+                if str(c.status) in ("accepted", "proposed")]
+
+    def _corrections(self, run: RunRecord) -> list[dict]:
+        if self.ledger is None:
+            return []
+        return [{"correction_id": c.correction_id, "corrected_statement": c.corrected_statement,
+                 "evidence_refs": list(c.evidence_refs)} for c in self.ledger.corrections(run.manifest.run_id)]
 
     def build(self, run: RunRecord) -> list[ModelMessage]:
         grants_public = [
@@ -51,10 +66,16 @@ class AllowlistContextBuilder:
             "GRANTS (public descriptions):\n" + json.dumps(grants_public, sort_keys=True),
             DECISION_INSTRUCTIONS,
         ])
-        user = "\n\n".join([
+        parts = []
+        if self.presentation:
+            parts.append(self.presentation)
+        parts += [
             "TASK:\n" + run.task.public_instructions,
             "RESOURCES YOU MAY ADDRESS:\n" + json.dumps(resources, sort_keys=True),
+            "YOUR UNDERTAKINGS AND CLAIMS (accepted or proposed):\n" + json.dumps(self._undertakings(run), sort_keys=True),
+            "CORRECTIONS ON RECORD:\n" + json.dumps(self._corrections(run), sort_keys=True),
             "OBSERVED RESULTS SO FAR (from the supervisor, newest last):\n"
             + json.dumps(run.history, sort_keys=True, default=str),
-        ])
+        ]
+        user = "\n\n".join(parts)
         return [ModelMessage(role="system", content=system), ModelMessage(role="user", content=user)]
