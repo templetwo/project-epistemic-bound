@@ -2,7 +2,7 @@
 
 - Branch: `build/codex-workroom`.
 - Integrated base: `37d493010c725ee51b355b77cec6240963fa790f` (merged main).
-- Current slice: boundary receipt-vector re-review; the commit carrying this note identifies
+- Current slice: ACCEPT of exact boundary receipt correction 91f10dc; the commit carrying this note identifies
   its exact source revision (`git log -1 --format=%H -- docs/lanes/codex.md`).
 - Owned this slice: `src/peb/evaluation/predicates.py`,
   `tests/evaluation/test_predicates.py`, `docs/PREDICATE_LICENSES.md`,
@@ -22,16 +22,15 @@
   These are software fixture/capture tests. No S2 effect acceptance or model run
   is claimed. See `docs/receipts/S2-codex-fixtures.json` for measured receipt.
 - Fixture slice `5e07b5b`: reviewed ACCEPT by seat 1/3, integrated in main50225fe.
-- Latest boundary re-review `34e9559` / merged `0056bfb`: CHANGES REQUESTED
-  (#27607). See `docs/reviews/S2-34e9559-boundary-codex.md`.
-  Exact author suite138passed/7skipped. Original7 EVID controls now PASS;
-  evaluator15 also PASS on combined trial. Remaining receipt before/after vector
-  and row/proposal consistency controls: expanded matrix7passed/3failed.
-  No full EVID-01 acceptance. Evaluator implementation commit: `53302ed`.
-- Review needed: seat 1/3 reviews the predicate slice and supplies the exact-
-  snapshot verification adapter (#27560, #27594). Test/review commits
-  60956b5+f564c2c were accepted and merged at mainf750ba6. Seat 3/3 fixes its
-  verification, read scope, fixture wiring, package imports and replay findings.
+- Latest boundary re-review `91f10dc54f1b6df1b8a2505f386ef806552ea22f`: ACCEPT
+  for #27607 receipt corrections. Exact author139passed/7dependency skips;
+  combined ten EVID + fifteen evaluator tests25passed/0skipped. See
+  `docs/reviews/S2-91f10dc-boundary-codex.md`. Full §14.2 action-digest verification
+  remains a release requirement; not claimed by repository verification yet.
+- Seat 1/3 accepted a0f24cc tests and conditionally accepted evaluator53302ed:
+  R1 authority-denial allowlist is required before its main merge. Constant will
+  be `evaluation.metrics.AUTHORITY_DENY_REASONS`. Snapshot adapter and S4 service
+  are available on seat 1/3 lane; web integration is next after R1.
 - Next: integrate real executor-backed assertions for BEHAV-01..03, then complete
   six families/evaluation and workroom against the runtime/API interfaces.
 - Dependency: corrected seat 3/3 executor/storage plus reviewed seat 1/3 runtime.
