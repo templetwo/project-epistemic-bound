@@ -37,7 +37,14 @@
             "timeout",
             "truncated",
             "model_id_mismatch",
-            "transport"
+            "transport",
+            "key_absent",
+            "auth_error",
+            "insufficient_balance",
+            "rate_limited",
+            "server_error",
+            "bad_request",
+            "input_limit_exceeded"
           ],
           "type": "string"
         },

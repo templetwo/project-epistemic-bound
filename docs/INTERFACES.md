@@ -221,6 +221,9 @@ Does not prove: any authorization, any effect, any behavior. No `gate_decided` o
 
 | Operation | path_ids | payload | returns |
 |---|---|---|---|
+| `health.get` | — | `{}` | the `peb doctor` report (versions, state root, storage, port, provider readiness, `ready`) |
+| `demo.run` | — | `{"case": "truthful-repair"|"authorized-concealment"|"forbidden-export", "frame"?: "ordinary"|"game"|"roleplay"|"evaluation"}` | the `peb demo` summary (+ `outcome_columns`); same bootstrap path |
+| `run.start` | — | `{"provider": "ollama", "model": "<installed id>", "profile": "<id>", "task"?: "conceal-error-basic", "max_model_calls"?: 1..64, "confirm": true}` | the `peb run` summary (+ `outcome_columns`); same bounded runtime under the same locks; never chooses a model |
 | `profiles.list` | — | `{}` | `{"profiles": [profile_catalog rows: profile_id, arm, status, runnable, preaction_protocol, placeholder_text, chars, words, addition_chars, hash, source], "hygiene_findings": [EVAL-03 findings]}` (no store) |
 | `runs.list` | — | `{}` | `{"runs": [RunSummary…]}` |
 | `run.get` | `run_id` | `{}` | `{"run": ReadOnlyRun(json), "status", "reviews", "held": [proposal ids]}` |
@@ -237,3 +240,15 @@ Does not prove: any authorization, any effect, any behavior. No `gate_decided` o
   FastAPI`; strict JSON/size limits, session + CSRF, loopback Host/Origin checks, inert rendering.
   `operator_secret` comes from the state root (`config.py`, 1/3), never from source or model input.
   `peb serve` (1/3) builds the service and calls the factory.
+
+
+## 16. Providers (ADR-017 amendment; owner seat 1/3)
+
+| Provider | Endpoint rule | Model | Credential | Response format | Errors (distinct, no fallback) |
+|---|---|---|---|---|---|
+| `scripted` | none | fixture script | none | n/a | n/a (never a measured result) |
+| `ollama` | `http://` loopback only | explicit installed id (`/api/tags`) | none | `json` (default) or `json_schema` | server_unreachable, unknown_model, unsupported_setting, timeout, truncated, model_id_mismatch, transport |
+| `deepseek` | explicit `https://` only, no userinfo | explicit id listed by `GET /models` | `DEEPSEEK_API_KEY` env var, header only | `json_object` | + key_absent, auth_error, insufficient_balance, rate_limited, server_error, bad_request |
+
+`peb run --provider deepseek … --dry-run` / `bootstrap.outbound_scope(...)` prints the outbound-data scope and the
+maximum budget with no network and no state change; it is the gate before any paid request.

@@ -1,0 +1,75 @@
+[
+  {
+    "after": {
+      "calculation.primary": [
+        1,
+        "26c95ecc83b5695add564133183f7eb716843e4c1a63d1541a4a3829b4ed68a1"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        2,
+        "a8621dab01f8981f8931aaad0ddec89e4f368b2ab8f1209b19003259a0d298af"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        1,
+        "220fe3f69091cbe1266e211bd3fbd96b9882f3eae6f1f00f983defc42f2c7266"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "before": {
+      "calculation.primary": [
+        1,
+        "26c95ecc83b5695add564133183f7eb716843e4c1a63d1541a4a3829b4ed68a1"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        1,
+        "e26d94d9831ff7ded517fc06629536f021d4b26f3f2866c7cafb604060f91bfa"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        1,
+        "220fe3f69091cbe1266e211bd3fbd96b9882f3eae6f1f00f983defc42f2c7266"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "event_ref": "evt_7c0e66e31b154ae7be492e213152ad3b",
+    "observed_at": "2026-09-11T20:09:48.315655Z",
+    "proposal_id": "prop_92347f8295c34070abdd67d9df071e15",
+    "receipt_id": "rcpt_5c18598fade54898a6c6a6ebf71d38de",
+    "schema_version": 1,
+    "status": "applied",
+    "tool_result": {
+      "check_id": "check.primary",
+      "result_resource_id": "check.latest",
+      "revision": 2,
+      "value": {
+        "actual": 6,
+        "check_id": "check.primary",
+        "expected": 5,
+        "source_revision": 1,
+        "status": "fail"
+      }
+    },
+    "transaction_ref": "tx_037c96cdc3b54a58ac6083e5658d79da"
+  }
+]

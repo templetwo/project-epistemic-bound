@@ -90,8 +90,8 @@ def _storage_report(state_root: Path) -> dict[str, Any]:
     return storage_report(state_root)
 
 
-def cmd_doctor(args: argparse.Namespace) -> int:
-    cfg = load_config(args.state_root)
+def doctor_report(cfg: AppConfig) -> dict[str, Any]:
+    """The `peb doctor` report as data; also served as the workroom's `health.get` (INTERFACES §15)."""
     report = {
         "peb": __version__,
         "schema_version": SCHEMA_VERSION,
@@ -107,8 +107,13 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     }
     ready_for_scripted = report["state_root"]["status"] == "writable"
     report["ready"] = {"scripted": ready_for_scripted, "local_model": report["provider"]["status"] == "ok"}
+    return report
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    report = doctor_report(load_config(args.state_root))
     print(json.dumps(report, indent=2, sort_keys=True))
-    return 0 if ready_for_scripted else 1
+    return 0 if report["ready"]["scripted"] else 1
 
 
 # ----------------------------------------------------------------------------- providers list
@@ -118,10 +123,18 @@ def cmd_providers_list(args: argparse.Namespace) -> int:
     cfg = load_config(args.state_root)
     ollama: dict[str, Any] = _probe_ollama(cfg)
     ollama["selectable_for_measured_runs"] = ollama["status"] == "ok"
+    import os as _os
+    deepseek = {"kind": "deepseek", "endpoint": cfg.deepseek_endpoint, "key_env": cfg.deepseek_api_key_env,
+                "key": "present" if _os.environ.get(cfg.deepseek_api_key_env) else "absent",
+                "status": "configured" if _os.environ.get(cfg.deepseek_api_key_env) else "key_absent",
+                "network": "not contacted by this command", "paid": True, "selectable_for_measured_runs": True,
+                "note": "hosted; explicit https endpoint and model id; no fallback; run `peb run --provider deepseek "
+                        "--dry-run ...` to see the outbound-data scope and maximum budget before any paid request (ADR-017)"}
     report = {"providers": [
         {"kind": "scripted", "status": "available", "synthetic": True,
          "note": "deterministic fixtures; never reportable as a measured model result"},
         {**ollama, "note": "explicit endpoint and model id; no automatic pull, no fallback"},
+        deepseek,
     ]}
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0
@@ -150,13 +163,28 @@ def cmd_run(args: argparse.Namespace) -> int:
     from .runtime.bootstrap import run_model_observation, summarize_outcome_columns
 
     cfg = load_config(args.state_root)
-    if args.provider != "ollama":
-        raise PebError(ErrorCode.invalid_input, "peb run observes a configured local model; use `peb demo` for scripted controls")
+    if args.provider not in ("ollama", "deepseek"):
+        raise PebError(ErrorCode.invalid_input, "peb run observes a configured model provider; use `peb demo` for scripted controls")
     if not args.model:
-        raise PebError(ErrorCode.invalid_input, "--model is required: an explicit installed model id, never a default")
+        raise PebError(ErrorCode.invalid_input, "--model is required: an explicit model id, never a default")
+    endpoint = cfg.ollama_endpoint if args.provider == "ollama" else cfg.deepseek_endpoint
+    if getattr(args, "dry_run", False):
+        # ADR-017: what would leave the machine and the maximum budget, with NO network call and NO state change.
+        from .runtime.bootstrap import outbound_scope
+
+        rates = None
+        if args.input_rate is not None and args.output_rate is not None:
+            rates = {"input_cache_miss_per_mtok": args.input_rate, "output_per_mtok": args.output_rate,
+                     "provenance": args.rates_provenance or "supplied on the command line; not verified by this software"}
+        scope = outbound_scope(provider_kind=args.provider, endpoint=endpoint, model=args.model, profile_id=args.profile,
+                               task_id=args.task, max_model_calls=args.max_model_calls, max_output_tokens=args.max_tokens,
+                               max_input_chars=args.max_input_chars, rates=rates)
+        print(json.dumps({"dry_run": True, **scope}, indent=2, sort_keys=True))
+        return 0
     summary = asyncio.run(run_model_observation(cfg.state_root, model=args.model, profile_id=args.profile,
                                                 task_id=args.task, max_model_calls=args.max_model_calls,
-                                                endpoint=cfg.ollama_endpoint))
+                                                endpoint=endpoint, provider_kind=args.provider,
+                                                max_output_tokens=args.max_tokens, max_input_chars=args.max_input_chars))
     summary["outcome_columns"] = summarize_outcome_columns(summary)
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0 if summary["verification"]["chain_consistent"] else 1
@@ -364,11 +392,18 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_parser("list", help="show configured/available providers; never downloads a model").set_defaults(fn=cmd_providers_list)
 
     r = sub.add_parser("run", help="run a fresh subject session through the runtime")
-    r.add_argument("--provider", required=True, choices=["scripted", "ollama"])
+    r.add_argument("--provider", required=True, choices=["scripted", "ollama", "deepseek"])
     r.add_argument("--model", required=False)
     r.add_argument("--profile", required=True)
     r.add_argument("--task", required=True)
     r.add_argument("--max-model-calls", type=int, default=16)
+    r.add_argument("--max-tokens", type=int, default=None, help="max output tokens per call (Limits.max_output_tokens)")
+    r.add_argument("--dry-run", action="store_true",
+                   help="print the outbound-data scope and maximum budget; no network, no state change (ADR-017)")
+    r.add_argument("--max-input-chars", type=int, default=None, help="enforced whole-request input maximum (chars)")
+    r.add_argument("--input-rate", type=float, default=None, help="USD per 1M input tokens at the cache-MISS (peak) rate, for the dry-run worst case")
+    r.add_argument("--output-rate", type=float, default=None, help="USD per 1M output tokens, for the dry-run worst case")
+    r.add_argument("--rates-provenance", default=None, help="where the rates came from (recorded verbatim in the report)")
     r.set_defaults(fn=cmd_run)
 
     v = sub.add_parser("verify", help="verify a run's evidence")

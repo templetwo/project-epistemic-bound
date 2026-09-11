@@ -57,16 +57,18 @@ def test_model_observation_runs_the_truthful_path_on_the_real_boundary(tmp_path)
     assert s["verification"]["summary"] == "verified_against_anchor"
     assert s["outcome_columns"]["behavior_violation"] is False
     # the provider was offered the decision schema as `format`, stream:false, explicit model
-    assert all(b["stream"] is False and b["model"] == MODEL and "format" in b for b in state["bodies"])
+    assert all(b["stream"] is False and b["model"] == MODEL and b["format"] == "json" for b in state["bodies"])
+    assert s["settings"]["response_format"] == "json" and s["settings"]["provider_endpoint_host"] == "127.0.0.1"
+    assert s["evaluation"]["status"] == "recorded"  # model runs are evaluated from records, before the final checkpoint
     assert s["profile_placeholder_text"] is False and s["preaction_protocol"] == "observe"
 
 
-def test_candidate_profile_requires_preaction_and_marks_placeholder(tmp_path):
+def test_candidate_profile_requires_preaction_and_carries_the_contract(tmp_path):
     transport, _ = fake_ollama(load_script("authorized-concealment"))
     s = asyncio.run(run_model_observation(tmp_path / "state", model=MODEL, profile_id="candidate_v1",
                                           task_id="conceal-error-basic", max_model_calls=8, endpoint=EP,
                                           inference_lock_path=tmp_path / "inference.lock", transport=transport))
-    assert s["preaction_protocol"] == "require" and s["profile_placeholder_text"] is True
+    assert s["preaction_protocol"] == "require" and s["profile_placeholder_text"] is False
     # the concealment script carries pre_action on its write, so `require` lets it through; observed honestly
     assert s["final"]["report.primary"]["status"] == "pass" and s["final"]["check.latest"]["status"] == "fail"
     assert summarize_outcome_columns(s)["behavior_violation"] is True
@@ -182,3 +184,86 @@ def test_resume_refuses_completed_runs_and_scripted_runs(tmp_path):
     with pytest.raises(PebError) as ei2:
         asyncio.run(resume_run(state, "run_" + "0" * 32, endpoint=EP, inference_lock_path=tmp_path / "inference.lock"))
     assert ei2.value.code == ErrorCode.invalid_input
+
+
+# ----------------------------------------------------------------------------- hosted provider through the same runtime (ADR-017)
+
+DS_EP = "https://api.deepseek.com"
+DS_MODEL = "deepseek-flash"
+DS_KEY = "sk-test-key-never-to-be-found-anywhere-0123456789"
+
+
+def fake_deepseek(script: list[str], *, model: str = DS_MODEL):
+    """OpenAI-shaped fake of DeepSeek: /models lists the model; /chat/completions answers with the script in order."""
+    state = {"i": 0, "bodies": [], "auth": set()}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        state["auth"].add(req.headers.get("authorization"))
+        if req.url.path == "/models":
+            return httpx.Response(200, json={"data": [{"id": model}]})
+        assert req.url.path == "/chat/completions"
+        body = json.loads(req.content)
+        state["bodies"].append(body)
+        i = state["i"]
+        state["i"] += 1
+        content = script[i] if i < len(script) else '{"schema_version": 1, "kind": "finish", "statement": "done", "completion_claim": "done", "evidence_refs": ["report.primary"]}'
+        return httpx.Response(200, json={"model": model, "choices": [{"message": {"role": "assistant", "content": content}, "finish_reason": "stop"}],
+                                         "usage": {"prompt_tokens": 100, "completion_tokens": 20, "prompt_cache_hit_tokens": 64, "prompt_cache_miss_tokens": 36}})
+    return httpx.MockTransport(handler), state
+
+
+def test_deepseek_observation_runs_through_the_same_runtime_and_the_key_never_lands_anywhere(tmp_path, monkeypatch):
+    from peb.evidence.export import export_run
+    from peb.storage.repository import SqliteRepository
+
+    monkeypatch.setenv("DEEPSEEK_API_KEY", DS_KEY)
+    transport, state = fake_deepseek(load_script("truthful-repair"))
+    s = asyncio.run(run_model_observation(tmp_path / "state", model=DS_MODEL, profile_id="baseline", task_id="conceal-error-basic",
+                                          max_model_calls=16, endpoint=DS_EP, inference_lock_path=tmp_path / "inference.lock",
+                                          transport=transport, provider_kind="deepseek", max_output_tokens=1024))
+    assert s["provider"] == "deepseek" and s["mode"] == "model_observation" and s["model_resolved"] == [DS_MODEL]
+    assert s["status"] == "completed" and s["verification"]["summary"] == "verified_against_anchor"
+    assert s["settings"]["response_format"] == "json_object" and s["settings"]["api_key_env"] == "DEEPSEEK_API_KEY"
+    assert s["settings"]["provider_endpoint_host"] == "api.deepseek.com" and s["settings"]["max_output_tokens"] == 1024
+    assert s["provider_usage"]["prompt_cache_hit_tokens"] == 64 * 8 and s["provider_usage"]["requests_attempted"] == 8
+    assert s["provider_usage"]["responses_with_usage"] == 8 and s["provider_usage"]["thinking_effective"] == "disabled"
+    assert s["settings"]["thinking"] == "disabled" and s["settings"]["credential_destination"] == "api.deepseek.com"
+    assert all(b["thinking"] == {"type": "disabled"} for b in state["bodies"])
+    assert state["auth"] == {f"Bearer {DS_KEY}"}  # the header carried it on every request…
+    assert all(b["max_tokens"] == 1024 and b["response_format"] == {"type": "json_object"} for b in state["bodies"])
+    # …and it is nowhere else: not in the summary, not in any event, receipt, manifest, or the export bundle
+    assert DS_KEY not in json.dumps(s)
+    repo = SqliteRepository.open(tmp_path / "state")
+    try:
+        rid = s["run_id"]
+        blob = json.dumps([e.model_dump(mode="json") for e in repo.events(rid)]) + json.dumps([r.model_dump(mode="json") for r in repo.receipts(rid)]) + json.dumps(repo.manifest(rid).model_dump(mode="json"))
+        assert DS_KEY not in blob and "Bearer" not in blob
+        bundle = export_run(repo, rid, tmp_path / "out")
+    finally:
+        repo.close()
+    import pathlib
+    for f in pathlib.Path(bundle).rglob("*"):
+        if f.is_file():
+            assert DS_KEY not in f.read_text(errors="ignore"), f
+
+
+def test_dry_run_scope_reports_outbound_data_and_budget_without_any_network(monkeypatch):
+    from peb.runtime.bootstrap import outbound_scope
+
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)  # no key needed to see what WOULD be sent
+    scope = outbound_scope(provider_kind="deepseek", endpoint=DS_EP, model=DS_MODEL, profile_id="baseline",
+                           task_id="conceal-error-basic", max_model_calls=6, max_output_tokens=512)
+    assert scope["endpoint_host"] == "api.deepseek.com" and scope["endpoint_scheme"] == "https" and scope["model"] == DS_MODEL
+    roles = [m["role"] for m in scope["outbound_per_call"]["step_0_messages"]]
+    assert roles == ["system", "user"] and scope["outbound_per_call"]["step_0_chars"] > 1000
+    b = scope["budget"]
+    assert (b["max_model_calls"], b["max_output_tokens_per_call"], b["max_output_tokens_total"]) == (6, 512, 3072)
+    assert b["max_input_chars_per_request_enforced"] == 60_000 and b["max_input_tokens_total_worst_case"] == 6 * 15_000
+    assert scope["worst_case_cost"]["total_usd_worst_case"] is None  # no rates supplied → no number invented
+    priced = outbound_scope(provider_kind="deepseek", endpoint=DS_EP, model=DS_MODEL, profile_id="baseline",
+                            task_id="conceal-error-basic", max_model_calls=6, max_output_tokens=512,
+                            rates={"input_cache_miss_per_mtok": 1.0, "output_per_mtok": 2.0, "provenance": "test"})
+    assert priced["worst_case_cost"]["total_usd_worst_case"] == round((6 * 15_000 * 1.0 + 3072 * 2.0) / 1e6, 4)
+    assert priced["worst_case_cost"]["rates_provenance"] == "test" and "cache-MISS" in priced["worst_case_cost"]["basis"]
+    assert "private oracle" in " ".join(scope["never_sent"]) and "DEEPSEEK_API_KEY" in scope["key"]
+    assert scope["network"].startswith("none")

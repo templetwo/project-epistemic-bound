@@ -71,6 +71,7 @@ class StrictModel(BaseModel):
 class ProviderKind(StrEnum):
     scripted = "scripted"
     ollama = "ollama"
+    deepseek = "deepseek"  # ADR-017 (2026-09-11): optional hosted provider beside Ollama, at Anthony's direction
 
 
 class RunMode(StrEnum):
@@ -710,7 +711,10 @@ class ModelResponse(StrictModel):
     completion_tokens: int | None
     duration_ms: int | None
     error: Literal["server_unreachable", "unknown_model", "unsupported_setting", "timeout",
-                   "truncated", "model_id_mismatch", "transport"] | None = None
+                   "truncated", "model_id_mismatch", "transport",
+                   # ADR-017 (hosted provider): distinct, never a fallback trigger
+                   "key_absent", "auth_error", "insufficient_balance", "rate_limited", "server_error",
+                   "bad_request", "input_limit_exceeded"] | None = None
 
 
 # ----------------------------------------------------------------------------- protocols (§8.3)

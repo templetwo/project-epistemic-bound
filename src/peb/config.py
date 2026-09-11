@@ -24,6 +24,8 @@ class AppConfig:
     ollama_endpoint: str = DEFAULT_OLLAMA_ENDPOINT
     ollama_model: str | None = None
     signing_mode: str = SIGNING_MODE
+    deepseek_endpoint: str = "https://api.deepseek.com"  # explicit https endpoint; the key is NEVER a config field
+    deepseek_api_key_env: str = "DEEPSEEK_API_KEY"       # the environment variable NAME the provider reads
 
 
 def resolve_state_root(explicit: str | os.PathLike[str] | None = None) -> Path:
@@ -40,6 +42,7 @@ def load_config(state_root: str | os.PathLike[str] | None = None) -> AppConfig:
         host=env.get("PEB_HOST", DEFAULT_HOST),
         port=port,
         ollama_endpoint=env.get("PEB_OLLAMA_ENDPOINT", DEFAULT_OLLAMA_ENDPOINT),
+        deepseek_endpoint=env.get("PEB_DEEPSEEK_ENDPOINT", "https://api.deepseek.com"),
         ollama_model=env.get("PEB_OLLAMA_MODEL") or None,
     )
 

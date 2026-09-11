@@ -25,6 +25,9 @@ from ..errors import ErrorCode, PebError
 
 
 class Operation(StrEnum):
+    health_get = "health.get"
+    demo_run = "demo.run"
+    run_start = "run.start"
     profiles_list = "profiles.list"
     runs_list = "runs.list"
     run_get = "run.get"
@@ -66,7 +69,26 @@ class ExportPayload(StrictModel):
     out: str = Field(min_length=1, max_length=1000)
 
 
+class DemoRunPayload(StrictModel):
+    case: Literal["truthful-repair", "authorized-concealment", "forbidden-export"]
+    frame: Literal["ordinary", "game", "roleplay", "evaluation"] = "ordinary"
+
+
+class RunStartPayload(StrictModel):
+    """Exactly `peb run`: an explicit installed model id, an explicit profile, a bounded call budget, and an
+    explicit confirmation. The service never chooses, pulls or falls back to a model."""
+
+    provider: Literal["ollama", "deepseek"]
+    model: str = Field(min_length=1, max_length=200)
+    profile: str = Field(min_length=1, max_length=64)
+    task: Literal["conceal-error-basic"] = "conceal-error-basic"
+    max_model_calls: int = Field(default=16, ge=1, le=64)
+    max_output_tokens: int | None = Field(default=None, ge=64, le=32768)
+    confirm: Literal[True]
+
+
 PAYLOADS: dict[Operation, type[StrictModel]] = {
+    Operation.health_get: EmptyPayload, Operation.demo_run: DemoRunPayload, Operation.run_start: RunStartPayload,
     Operation.profiles_list: EmptyPayload,
     Operation.runs_list: EmptyPayload, Operation.run_get: EmptyPayload,
     Operation.run_pause: NotePayload, Operation.run_cancel: NotePayload, Operation.run_resume: ResumePayload,
@@ -74,6 +96,7 @@ PAYLOADS: dict[Operation, type[StrictModel]] = {
     Operation.evidence_verify: VerifyPayload, Operation.evidence_export: ExportPayload,
 }
 PATH_IDS: dict[Operation, tuple[str, ...]] = {
+    Operation.health_get: (), Operation.demo_run: (), Operation.run_start: (),
     Operation.profiles_list: (),
     Operation.runs_list: (), Operation.run_get: ("run_id",), Operation.run_pause: ("run_id",),
     Operation.run_cancel: ("run_id",), Operation.run_resume: ("run_id",), Operation.review_list: ("run_id",),
@@ -136,10 +159,13 @@ class WorkroomService:
     """Operator-side facade over the runtime, opened per request against one state root."""
 
     def __init__(self, state_root: str | os.PathLike[str], *, ollama_endpoint: str = DEFAULT_OLLAMA_ENDPOINT,
-                 inference_lock_path: str | os.PathLike[str] | None = None) -> None:
+                 inference_lock_path: str | os.PathLike[str] | None = None, ollama_transport: Any = None) -> None:
         self._state_root = state_root
         self._endpoint = ollama_endpoint
         self._inference_lock_path = inference_lock_path
+        # Test seam only: an httpx transport for the Ollama adapter (fake loopback server in tests).
+        # `peb serve` never sets it; a real run always talks to the configured loopback endpoint.
+        self._ollama_transport = ollama_transport
 
     async def request(self, operation: Any, path_ids: Any, payload: Any) -> dict[str, Any]:
         op, ids, body = parse_request(operation, path_ids, payload)
@@ -162,6 +188,38 @@ class WorkroomService:
             raise PebError(ErrorCode.invalid_input, "unknown run_id", {"run_id": run_id})
 
     # -- operations -------------------------------------------------------------------------------
+
+    def _health_get(self, ids: dict[str, str], body: StrictModel) -> dict[str, Any]:
+        """The `peb doctor` report, unchanged: versions, state root, storage, port, provider readiness. No writes
+        beyond what doctor itself does (it may create the state root directory)."""
+        from ..cli import doctor_report
+        from ..config import load_config
+
+        cfg = dataclasses.replace(load_config(self._state_root), ollama_endpoint=self._endpoint)
+        return doctor_report(cfg)
+
+    async def _demo_run(self, ids: dict[str, str], body: DemoRunPayload) -> dict[str, Any]:  # type: ignore[override]
+        """Exactly `peb demo --provider scripted --case <case>`: the same bootstrap path, the same summary."""
+        from .bootstrap import run_scripted_demo, summarize_outcome_columns
+
+        summary = await run_scripted_demo(self._state_root, body.case, frame=body.frame)
+        summary["outcome_columns"] = summarize_outcome_columns(summary)
+        return summary
+
+    async def _run_start(self, ids: dict[str, str], body: RunStartPayload) -> dict[str, Any]:  # type: ignore[override]
+        """Exactly `peb run --provider ollama --model … --profile … --task … --max-model-calls …`: the same bounded
+        runtime path under the same supervisor and inference locks; the model id comes from the operator."""
+        from ..config import load_config
+        from .bootstrap import run_model_observation, summarize_outcome_columns
+
+        endpoint = self._endpoint if body.provider == "ollama" else load_config(self._state_root).deepseek_endpoint
+        summary = await run_model_observation(self._state_root, model=body.model, profile_id=body.profile,
+                                              task_id=body.task, max_model_calls=body.max_model_calls,
+                                              endpoint=endpoint, inference_lock_path=self._inference_lock_path,
+                                              transport=self._ollama_transport, provider_kind=body.provider,
+                                              max_output_tokens=body.max_output_tokens)
+        summary["outcome_columns"] = summarize_outcome_columns(summary)
+        return summary
 
     def _profiles_list(self, ids: dict[str, str], body: StrictModel) -> dict[str, Any]:
         """§15.1 `GET /api/profiles`: versioned candidate and control configurations with source/status labels,
