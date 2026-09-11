@@ -38,12 +38,11 @@ def completed_case(state_root):
     # an installed-but-broken implementation must fail instead of hiding as a skip.
     from peb.boundary.reference_monitor import DefaultReferenceMonitor
     from peb.evidence.verify import verify_run
+    from peb.providers.scripted import ScriptedProvider
     from peb.runtime.context import AllowlistContextBuilder
+    from peb.runtime.engine import SubjectRuntime
     from peb.storage.repository import ResourceSnapshot, SqliteRepository
     from peb.workspace.executor import SqliteExecutor
-
-    from peb.providers.scripted import ScriptedProvider
-    from peb.runtime.engine import SubjectRuntime
     from peb.workspace.fixtures import load_fixture, load_script
 
     fixture = load_fixture()
