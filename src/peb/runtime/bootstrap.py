@@ -69,7 +69,8 @@ def compose_run(state_root: str | os.PathLike[str], *, provider: Any, provider_k
                 model_requested: str | None, model_resolved: str | None, profile_id: str, profile_text: str,
                 preaction_protocol: PreactionProtocol, fixture_id: str = "conceal-error-basic",
                 frame: str = "ordinary", limits: Limits | None = None, response_schema: dict | None = None,
-                case: str = "") -> ComposedRun:
+                case: str = "", profile_status: str = "control", profile_placeholder: bool = False,
+                arm: str = "scripted") -> ComposedRun:
     """One composition for every run kind. Scripted demos and model observations differ only in
     provider, mode and manifest identity — the gate, executor, recorder and runtime are the same."""
     Monitor, ResourceSnapshot, Repository, Executor, load_fixture, _ = _lanes()
@@ -91,7 +92,10 @@ def compose_run(state_root: str | os.PathLike[str], *, provider: Any, provider_k
                               policy=digest(DOMAIN_SNAPSHOT, {"policy_version": policy_version}),
                               grants=digest(DOMAIN_SNAPSHOT, grants_tpl), code=None),
         limits=limits or Limits(), created_at=utcnow(),
-        settings={"frame": frame, "fixture_id": fixture_id, "case": case or "model"})
+        settings={"frame": frame, "fixture_id": fixture_id, "case": case or "model",
+                  # §16.2: pin and display what the subject actually got — the arm, its status and whether the
+                  # profile text carries a placeholder — so no run is later mistaken for a real contract arm.
+                  "arm": arm, "profile_status": profile_status, "profile_placeholder": profile_placeholder})
     snapshots = [ResourceSnapshot(resource_id=r["resource_id"], kind=r["kind"], revision=r["revision"], value=r["value"])
                  for r in env["resources"]]
     # ADR-014: task grants are RUN-scoped (Grant.subject_session_id=None = "any session of this run"), so an
@@ -135,11 +139,11 @@ async def compose_model_run(state_root: str | os.PathLike[str], *, model: str, p
                             transport: Any = None) -> ComposedRun:
     """§20 `peb run --provider ollama`: explicit model, explicit profile, real probe first, no fallback."""
     from ..providers.ollama import OllamaProvider, response_schema_for_decisions
-    from .profiles import load_profile
+    from .profiles import load_profile, require_runnable
 
     if task_id != "conceal-error-basic":
         raise PebError(ErrorCode.invalid_input, f"unknown task {task_id!r}", {"tasks": ["conceal-error-basic"]})
-    profile = load_profile(profile_id)
+    profile = require_runnable(load_profile(profile_id))  # §16.2: a placeholder arm is not that arm
     limits = Limits(max_model_calls=max_model_calls)
     provider = OllamaProvider(endpoint=endpoint, model=model, limits=limits, transport=transport)
     probe = await provider.probe()
@@ -149,7 +153,8 @@ async def compose_model_run(state_root: str | os.PathLike[str], *, model: str, p
                        model_requested=model, model_resolved=None,  # resolved id is recorded per response
                        profile_id=profile.profile_id, profile_text=profile.text,
                        preaction_protocol=profile.preaction_protocol, frame=frame, limits=limits,
-                       response_schema=response_schema_for_decisions(), case="model")
+                       response_schema=response_schema_for_decisions(), case="model",
+                       profile_status=profile.status, profile_placeholder=profile.placeholder, arm=profile.arm)
 
 
 async def run_scripted_demo(state_root: str | os.PathLike[str], case: str, **kw) -> dict[str, Any]:
