@@ -16,7 +16,7 @@ from typing import Any
 
 from . import SCHEMA_VERSION, __version__
 from .config import AppConfig, load_config
-from .errors import NotImplementedYet, PebError
+from .errors import ErrorCode, NotImplementedYet, PebError
 
 # ----------------------------------------------------------------------------- doctor
 
@@ -136,6 +136,55 @@ def cmd_demo(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+# ----------------------------------------------------------------------------- run (§20, model observation)
+
+def cmd_run(args: argparse.Namespace) -> int:
+    import asyncio
+
+    from .runtime.bootstrap import run_model_observation, summarize_outcome_columns
+
+    cfg = load_config(args.state_root)
+    if args.provider != "ollama":
+        raise PebError(ErrorCode.invalid_input, "peb run observes a configured local model; use `peb demo` for scripted controls")
+    if not args.model:
+        raise PebError(ErrorCode.invalid_input, "--model is required: an explicit installed model id, never a default")
+    summary = asyncio.run(run_model_observation(cfg.state_root, model=args.model, profile_id=args.profile,
+                                                task_id=args.task, max_model_calls=args.max_model_calls,
+                                                endpoint=cfg.ollama_endpoint))
+    summary["outcome_columns"] = summarize_outcome_columns(summary)
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    return 0 if summary["verification"]["chain_consistent"] else 1
+
+
+def _set_status_cmd(status_name: str):
+    def run(args: argparse.Namespace) -> int:
+        from .contracts import RunStatus
+
+        try:
+            from .storage.repository import SqliteRepository
+        except ImportError as e:
+            raise PebError(ErrorCode.not_implemented,
+                           f"peb {status_name} is not implemented in this checkout: the boundary lane is not merged here",
+                           {"missing": str(e)}) from e
+        cfg = load_config(args.state_root)
+        repo = SqliteRepository.open(cfg.state_root)
+        try:
+            if not repo.run_exists(args.run_id):
+                raise PebError(ErrorCode.invalid_input, "unknown run_id", {"run_id": args.run_id})
+            current = repo.run_status(args.run_id)
+            if current not in (RunStatus.running, RunStatus.created, RunStatus.paused, RunStatus.waiting_review):
+                raise PebError(ErrorCode.conflict, f"run is {current}; nothing to {status_name}", {"status": str(current)})
+            target = RunStatus.paused if status_name == "pause" else RunStatus.cancelled
+            repo.set_run_status(args.run_id, target, bump_stop=True)
+            print(json.dumps({"run_id": args.run_id, "requested": status_name, "durable_status": str(target),
+                              "note": "the supervisor honours this boundary before its next model call; "
+                                      "effects already committed remain recorded"}, sort_keys=True))
+            return 0
+        finally:
+            repo.close()
+    return run
+
+
 # ----------------------------------------------------------------------------- stubs
 
 def _stub(what: str):
@@ -173,13 +222,18 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--profile", required=True)
     r.add_argument("--task", required=True)
     r.add_argument("--max-model-calls", type=int, default=16)
-    r.set_defaults(fn=_stub("peb run"))
+    r.set_defaults(fn=cmd_run)
 
-    for name, helptext in (("verify", "verify a run's evidence"), ("pause", "persist a pause boundary"),
-                           ("resume", "explicit resume after rechecks"), ("cancel", "stop new inference/effects")):
+    v = sub.add_parser("verify", help="verify a run's evidence")
+    v.add_argument("run_id")
+    v.set_defaults(fn=_stub("peb verify"))  # real implementation arrives with the boundary lane's cli wiring
+    for name, helptext in (("pause", "persist a pause boundary"), ("cancel", "stop new inference/effects")):
         sp = sub.add_parser(name, help=helptext)
         sp.add_argument("run_id")
-        sp.set_defaults(fn=_stub(f"peb {name}"))
+        sp.set_defaults(fn=_set_status_cmd(name))
+    rs = sub.add_parser("resume", help="explicit resume after rechecks")
+    rs.add_argument("run_id")
+    rs.set_defaults(fn=_stub("peb resume (cross-process resume needs run-state reconstruction from records; S3)"))
 
     e = sub.add_parser("export", help="produce a local evidence bundle; no upload")
     e.add_argument("run_id")

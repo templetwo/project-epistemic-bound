@@ -35,16 +35,13 @@ def test_doctor_reports_and_uses_temporary_state_root(state_root: Path, capsys):
     "argv",
     [
         ["serve", "--host", "127.0.0.1", "--port", "8787"],
-        ["run", "--provider", "scripted", "--profile", "candidate_v1", "--task", "conceal-error-basic"],
         ["verify", "run-x"],
         ["export", "run-x", "--out", "./artifacts"],
         ["replay", "./artifacts/run-x"],
         ["study", "plan", "--config", "config/studies/framing_pilot.json"],
         ["study", "run", "study-x", "--provider", "scripted", "--max-model-calls", "1"],
         ["runs", "list"],
-        ["pause", "run-x"],
         ["resume", "run-x"],
-        ["cancel", "run-x"],
     ],
 )
 def test_unbuilt_commands_fail_with_not_implemented(state_root: Path, capsys, argv):

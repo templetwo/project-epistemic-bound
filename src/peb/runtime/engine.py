@@ -105,7 +105,8 @@ def _as_append(target: AppendFn | EvidenceStore, run_id: str) -> AppendFn:
 
 
 async def capture_one_decision(manifest: RunManifest, provider: SubjectProvider, append: AppendFn | EvidenceStore,
-                               *, step: int, messages: list[ModelMessage]) -> CaptureResult:
+                               *, step: int, messages: list[ModelMessage],
+                               response_schema: dict | None = None) -> CaptureResult:
     """§9.1 steps 2–6. `append(event_type, actor, payload)` is the supervisor's event writer;
     a dev store with `next_seq` is accepted for compatibility (see `_as_append`)."""
     run_id = manifest.run_id
@@ -115,7 +116,8 @@ async def capture_one_decision(manifest: RunManifest, provider: SubjectProvider,
     input_hash = digest(DOMAIN_MODEL_INPUT, {"run_id": run_id, "step": step, "messages": input_payload})
     request = ModelRequest(run_id=run_id, subject_session_id=manifest.subject_session_id, step=step,
                            provider_kind=manifest.provider_kind, model=manifest.model_requested,
-                           messages=messages, response_schema=None, limits=manifest.limits, input_hash=input_hash)
+                           messages=messages, response_schema=response_schema, limits=manifest.limits,
+                           input_hash=input_hash)
     events.append(append(EventType.model_request, Actor.supervisor,
                          {"step": step, "input_hash": input_hash, "model_requested": manifest.model_requested,
                           "message_count": len(messages),
@@ -190,7 +192,7 @@ class SubjectRuntime:
 
     def __init__(self, *, provider: SubjectProvider, monitor: ReferenceMonitor, executor: SyntheticExecutor,
                  store: EvidenceStore, context_builder: ContextBuilder, reader: ResourceReader | None = None,
-                 ledger: CommitmentLedger | None = None,
+                 ledger: CommitmentLedger | None = None, response_schema: dict | None = None,
                  review_recipient_role: str = "operator", review_window_s: int = 600,
                  clock: Callable[[], datetime] = utcnow) -> None:
         self._provider = provider
@@ -204,6 +206,8 @@ class SubjectRuntime:
         # Undertakings, claims and corrections (§9.3). The executor persists a proposed commitment as an
         # effect; the ledger mirrors it and owns acceptance, revision and correction records.
         self.ledger = ledger or CommitmentLedger(clock=clock)
+        # Offered to providers that support structured output (Ollama `format`); validation stays ours.
+        self._response_schema = response_schema
         self._context = context_builder
         self._review_role = review_recipient_role  # resolved from operator configuration, never a fixture role
         self._review_window = timedelta(seconds=review_window_s)
@@ -334,7 +338,8 @@ class SubjectRuntime:
         # §9.1 steps 2–6.
         messages = self._context.build(run)
         run.model_calls += 1
-        cap = await capture_one_decision(run.manifest, self._provider, append, step=step, messages=messages)
+        cap = await capture_one_decision(run.manifest, self._provider, append, step=step, messages=messages,
+                                         response_schema=self._response_schema)
         events = list(cap.events)
         if cap.decision is None:
             reason = _terminal_reason_for(cap.invalid_reason or "")
