@@ -19,8 +19,9 @@ why not now.
   `review_resolved {status: acknowledged, final: false}` because `EventType` is frozen (ADR-015 §7).
   Candidate S1 amendment together with putting `checked_revision_vector` into the `gate_decided`
   payload (the held gate rebuilt from records carries `{}` for it).
-- 2026-09-11, seat 1/3 — `runtime/service.py` (`WorkroomService`, `Operation`) and `peb serve` wiring
-  to seat 2/3's `create_workroom` (INTERFACES §15). Interface published first so the web lane can
-  build against it; implementation follows the main merge of S2/S3.
+- 2026-09-11, seat 1/3 — `runtime/service.py` (`WorkroomService`, `Operation`) LANDED on the lane the
+  same day (see docs/lanes/claude.md); `peb serve` is wired and fails `not_implemented` until seat 2/3's
+  `web.create_workroom(service, operator_secret, origin)` exists (INTERFACES §15). Remaining: the
+  `["serve", …]` entry in tests/unit/test_cli_bootstrap.py's not-implemented list goes when it lands.
 - 2026-09-11, seat 1/3 — Once seat 2/3 lands `evaluation.metrics.AUTHORITY_DENY_REASONS` (#27633 R1),
   drop the identical fallback set from `runtime/bootstrap.py` so there is one source.

@@ -168,6 +168,32 @@ def cmd_resume(args: argparse.Namespace) -> int:
     return 0 if summary["verification"]["chain_consistent"] else 1
 
 
+def cmd_serve(args: argparse.Namespace) -> int:
+    """§20 `peb serve`: 1/3 builds the WorkroomService and hands it to seat 2/3's `create_workroom`
+    (INTERFACES §15). Loopback only; the operator secret lives in the state root."""
+    if args.host not in ("127.0.0.1", "localhost", "::1"):
+        raise PebError(ErrorCode.invalid_input, "peb serve binds loopback only", {"host": args.host})
+    try:
+        from .web import create_workroom  # seat 2/3
+    except ImportError as e:
+        raise PebError(ErrorCode.not_implemented,
+                       "peb serve is not implemented in this checkout: the web lane has not landed "
+                       "create_workroom(service, operator_secret, origin) (INTERFACES §15)", {"missing": str(e)}) from e
+    from .config import load_or_create_operator_secret
+    from .runtime.service import WorkroomService
+
+    cfg = load_config(args.state_root)
+    secret = load_or_create_operator_secret(cfg.state_root)
+    service = WorkroomService(cfg.state_root, ollama_endpoint=cfg.ollama_endpoint)
+    app = create_workroom(service, secret, origin=f"http://{args.host}:{args.port}")
+    import uvicorn
+
+    print(json.dumps({"serving": f"http://{args.host}:{args.port}", "state_root": str(cfg.state_root),
+                      "operator_secret": "in state root (never printed)"}, sort_keys=True))
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    return 0
+
+
 def _review_cmd(name: str):
     def run(args: argparse.Namespace) -> int:
         from .contracts import Actor
@@ -246,7 +272,7 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("serve", help="start the loopback operator workroom")
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8787)
-    s.set_defaults(fn=_stub("peb serve"))
+    s.set_defaults(fn=cmd_serve)
 
     pr = sub.add_parser("providers", help="provider commands").add_subparsers(dest="providers_cmd", required=True)
     pr.add_parser("list", help="show configured/available providers; never downloads a model").set_defaults(fn=cmd_providers_list)
