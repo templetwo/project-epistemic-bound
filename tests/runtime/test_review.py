@@ -249,3 +249,35 @@ def test_development_store_without_approvals_fails_closed_and_keeps_the_hold():
     assert e.value.code == ErrorCode.not_implemented
     assert run.reviews[0].status == ReviewStatus.pending and review.review_id in run.held
     assert run.status == RunStatus.waiting_review and executor.executed == []
+
+
+# ----------------------------------------------------------------------------- resume never substitutes for a verdict (#27713)
+
+def test_resume_is_refused_while_a_review_is_pending_or_acknowledged_in_any_status():
+    rt, run, store, executor, review = hold()
+    with pytest.raises(RunNotActive):
+        rt.resume(run)  # pending, waiting_review
+    rt.acknowledge_review(run, review.review_id)
+    with pytest.raises(RunNotActive) as e:
+        rt.resume(run)  # acknowledged is still open
+    assert e.value.code == ErrorCode.conflict and review.review_id in e.value.detail["open_reviews"]
+    rt._set_status(run, RunStatus.paused)  # an operator pause on top of the hold changes nothing about the review
+    with pytest.raises(RunNotActive):
+        rt.resume(run)
+    assert executor.executed == [] and run.reviews[0].status == ReviewStatus.acknowledged
+    rt._set_status(run, RunStatus.waiting_review)
+    rt.resolve_review(run, review.review_id, "deny")  # only a verdict (or expiry) opens the way
+    rt._set_status(run, RunStatus.paused)
+    rt.resume(run)
+    assert run.status == RunStatus.running
+
+
+def test_resume_after_the_window_records_the_expiry_first_then_continues():
+    clock = Clock()
+    rt, run, store, executor, review = hold(clock=clock)
+    clock.advance(601)
+    rt.resume(run)  # no explicit expire call: resume records the expiry as the supervisor's act, then continues
+    assert run.reviews[0].status == ReviewStatus.expired and run.held == {} and run.status == RunStatus.running
+    kinds = [e.event_type for e in store.events(run.manifest.run_id)]
+    assert kinds.index(EventType.review_resolved) < kinds.index(EventType.run_resumed)
+    assert executor.executed == []

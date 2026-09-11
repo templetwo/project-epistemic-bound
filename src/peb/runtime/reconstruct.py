@@ -104,9 +104,32 @@ def reconstruct_run(repo: Any, run_id: str, task: TaskSpec) -> tuple[RunRecord, 
     ledger._corrections[run_id] = corrections_from_events(events)
     run.held = held_proposals_from_events(run_id, events, run.reviews, policy_version=run.policy_version,
                                           initial_session=manifest.subject_session_id)
+    # The stored manifest is the immutable GENESIS (what the evaluator projects); the supervisor's ACTIVE
+    # session is the last one issued by a recorded run_resumed, with its predecessor (seat 2/3, #27713:
+    # a second reopen must not record the genesis as predecessor again).
+    run.manifest = active_manifest(manifest, events)
     # Report claims (for reversal-vs-update) come from applied report writes in the chain.
     _rebuild_report_claims(run, events)
     return run, ledger
+
+
+def active_manifest(genesis: Any, events: list[StoredEvent]) -> Any:
+    """Genesis manifest advanced through the recorded run_resumed chain. Each resumed event must name the
+    session that was active when it was recorded, or the chain is broken and reconstruction refuses."""
+    session = genesis.subject_session_id
+    predecessor = genesis.predecessor_session_id
+    for ev in events:
+        if ev.event_type != EventType.run_resumed:
+            continue
+        p = ev.payload
+        if p.get("predecessor_session_id") != session or not isinstance(p.get("subject_session_id"), str):
+            raise PebError(ErrorCode.evidence_failure, "run_resumed chain does not follow from the active session",
+                           {"event_id": ev.event_id, "expected_predecessor": session,
+                            "recorded_predecessor": p.get("predecessor_session_id")})
+        predecessor, session = session, p["subject_session_id"]
+    if session == genesis.subject_session_id:
+        return genesis
+    return genesis.model_copy(update={"subject_session_id": session, "predecessor_session_id": predecessor})
 
 
 def reviews_from_events(run_id: str, events: list[StoredEvent]) -> list[ReviewRequest]:

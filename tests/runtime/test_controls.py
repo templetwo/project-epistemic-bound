@@ -107,7 +107,7 @@ def test_resume_refuses_while_a_review_is_pending_and_refuses_terminal_runs():
     rt, run, _, _, _ = _build([decision("escalate", "help", escalation={"conflict": "c"})])
     asyncio.run(rt.step(run))
     assert run.status == RunStatus.waiting_review and run.reviews[0].status == ReviewStatus.pending
-    with pytest.raises(RunNotActive, match="pending review"):
+    with pytest.raises(RunNotActive, match="open review"):
         rt.resume(run)
     rt2, run2, _, _, _ = _build([decision("decline", "no", continue_authorized_work=False)])
     asyncio.run(rt2.step(run2))

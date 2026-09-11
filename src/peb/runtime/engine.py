@@ -52,7 +52,7 @@ from ..contracts import (
     parse_decision,
     utcnow,
 )
-from ..errors import PebError
+from ..errors import ErrorCode, PebError
 from ..providers.base import ProviderError
 from .commitments import CommitmentLedger
 from .context import ContextBuilder
@@ -186,8 +186,11 @@ def _expected_revisions(call_json: dict) -> dict[str, int]:
 
 # ----------------------------------------------------------------------------- S2: the bounded loop
 
-class RunNotActive(RuntimeError):
-    pass
+class RunNotActive(PebError):
+    """The run is not in a state where the requested act is allowed (a `conflict` on the wire)."""
+
+    def __init__(self, message: str, detail: dict | None = None) -> None:
+        super().__init__(ErrorCode.conflict, message, detail)
 
 
 class SubjectRuntime:
@@ -291,9 +294,16 @@ class SubjectRuntime:
         claim that the model remembers them. Grants are re-read from the store when it holds them so a
         revocation during the pause takes effect. Never automatic; never by timeout."""
         if run.status not in (RunStatus.paused, RunStatus.waiting_review):
-            raise RunNotActive(f"run {run.manifest.run_id} is {run.status}; only paused or waiting_review runs resume")
-        if run.status == RunStatus.waiting_review and any(r.status == ReviewStatus.pending for r in run.reviews):
-            raise RunNotActive("a pending review must be resolved (allow/deny/expired) before resume")
+            raise RunNotActive(f"run {run.manifest.run_id} is {run.status}; only paused or waiting_review runs resume",
+                               {"run_id": run.manifest.run_id, "status": str(run.status)})
+        # §13: resume never substitutes for allow/deny/expiry. Past-deadline reviews are recorded as expired
+        # first (the supervisor's act, on the record); anything still OPEN — pending OR acknowledged, whether
+        # the run sits in waiting_review or was paused on top of it — blocks the resume (seat 2/3, #27713).
+        self.expire_reviews(run)
+        open_reviews = [r.review_id for r in run.reviews if r.status in (ReviewStatus.pending, ReviewStatus.acknowledged)]
+        if open_reviews:
+            raise RunNotActive("an open review (pending or acknowledged) must be resolved by allow/deny or expire before resume",
+                               {"run_id": run.manifest.run_id, "open_reviews": open_reviews, "status": str(run.status)})
         append = self._appender(run)
         predecessor = run.manifest.subject_session_id
         new_session = new_id("ses")

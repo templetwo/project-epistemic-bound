@@ -224,3 +224,73 @@ def test_peb_review_list_and_ack_from_records(tmp_path):
     assert out["review"]["status"] == "acknowledged" and out["status"] == "waiting_review"
     assert offset(repo, rid) == 1  # acknowledgement is not approval
     assert list_reviews(tmp_path / "state", rid)[0]["status"] == "acknowledged"
+
+
+# ----------------------------------------------------------------------------- #27713 regressions (seat 2/3)
+
+def _rebuild(tmp_path, rid):
+    from peb.runtime.engine import SubjectRuntime as _Rt
+
+    repo2 = SqliteRepository.open(tmp_path / "state")
+    run2, ledger2 = reconstruct_run(repo2, rid, load_fixture().task)
+    monitor2 = DefaultReferenceMonitor(repo2.signing_key())
+    rt2 = _Rt(provider=ScriptedProvider([]), monitor=monitor2, executor=SqliteExecutor(repo2, monitor2), store=repo2,
+              reader=repo2, context_builder=AllowlistContextBuilder(profile_text=PROFILE, ledger=ledger2), ledger=ledger2)
+    return rt2, run2, repo2
+
+
+def test_repeated_reconstruction_keeps_the_resume_lineage(tmp_path):
+    """P1 lineage: the second reopen must record the FIRST successor as predecessor, not the genesis again."""
+    from peb.runtime.controls import pause_run
+
+    rt, run, repo, review = hold(tmp_path)
+    rid = run.manifest.run_id
+    genesis = repo.manifest(rid).subject_session_id
+    rt.resolve_review(run, review.review_id, "deny")  # running again, same session
+    pause_run(repo, rid)
+    rt2, run2, repo2 = _rebuild(tmp_path, rid)
+    try:
+        assert run2.manifest.subject_session_id == genesis and run2.manifest.predecessor_session_id is None
+        rt2.resume(run2)
+        s1 = run2.manifest.subject_session_id
+        assert s1 != genesis and run2.manifest.predecessor_session_id == genesis
+        pause_run(repo2, rid)
+    finally:
+        repo2.close()
+    rt3, run3, repo3 = _rebuild(tmp_path, rid)
+    try:
+        assert run3.manifest.subject_session_id == s1 and run3.manifest.predecessor_session_id == genesis
+        rt3.resume(run3)
+        s2 = run3.manifest.subject_session_id
+        assert s2 not in (genesis, s1) and run3.manifest.predecessor_session_id == s1
+        chain = [(e.payload["predecessor_session_id"], e.payload["subject_session_id"])
+                 for e in repo3.events(rid) if e.event_type.value == "run_resumed"]
+        assert chain == [(genesis, s1), (s1, s2)]
+        assert repo3.manifest(rid).subject_session_id == genesis  # the stored genesis never moves
+    finally:
+        repo3.close()
+
+
+@pytest.mark.parametrize("acknowledge", [False, True])
+def test_pausing_over_an_open_review_then_rebuilding_cannot_resume_past_it(tmp_path, acknowledge):
+    """P1 hold: pending or acknowledged reviews block resume in ANY status, across a process boundary."""
+    from peb.runtime.controls import pause_run
+
+    rt, run, repo, review = hold(tmp_path)
+    rid = run.manifest.run_id
+    if acknowledge:
+        rt.acknowledge_review(run, review.review_id)
+        with pytest.raises(RunNotActive):
+            rt.resume(run)  # acknowledged is not resolved
+    pause_run(repo, rid)  # an operator pause on top of the hold
+    rt2, run2, repo2 = _rebuild(tmp_path, rid)
+    try:
+        assert run2.status == RunStatus.paused and [r.status for r in run2.reviews] == [
+            ReviewStatus.acknowledged if acknowledge else ReviewStatus.pending]
+        with pytest.raises(RunNotActive) as e:
+            rt2.resume(run2)
+        assert e.value.code == ErrorCode.conflict and review.review_id in e.value.detail["open_reviews"]
+        assert repo2.run_status(rid) == RunStatus.paused and offset(repo2, rid) == 1
+        rt2.resolve_review  # still available: only allow/deny/expiry opens the way
+    finally:
+        repo2.close()
