@@ -326,3 +326,79 @@ def test_stale_expected_revision_is_denied_by_the_gate():
     out = asyncio.run(rt.step(run))
     assert out.gate is not None and out.gate.outcome == GateOutcome.deny and out.gate.reason == GateReason.revision_mismatch
     assert executor.executed == []
+
+
+# ----------------------------------------------------------------------------- executor failures (§11.2/§11.3)
+
+def test_executor_refusal_is_recorded_as_not_applied_and_shown_to_the_subject():
+    from peb.errors import ErrorCode, PebError
+
+    class RefusingExecutor(FakeWorkspaceExecutor):
+        def execute(self, proposal, authorization):
+            raise PebError(ErrorCode.conflict, "revalidation denied inside the write transaction",
+                           {"reason": "revision_mismatch"})
+
+    script = [action("report.write", {"resource_id": "report.primary", "expected_revision": 1, "status": "fail",
+                                      "summary": "s", "evidence_refs": []}, "grant.report-edit"),
+              decision("finish", "x", completion_claim="y", evidence_refs=["report.primary"])]
+    rt, run, store, _, provider = build(script)
+    rt._executor = RefusingExecutor.conceal_error_basic()
+    out = asyncio.run(rt.step(run))
+    assert out.receipt is not None and str(out.receipt.status) == "not_applied"
+    assert out.receipt.tool_result["error"] == "conflict"
+    assert run.status == RunStatus.running  # a refused effect is an outcome, not a crash
+    ev = types(store, run.manifest.run_id)
+    assert ev[-1] == EventType.effect_observed
+    asyncio.run(rt.step(run))
+    assert '"effect": "not_applied"' in provider.requests[1].messages[1].content
+
+
+def test_unknown_executor_exception_fails_the_run_as_evidence_failure():
+    class BrokenExecutor(FakeWorkspaceExecutor):
+        def execute(self, proposal, authorization):
+            raise RuntimeError("disk vanished")
+
+    script = [action("report.write", {"resource_id": "report.primary", "expected_revision": 1, "status": "fail",
+                                      "summary": "s", "evidence_refs": []}, "grant.report-edit")]
+    rt, run, store, _, _ = build(script)
+    rt._executor = BrokenExecutor.conceal_error_basic()
+    out = asyncio.run(rt.step(run))
+    assert run.status == RunStatus.failed and run.terminal_reason == TerminalReason.evidence_failure
+    ev = types(store, run.manifest.run_id)
+    assert ev[-2:] == [EventType.effect_observed, EventType.run_finished]
+    assert out.invalid_reason and "RuntimeError" in out.invalid_reason
+
+
+def test_reads_are_served_by_the_runtime_within_the_task_allowlist_when_a_reader_exists():
+    """With a trusted reader configured, reads never reach the executor and never leave the allowlist."""
+    from dataclasses import dataclass
+
+    @dataclass(frozen=True)
+    class Row:
+        resource_id: str
+        kind: str
+        revision: int
+        value: dict
+        content_hash: str
+
+    class Reader:
+        def current_resources(self, run_id):
+            return {"check.latest": Row("check.latest", "check_result", 1, {"status": "fail"}, "a" * 64),
+                    "sink.external": Row("sink.external", "sink", 1, {"deliveries": []}, "b" * 64)}
+
+    script = [action("workspace.read", {"resource_id": "check.latest"}, "grant.read"),
+              action("workspace.read", {"resource_id": "sink.external"}, "grant.read"),
+              action("workspace.list", {}, "grant.list")]
+    rt, run, _, executor, _ = build(script)
+    rt._reader = Reader()
+    # widen the READ grant to cover the sink so the gate double allows it; the TASK allowlist must still refuse
+    run.grants = [g.model_copy(update={"resource_ids": [*g.resource_ids, "sink.external"]}) if g.grant_id == "grant.read" else g
+                  for g in run.grants]
+    a = asyncio.run(rt.step(run))
+    assert a.receipt is not None and a.receipt.tool_result["value"] == {"status": "fail"}
+    b = asyncio.run(rt.step(run))
+    # the gate double allows any read the grant covers; the runtime still refuses what the task does not permit
+    assert b.receipt is not None and b.receipt.tool_result == {"error": "unknown_resource", "resource_id": "sink.external"}
+    c = asyncio.run(rt.step(run))
+    assert c.receipt is not None and [r["resource_id"] for r in c.receipt.tool_result["resources"]] == ["check.latest"]
+    assert executor.executed == []  # no read touched the executor

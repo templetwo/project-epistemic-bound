@@ -14,19 +14,23 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from typing import Protocol
 
 from ..boundary.canonical import DOMAIN_MODEL_INPUT, digest, proposal_digest
 from ..contracts import (
+    READ_TOOLS,
     ActionDecision,
     ActionProposal,
     Actor,
     DeclineDecision,
     EffectReceipt,
+    EffectStatus,
     EscalateDecision,
     EventType,
     EvidenceStore,
     FinishDecision,
     GateContext,
+    GateDecision,
     GateOutcome,
     Grant,
     ModelMessage,
@@ -47,12 +51,27 @@ from ..contracts import (
     parse_decision,
     utcnow,
 )
+from ..errors import PebError
 from ..providers.base import ProviderError
 from .context import ContextBuilder
 from .state import RunRecord, StepOutcome
 
 Decision = ActionDecision | DeclineDecision | EscalateDecision | FinishDecision
 AppendFn = Callable[[EventType, Actor, dict], StoredEvent]
+
+
+class ResourceRowLike(Protocol):
+    resource_id: str
+    kind: str
+    revision: int
+    value: dict
+    content_hash: str
+
+
+class ResourceReader(Protocol):
+    """Trusted read surface over the run's current resources (SqliteRepository provides it)."""
+
+    def current_resources(self, run_id: str) -> dict[str, ResourceRowLike]: ...
 
 
 # ----------------------------------------------------------------------------- S1: capture one decision
@@ -158,13 +177,17 @@ class SubjectRuntime:
     """One supervisor over injected boundary implementations. Holds no authority of its own."""
 
     def __init__(self, *, provider: SubjectProvider, monitor: ReferenceMonitor, executor: SyntheticExecutor,
-                 store: EvidenceStore, context_builder: ContextBuilder,
+                 store: EvidenceStore, context_builder: ContextBuilder, reader: ResourceReader | None = None,
                  review_recipient_role: str = "operator", review_window_s: int = 600,
                  clock: Callable[[], datetime] = utcnow) -> None:
         self._provider = provider
         self._monitor = monitor
         self._executor = executor
         self._store = store
+        # Reads are not effects (§10): after the gate allows, the runtime serves them from the trusted
+        # resource store, limited to the task's permitted resources. When no reader is configured the
+        # executor is asked (the in-memory test double serves reads; SqliteExecutor refuses them).
+        self._reader = reader
         self._context = context_builder
         self._review_role = review_recipient_role  # resolved from operator configuration, never a fixture role
         self._review_window = timedelta(seconds=review_window_s)
@@ -173,24 +196,41 @@ class SubjectRuntime:
     # -- events -----------------------------------------------------------------------------------
 
     def _appender(self, run: RunRecord) -> AppendFn:
+        next_seq = getattr(self._store, "next_seq", None)
+
         def append(event_type: EventType, actor: Actor, payload: dict) -> StoredEvent:
-            stored = self._store.append(PendingEvent(run_id=run.manifest.run_id, seq=run.next_seq,
-                                                     ts=self._clock(), event_type=event_type, actor=actor,
-                                                     payload=payload))
-            run.next_seq += 1
+            # The store owns the sequence when it can say so (the executor appends inside its own
+            # transaction); the in-memory counter is only a fallback for stores that cannot.
+            seq = next_seq(run.manifest.run_id) if next_seq is not None else run.next_seq
+            stored = self._store.append(PendingEvent(run_id=run.manifest.run_id, seq=seq, ts=self._clock(),
+                                                     event_type=event_type, actor=actor, payload=payload))
+            run.next_seq = seq + 1
             return stored
         return append
+
+    def _set_status(self, run: RunRecord, status: RunStatus, *, bump_stop: bool = False) -> None:
+        """Mirror a status transition into the durable store when it keeps run rows (S2 SqliteRepository)."""
+        run.status = status
+        setter = getattr(self._store, "set_run_status", None)
+        if setter is not None:
+            setter(run.manifest.run_id, status, bump_stop=bump_stop)
 
     # -- lifecycle --------------------------------------------------------------------------------
 
     def create_run(self, manifest: RunManifest, task: TaskSpec, grants: list[Grant], policy_version: str,
-                   initial_revisions: dict[str, int]) -> RunRecord:
+                   initial_revisions: dict[str, int], *, record_created: bool = True) -> RunRecord:
+        """Supervisor state for a run. `record_created=False` attaches to a run whose `run_created`
+        event the durable store already wrote (SqliteRepository.create_run does)."""
         run = RunRecord(manifest=manifest, task=task, grants=list(grants), policy_version=policy_version,
                         revisions=dict(initial_revisions))
-        self._appender(run)(EventType.run_created, Actor.supervisor,
-                            {"manifest": manifest.model_dump(mode="json"), "task_id": task.task_id,
-                             "grant_ids": [g.grant_id for g in grants], "policy_version": policy_version,
-                             "initial_revisions": dict(initial_revisions)})
+        if record_created:
+            self._appender(run)(EventType.run_created, Actor.supervisor,
+                                {"manifest": manifest.model_dump(mode="json"), "task_id": task.task_id,
+                                 "grant_ids": [g.grant_id for g in grants], "policy_version": policy_version,
+                                 "initial_revisions": dict(initial_revisions)})
+        else:
+            next_seq = getattr(self._store, "next_seq", None)
+            run.next_seq = next_seq(manifest.run_id) if next_seq is not None else 0
         return run
 
     def request_pause(self, run: RunRecord) -> None:
@@ -219,12 +259,13 @@ class SubjectRuntime:
             return self._terminal(run, append, RunStatus.cancelled, TerminalReason.cancelled, step, [])
         if run.pause_requested:
             run.pause_requested = False
-            run.status = RunStatus.paused
+            self._set_status(run, RunStatus.paused, bump_stop=True)
             ev = append(EventType.run_paused, Actor.operator, {"step": step})
             return StepOutcome(step, run.status, None, None, None, None, None, None, None, [ev])
         if run.model_calls >= run.manifest.limits.max_model_calls:
             return self._terminal(run, append, RunStatus.failed, TerminalReason.budget_exhausted, step, [])
-        run.status = RunStatus.running
+        if run.status != RunStatus.running:
+            self._set_status(run, RunStatus.running)
 
         # §9.1 steps 2–6.
         messages = self._context.build(run)
@@ -272,11 +313,34 @@ class SubjectRuntime:
         outcome.gate = gate
 
         if gate.outcome == GateOutcome.allow:
-            receipt: EffectReceipt = self._executor.execute(proposal, gate)
-            events.append(append(EventType.effect_observed, Actor.executor,
-                                 {"step": step, "proposal_id": proposal.proposal_id, "receipt_id": receipt.receipt_id,
-                                  "status": str(receipt.status), "before": _rev_map(receipt.before),
-                                  "after": _rev_map(receipt.after), "tool_result": receipt.tool_result}))
+            try:
+                if proposal.call.tool in READ_TOOLS and self._reader is not None:
+                    receipt = self._serve_read(run, proposal)
+                else:
+                    receipt = self._execute(proposal, gate, cap.preaction_present)
+            except PebError as e:
+                # §11.2/§11.3: the executor refused or rolled back before commit — the effect is NOT applied.
+                # Record that as an observed outcome the subject can see; do not crash the supervisor.
+                receipt = EffectReceipt(receipt_id=new_id("rcpt"), proposal_id=proposal.proposal_id,
+                                        status=EffectStatus.not_applied,
+                                        tool_result={"error": str(e.code), "message": e.message, "detail": e.detail},
+                                        before={}, after={}, transaction_ref=None, event_ref=None,
+                                        observed_at=self._clock())
+            except Exception as e:  # noqa: BLE001 — an unknown executor failure is an evidence failure, recorded
+                events.append(append(EventType.effect_observed, Actor.executor,
+                                     {"step": step, "proposal_id": proposal.proposal_id, "status": "indeterminate",
+                                      "error": type(e).__name__, "message": str(e)[:500]}))
+                return self._terminal(run, append, RunStatus.failed, TerminalReason.evidence_failure, step, events,
+                                      invalid=f"executor raised {type(e).__name__}")
+            if receipt.event_ref is None:
+                # The executor did not record the effect event itself (in-memory double); record it here.
+                events.append(append(EventType.effect_observed, Actor.executor,
+                                     {"step": step, "proposal_id": proposal.proposal_id,
+                                      "receipt_id": receipt.receipt_id, "status": str(receipt.status),
+                                      "before": _rev_map(receipt.before), "after": _rev_map(receipt.after),
+                                      "tool_result": receipt.tool_result}))
+            else:
+                run.next_seq = max(run.next_seq, _store_next_seq(self._store, run.manifest.run_id, run.next_seq))
             outcome.receipt = receipt
             for rid, (rev, _hash) in receipt.after.items():
                 run.revisions[rid] = rev
@@ -298,6 +362,44 @@ class SubjectRuntime:
 
     # -- helpers ----------------------------------------------------------------------------------
 
+    def _serve_read(self, run: RunRecord, proposal: ActionProposal) -> EffectReceipt:
+        """workspace.list / workspace.read from trusted storage, restricted to the task allowlist
+        (§10.2, DATA-02). No revision changes; the receipt records what the subject was shown."""
+        assert self._reader is not None
+        allowed = set(run.task.allowed_resource_ids)
+        rows = self._reader.current_resources(run.manifest.run_id)
+        args = proposal.call.arguments.model_dump()
+        if proposal.call.tool == "workspace.list":
+            result: dict = {"resources": [{"resource_id": rid, "kind": row.kind, "revision": row.revision}
+                                          for rid, row in sorted(rows.items()) if rid in allowed]}
+            touched: dict[str, tuple[int, str]] = {}
+        else:
+            rid = args["resource_id"]
+            if rid not in allowed or rid not in rows:
+                # stable invalid-resource error; never a filesystem or evaluator surface
+                result = {"error": "unknown_resource", "resource_id": rid}
+                touched = {}
+            else:
+                row = rows[rid]
+                result = {"resource_id": rid, "revision": row.revision, "value": row.value, "hash": row.content_hash}
+                touched = {rid: (row.revision, row.content_hash)}
+        return EffectReceipt(receipt_id=new_id("rcpt"), proposal_id=proposal.proposal_id, status=EffectStatus.applied,
+                             tool_result=result, before=touched, after=touched, transaction_ref=None,
+                             event_ref=None, observed_at=self._clock())
+
+    def _execute(self, proposal: ActionProposal, gate: GateDecision, preaction_present: bool) -> EffectReceipt:
+        """Call the executor; pass the supervisor's preaction observation when the executor accepts it
+        (SqliteExecutor revalidates inside its transaction and needs it for `require` mode)."""
+        import inspect
+
+        try:
+            params = inspect.signature(self._executor.execute).parameters
+        except (TypeError, ValueError):
+            params = {}
+        if "preaction_present" in params:
+            return self._executor.execute(proposal, gate, preaction_present=preaction_present)
+        return self._executor.execute(proposal, gate)
+
     def _gate_context(self, run: RunRecord, *, preaction_present: bool) -> GateContext:
         """Built from trusted supervisor state only — never from model JSON (§8.3). `preaction_present`
         is the supervisor's own observation that a declaration was captured this step (§12); its
@@ -316,7 +418,7 @@ class SubjectRuntime:
                                deadline_at=now + self._review_window, status=ReviewStatus.pending,
                                receipt_id=new_id("rcpt"))
         run.reviews.append(review)
-        run.status = RunStatus.waiting_review
+        self._set_status(run, RunStatus.waiting_review)
         events.append(append(EventType.review_opened, Actor.supervisor,
                              {"step": run.step, "review_id": review.review_id, "proposal_id": proposal_id,
                               "recipient_role": self._review_role, "deadline_at": review.deadline_at.isoformat(),
@@ -327,7 +429,7 @@ class SubjectRuntime:
 
     def _terminal(self, run: RunRecord, append: AppendFn, status: RunStatus, reason: TerminalReason, step: int,
                   events: list[StoredEvent], *, invalid: str | None = None, extra: dict | None = None) -> StepOutcome:
-        run.status = status
+        self._set_status(run, status, bump_stop=status in (RunStatus.cancelled, RunStatus.interrupted))
         run.terminal_reason = reason
         payload = {"step": step, "status": str(status), "terminal_reason": str(reason),
                    "model_calls": run.model_calls, **(extra or {})}
@@ -336,6 +438,11 @@ class SubjectRuntime:
         events = list(events)
         events.append(append(EventType.run_finished, Actor.supervisor, payload))
         return StepOutcome(step, status, None, reason, invalid, None, None, None, None, events)
+
+
+def _store_next_seq(store: EvidenceStore, run_id: str, fallback: int) -> int:
+    fn = getattr(store, "next_seq", None)
+    return fn(run_id) if fn is not None else fallback
 
 
 def _rev_map(m: dict[str, tuple[int, str]]) -> dict[str, int]:
