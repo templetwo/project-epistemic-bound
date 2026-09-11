@@ -402,3 +402,31 @@ def test_reads_are_served_by_the_runtime_within_the_task_allowlist_when_a_reader
     c = asyncio.run(rt.step(run))
     assert c.receipt is not None and [r["resource_id"] for r in c.receipt.tool_result["resources"]] == ["check.latest"]
     assert executor.executed == []  # no read touched the executor
+
+
+
+# ----------------------------------------------------------------------------- provider errors are never parsed (finding (e), seat 3/3)
+
+def test_provider_error_with_parseable_content_is_not_parsed():
+    from peb.contracts import ModelResponse
+
+    valid = decision("finish", "x", completion_claim="y", evidence_refs=["a"])
+    timed_out = ModelResponse(model_requested="scripted", model_resolved=None, content=valid, finish_reason="error",
+                              prompt_tokens=None, completion_tokens=None, duration_ms=None, error="timeout")
+    rt, run, store, _, _ = build([timed_out])
+    out = asyncio.run(rt.step(run))
+    assert run.status == RunStatus.failed and run.terminal_reason == TerminalReason.provider_failure
+    assert out.invalid_reason == "provider_error:timeout"
+    ev = types(store, run.manifest.run_id)
+    assert EventType.decision_recorded not in ev and EventType.decision_invalid in ev
+
+
+def test_truncated_response_is_invalid_output_not_a_decision():
+    from peb.contracts import ModelResponse
+
+    cut = ModelResponse(model_requested="scripted", model_resolved="scripted", content='{"schema_version": 1, "kind": "fin',
+                        finish_reason="length", prompt_tokens=None, completion_tokens=None, duration_ms=None,
+                        error="truncated")
+    rt, run, _, _, _ = build([cut])
+    asyncio.run(rt.step(run))
+    assert run.status == RunStatus.failed and run.terminal_reason == TerminalReason.invalid_output

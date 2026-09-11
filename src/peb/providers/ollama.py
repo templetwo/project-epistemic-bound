@@ -129,7 +129,11 @@ class OllamaProvider:
 
 
 def _err(request: ModelRequest, code: str, detail: str | None = None) -> ModelResponse:
-    return ModelResponse(model_requested=request.model, model_resolved=None, content=detail or "",
+    """An error response carries NO content: an HTTP body or transport text is not a decision and must
+    never reach parse_decision (finding (e) by seat 3/3, 2026-09-11). `detail` is intentionally dropped
+    from the contract record; the error code is the record."""
+    del detail
+    return ModelResponse(model_requested=request.model, model_resolved=None, content="",
                          finish_reason="error", prompt_tokens=None, completion_tokens=None, duration_ms=None,
                          error=code)  # type: ignore[arg-type]
 

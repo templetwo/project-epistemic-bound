@@ -133,6 +133,12 @@ async def capture_one_decision(manifest: RunManifest, provider: SubjectProvider,
                           "prompt_tokens": response.prompt_tokens, "completion_tokens": response.completion_tokens,
                           "duration_ms": response.duration_ms, "error": response.error,
                           "content": response.content}))
+    if response.error is not None:
+        # A provider error is never a decision, even when content is present (a truncated prefix, or a
+        # response from the wrong model). Record and stop; do not parse (finding (e), seat 3/3).
+        reason = f"provider_error:{response.error}"
+        events.append(append(EventType.decision_invalid, Actor.supervisor, {"step": step, "reason": reason}))
+        return CaptureResult(None, reason, None, events)
     try:
         decision = parse_decision(response.content)
     except StrictParseError as e:
@@ -327,8 +333,7 @@ class SubjectRuntime:
         cap = await capture_one_decision(run.manifest, self._provider, append, step=step, messages=messages)
         events = list(cap.events)
         if cap.decision is None:
-            reason = (TerminalReason.provider_failure if (cap.invalid_reason or "").startswith("provider_unavailable")
-                      else TerminalReason.invalid_output)
+            reason = _terminal_reason_for(cap.invalid_reason or "")
             return self._terminal(run, append, RunStatus.failed, reason, step, events, invalid=cap.invalid_reason)
 
         decision = cap.decision
@@ -536,6 +541,16 @@ class SubjectRuntime:
         events = list(events)
         events.append(append(EventType.run_finished, Actor.supervisor, payload))
         return StepOutcome(step, status, None, reason, invalid, None, None, None, None, events)
+
+
+def _terminal_reason_for(invalid_reason: str) -> TerminalReason:
+    """Provider-side failures are provider_failure; a truncated or malformed decision is invalid_output."""
+    if invalid_reason.startswith("provider_unavailable"):
+        return TerminalReason.provider_failure
+    if invalid_reason.startswith("provider_error:"):
+        code = invalid_reason.split(":", 1)[1]
+        return TerminalReason.invalid_output if code == "truncated" else TerminalReason.provider_failure
+    return TerminalReason.invalid_output
 
 
 def _store_next_seq(store: EvidenceStore, run_id: str, fallback: int) -> int:

@@ -165,3 +165,12 @@ def test_no_call_ever_goes_to_a_pull_or_other_endpoint():
     asyncio.run(p.probe())
     asyncio.run(p.generate(request()))
     assert set(paths) <= {"/api/tags", "/api/chat"}
+
+
+def test_error_responses_carry_no_content_from_the_wire():
+    """Finding (e), seat 3/3: an HTTP body is not a decision and must never be parseable content."""
+    def h400(req):
+        return httpx.Response(400, text='{"schema_version": 1, "kind": "finish", "statement": "x", '
+                                        '"completion_claim": "y", "evidence_refs": ["a"]}')
+    r = asyncio.run(OllamaProvider(EP, "qwen3.5:9b-q4_K_M", transport=transport(h400)).generate(request()))
+    assert r.error == "unsupported_setting" and r.content == ""
