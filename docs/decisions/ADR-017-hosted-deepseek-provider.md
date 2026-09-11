@@ -69,7 +69,10 @@ runs only after Anthony has seen this report and said so.
   nothing from it (content `""`, model unresolved, no catalog ids), the runtime never parses it, and
   `usage_report()["credential_reflected"]` counts it. By design the key never enters a prompt, so a reflection can
   only come from the provider side; the adapter still refuses to let it out. The check is an exact-string scan of
-  the raw body before any parsing; partial reflections are out of its scope and are stated as such.
+  the raw body AND of every decoded JSON string value at any nesting level — object keys, values, list items, and
+  strings that are themselves JSON documents (the completion `content` is one; the runtime would decode it again) —
+  bounded in depth. JSON escaping (`\u0073\u006b…`) therefore cannot smuggle the key past the scan (2/3's #27952).
+  Partial or split reflections are out of its scope and are stated as such.
 - Malformed shapes are typed failures, never exceptions: a `/models` body that is not an object carrying a list
   `data` is `transport`; an error body of any non-object shape still maps by HTTP status; a completion whose choice
   or message is not an object is `transport`.

@@ -11,13 +11,16 @@
 - Distinct outcomes, no fallback of any kind: key_absent, auth_error, insufficient_balance, rate_limited,
   unknown_model, timeout, server_unreachable, server_error, bad_request, truncated (finish_reason length: content
   kept, never parsed), model_id_mismatch, transport, credential_reflected (a response body of ANY status that contains
-  the exact key is refused whole: nothing from it reaches the record; `usage_report()` counts it — 2/3's #27918).
+  the exact key — in its raw bytes OR in any decoded JSON string value at any nesting level, including strings that
+  are themselves JSON documents such as the completion content — is refused whole: nothing from it reaches the
+  record; `usage_report()` counts it — 2/3's #27918 and #27952).
 - Usage: prompt/completion tokens and prompt-cache hit/miss tokens when the server returns them; None when it does
   not (never 0). `usage_report()` exposes the totals for the run summary (ModelResponse is frozen).
 The returned content is untrusted data: it goes to `parse_decision`, nowhere else.
 """
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
 from typing import Any
@@ -86,13 +89,22 @@ class DeepSeekProvider:
         return bool(self._key)
 
     def _reflects_key(self, r: httpx.Response) -> bool:
-        """True when the raw response body (whatever its status) contains the exact credential. Such a body is
-        evidence of an echoing or hostile upstream: the adapter keeps NOTHING from it — not the content, not the
-        model id, not the error text — and the refusal is counted so it is visible in the run summary (#27918)."""
-        if self._key and self._key in r.content.decode("utf-8", errors="replace"):
+        """True when the response body (whatever its status) contains the exact credential — in its raw bytes, or in
+        any decoded JSON string value at any nesting level (JSON escaping such as \\u0073 decodes to the plain key;
+        the completion `content` is itself a JSON document the runtime would decode again). Such a body is evidence
+        of an echoing or hostile upstream: the adapter keeps NOTHING from it — not the content, not the model id,
+        not the error text — and the refusal is counted so it is visible in the run summary (#27918, #27952)."""
+        if not self._key:
+            return False
+        reflected = self._key in r.content.decode("utf-8", errors="replace")
+        if not reflected:
+            try:
+                reflected = _contains_secret(r.json(), self._key)
+            except ValueError:
+                reflected = False
+        if reflected:
             self._usage["credential_reflected"] += 1
-            return True
-        return False
+        return reflected
 
     def usage_report(self) -> dict[str, Any]:
         return dict(self._usage)
@@ -225,6 +237,32 @@ class DeepSeekProvider:
                     self._usage["usage_fields_missing"].append(k)
             else:
                 self._usage[k] = (self._usage[k] or 0) + v
+
+
+_SCAN_DEPTH = 8
+
+
+def _contains_secret(value: Any, secret: str, depth: int = 0) -> bool:
+    """Exact `secret` anywhere in a decoded JSON value: object keys and values, list items, and strings that are
+    themselves JSON documents (decoded and searched again, depth-bounded). Partial or split reflections are out of
+    scope by design and stated as such in ADR-017."""
+    if depth > _SCAN_DEPTH:
+        return False
+    if isinstance(value, str):
+        if secret in value:
+            return True
+        head = value.lstrip()[:1]
+        if head in ('{', '[', '"'):
+            try:
+                return _contains_secret(json.loads(value), secret, depth + 1)
+            except ValueError:
+                return False
+        return False
+    if isinstance(value, dict):
+        return any(_contains_secret(k, secret, depth + 1) or _contains_secret(v, secret, depth + 1) for k, v in value.items())
+    if isinstance(value, list):
+        return any(_contains_secret(v, secret, depth + 1) for v in value)
+    return False
 
 
 def _status_code(status: int) -> str | None:
