@@ -106,7 +106,7 @@ def _as_append(target: AppendFn | EvidenceStore, run_id: str) -> AppendFn:
 
 async def capture_one_decision(manifest: RunManifest, provider: SubjectProvider, append: AppendFn | EvidenceStore,
                                *, step: int, messages: list[ModelMessage],
-                               response_schema: dict | None = None) -> CaptureResult:
+                               response_schema: dict | None = None, history: list[dict] | None = None) -> CaptureResult:
     """§9.1 steps 2–6. `append(event_type, actor, payload)` is the supervisor's event writer;
     a dev store with `next_seq` is accepted for compatibility (see `_as_append`)."""
     run_id = manifest.run_id
@@ -124,7 +124,10 @@ async def capture_one_decision(manifest: RunManifest, provider: SubjectProvider,
                           # §9.1 step 2: the sanitized contents themselves. The allowlist builder IS the
                           # sanitizer; recording them makes every observed result the subject was shown
                           # (reads, denials, refused effects) part of the verifiable chain.
-                          "messages": input_payload}))
+                          "messages": input_payload,
+                          # The same observed results in structured form, so a later process can rebuild the
+                          # run's state from records alone (§9.3: state is inherited from records).
+                          "history": history if history is not None else []}))
     try:
         response = await provider.generate(request)
     except ProviderError as e:
@@ -339,7 +342,7 @@ class SubjectRuntime:
         messages = self._context.build(run)
         run.model_calls += 1
         cap = await capture_one_decision(run.manifest, self._provider, append, step=step, messages=messages,
-                                         response_schema=self._response_schema)
+                                         response_schema=self._response_schema, history=list(run.history))
         events = list(cap.events)
         if cap.decision is None:
             reason = _terminal_reason_for(cap.invalid_reason or "")

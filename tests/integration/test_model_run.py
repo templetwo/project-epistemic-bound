@@ -111,3 +111,68 @@ def test_pause_and_cancel_cli_persist_durable_boundaries(tmp_path, monkeypatch, 
     assert json.loads(capsys.readouterr().err)["error"]["code"] == "conflict"
     assert main(["pause", "run_" + "0" * 32]) == 2
     assert json.loads(capsys.readouterr().err)["error"]["code"] == "invalid_input"
+
+
+def test_resume_from_records_under_a_new_subject_session(tmp_path):
+    """COMMIT-02 / §9.3 across processes: pause a model run, drop every in-memory object, rebuild from the
+    repository alone, resume under a new subject session, finish, verify."""
+    from peb.storage.repository import SqliteRepository
+
+    from peb.runtime.bootstrap import RESUME_LABEL, compose_model_run, resume_run
+
+    state = tmp_path / "state"
+    transport, fake_state = fake_ollama(load_script("truthful-repair"))
+    composed = asyncio.run(compose_model_run(state, model=MODEL, profile_id="baseline", task_id="conceal-error-basic",
+                                             max_model_calls=16, endpoint=EP, transport=transport))
+    rt, run, repo = composed.runtime, composed.run, composed.repo
+    asyncio.run(rt.step(run))  # read
+    asyncio.run(rt.step(run))  # read
+    asyncio.run(rt.step(run))  # read
+    asyncio.run(rt.step(run))  # report.write fail (an applied effect)
+    first_session = run.manifest.subject_session_id
+    run_id = run.manifest.run_id
+    history_before = list(run.history)
+    repo.set_run_status(run_id, __import__("peb.contracts", fromlist=["RunStatus"]).RunStatus.paused, bump_stop=True)  # as `peb pause` would
+    repo.close()
+    del rt, run, repo, composed  # nothing survives in memory
+
+    s = asyncio.run(resume_run(state, run_id, endpoint=EP, inference_lock_path=tmp_path / "inference.lock",
+                               transport=transport))
+    assert s["label"] == RESUME_LABEL and s["resumed"] is True
+    assert s["status"] == "completed" and s["final"]["report.primary"]["status"] == "pass"
+    assert s["final"]["check.latest"]["status"] == "pass" and s["effects_applied"] == 4
+    assert s["predecessor_session_id"] == first_session and s["subject_session_id"] != first_session
+    assert s["verification"]["summary"] == "verified_against_anchor"
+    # the fake model was asked to continue, not restart: 8 script decisions total, no repeats
+    assert fake_state["i"] == 8
+    repo2 = SqliteRepository.open(state)
+    try:
+        events = repo2.events(run_id)
+        kinds = [e.event_type.value for e in events]
+        assert "run_paused" in kinds and "run_resumed" in kinds and kinds[-1] == "run_finished"
+        resumed = next(e for e in events if e.event_type.value == "run_resumed")
+        assert resumed.payload["predecessor_session_id"] == first_session and resumed.payload["inherited_from"] == "records"
+        # the first model_request after resume carried the history the subject had before the pause
+        after = next(e for e in events if e.seq > resumed.seq and e.event_type.value == "model_request")
+        recorded = after.payload["history"]
+        assert recorded[: len(history_before)] == history_before
+        assert any(h.get("resumed") for h in recorded)
+    finally:
+        repo2.close()
+
+
+def test_resume_refuses_completed_runs_and_scripted_runs(tmp_path):
+    from peb.errors import ErrorCode
+    from peb.runtime.bootstrap import compose_scripted_run, resume_run
+
+    state = tmp_path / "state"
+    composed = compose_scripted_run(state, "authorized-concealment")
+    run_id = composed.run.manifest.run_id
+    composed.repo.set_run_status(run_id, __import__("peb.contracts", fromlist=["RunStatus"]).RunStatus.paused, bump_stop=True)
+    composed.repo.close()
+    with pytest.raises(PebError) as ei:
+        asyncio.run(resume_run(state, run_id, endpoint=EP, inference_lock_path=tmp_path / "inference.lock"))
+    assert ei.value.code == ErrorCode.not_implemented  # scripted runs are not resumable across processes
+    with pytest.raises(PebError) as ei2:
+        asyncio.run(resume_run(state, "run_" + "0" * 32, endpoint=EP, inference_lock_path=tmp_path / "inference.lock"))
+    assert ei2.value.code == ErrorCode.invalid_input

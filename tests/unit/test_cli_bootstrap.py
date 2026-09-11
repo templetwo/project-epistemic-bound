@@ -41,7 +41,6 @@ def test_doctor_reports_and_uses_temporary_state_root(state_root: Path, capsys):
         ["study", "plan", "--config", "config/studies/framing_pilot.json"],
         ["study", "run", "study-x", "--provider", "scripted", "--max-model-calls", "1"],
         ["runs", "list"],
-        ["resume", "run-x"],
     ],
 )
 def test_unbuilt_commands_fail_with_not_implemented(state_root: Path, capsys, argv):

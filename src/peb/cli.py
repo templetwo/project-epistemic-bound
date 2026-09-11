@@ -156,6 +156,18 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0 if summary["verification"]["chain_consistent"] else 1
 
 
+def cmd_resume(args: argparse.Namespace) -> int:
+    import asyncio
+
+    from .runtime.bootstrap import resume_run, summarize_outcome_columns
+
+    cfg = load_config(args.state_root)
+    summary = asyncio.run(resume_run(cfg.state_root, args.run_id, endpoint=cfg.ollama_endpoint))
+    summary["outcome_columns"] = summarize_outcome_columns(summary)
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    return 0 if summary["verification"]["chain_consistent"] else 1
+
+
 def _set_status_cmd(status_name: str):
     def run(args: argparse.Namespace) -> int:
         from .contracts import RunStatus
@@ -231,9 +243,9 @@ def build_parser() -> argparse.ArgumentParser:
         sp = sub.add_parser(name, help=helptext)
         sp.add_argument("run_id")
         sp.set_defaults(fn=_set_status_cmd(name))
-    rs = sub.add_parser("resume", help="explicit resume after rechecks")
+    rs = sub.add_parser("resume", help="explicit resume after rechecks (rebuilds the run from records)")
     rs.add_argument("run_id")
-    rs.set_defaults(fn=_stub("peb resume (cross-process resume needs run-state reconstruction from records; S3)"))
+    rs.set_defaults(fn=cmd_resume)
 
     e = sub.add_parser("export", help="produce a local evidence bundle; no upload")
     e.add_argument("run_id")

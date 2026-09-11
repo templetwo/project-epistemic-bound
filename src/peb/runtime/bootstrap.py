@@ -88,7 +88,8 @@ def compose_run(state_root: str | os.PathLike[str], *, provider: Any, provider_k
                               tools=frame_case["tool_schema_hash"],
                               policy=digest(DOMAIN_SNAPSHOT, {"policy_version": policy_version}),
                               grants=digest(DOMAIN_SNAPSHOT, grants_tpl), code=None),
-        limits=limits or Limits(), created_at=utcnow())
+        limits=limits or Limits(), created_at=utcnow(),
+        settings={"frame": frame, "fixture_id": fixture_id, "case": case or "model"})
     snapshots = [ResourceSnapshot(resource_id=r["resource_id"], kind=r["kind"], revision=r["revision"], value=r["value"])
                  for r in env["resources"]]
     grants = fixture.bind_grants(manifest.run_id, manifest.subject_session_id, now=utcnow())
@@ -239,6 +240,105 @@ async def run_model_observation(state_root: str | os.PathLike[str], *, model: st
                 "verification": verification.model_dump(mode="json"),
                 "state_root": str(state_root),
             }
+        finally:
+            repo.close()
+
+
+def _summary(rt: SubjectRuntime, run: RunRecord, repo: Any, *, label: str, model: str | None, profile_id: str,
+             extra: dict[str, Any] | None = None) -> dict[str, Any]:
+    run_id = run.manifest.run_id
+    events = repo.events(run_id)
+    checkpoint = repo.make_checkpoint(run_id)
+    verification = repo.verify(run_id, checkpoint)
+    responses = [e.payload for e in events if e.event_type == EventType.model_response]
+    resolved = sorted({str(r.get("model_resolved")) for r in responses if r.get("model_resolved")})
+    gates = [e.payload for e in events if e.event_type == EventType.gate_decided]
+    resources = repo.current_resources(run_id)
+    report = resources.get("report.primary")
+    check = resources.get("check.latest")
+    sink = resources.get("sink.external")
+    out = {
+        "label": label, "run_id": run_id, "mode": str(run.manifest.mode), "provider": str(run.manifest.provider_kind),
+        "model_requested": model, "model_resolved": resolved, "profile_id": profile_id,
+        "preaction_protocol": str(run.manifest.preaction_protocol),
+        "subject_session_id": run.manifest.subject_session_id,
+        "predecessor_session_id": run.manifest.predecessor_session_id,
+        "status": str(run.status), "terminal_reason": str(run.terminal_reason) if run.terminal_reason else None,
+        "model_calls": run.model_calls, "events": len(events),
+        "usage": {"prompt_tokens": _sum_or_none(r.get("prompt_tokens") for r in responses),
+                  "completion_tokens": _sum_or_none(r.get("completion_tokens") for r in responses),
+                  "duration_ms": _sum_or_none(r.get("duration_ms") for r in responses)},
+        "gates": {"allow": sum(g.get("outcome") == "allow" for g in gates),
+                  "deny": sum(g.get("outcome") == "deny" for g in gates),
+                  "needs_approval": sum(g.get("outcome") == "needs_approval" for g in gates),
+                  "deny_reasons": sorted({g.get("reason") for g in gates if g.get("outcome") == "deny"})},
+        "effects_applied": sum(e.event_type == EventType.effect_observed and e.payload.get("status") == "applied"
+                               for e in events),
+        "final": {
+            "report.primary": {"revision": report.revision, "status": report.value.get("status")} if report else None,
+            "check.latest": {"revision": check.revision, "status": check.value.get("status")} if check else None,
+            "sink.external": {"deliveries": len(sink.value.get("deliveries", []))} if sink else None,
+        },
+        "corrections": len(rt.ledger.corrections(run_id)),
+        "reviews_pending": sum(r.status.value == "pending" for r in run.reviews),
+        "verification": verification.model_dump(mode="json"),
+    }
+    out.update(extra or {})
+    return out
+
+
+RESUME_LABEL = ("RESUMED MODEL OBSERVATION — state inherited from records (not from the model's memory); a new "
+                "subject session continues the same run. mode=model_observation.")
+
+
+async def resume_run(state_root: str | os.PathLike[str], run_id: str, *, endpoint: str,
+                     inference_lock_path: str | None = None, transport: Any = None) -> dict[str, Any]:
+    """§20 `peb resume`: rebuild the run from records, re-probe the configured model, resume under a new
+    subject session, and run to a boundary. Scripted runs are not resumable across processes: a script
+    position is not a record."""
+    from ..providers.ollama import OllamaProvider, response_schema_for_decisions
+    from .locks import InferenceLock, SupervisorLock
+    from .profiles import load_profile
+    from .reconstruct import reconstruct_run, resumable
+
+    Monitor, _ResourceSnapshot, Repository, Executor, load_fixture, _ = _lanes()
+    with SupervisorLock(state_root), InferenceLock(inference_lock_path):
+        repo = Repository.open(state_root)
+        try:
+            if not repo.run_exists(run_id):
+                raise PebError(ErrorCode.invalid_input, "unknown run_id", {"run_id": run_id})
+            manifest = repo.manifest(run_id)
+            status = repo.run_status(run_id)
+            if not resumable(status):
+                raise PebError(ErrorCode.conflict, f"run is {status}; only paused or waiting_review runs resume",
+                               {"status": str(status)})
+            if manifest.provider_kind != ProviderKind.ollama:
+                raise PebError(ErrorCode.not_implemented,
+                               "scripted runs are not resumable across processes: the script position is not a record",
+                               {"provider_kind": str(manifest.provider_kind)})
+            fixture_id = str(manifest.settings.get("fixture_id", "conceal-error-basic"))
+            frame = str(manifest.settings.get("frame", "ordinary"))
+            fixture = load_fixture(fixture_id)
+            frame_case = fixture.frame_case(frame)
+            run, ledger = reconstruct_run(repo, run_id, fixture.task)
+            profile = load_profile(manifest.profile_id)
+            provider = OllamaProvider(endpoint=endpoint, model=str(manifest.model_requested), limits=manifest.limits,
+                                      transport=transport)
+            probe = await provider.probe()
+            if probe["status"] != "ok":
+                raise PebError(ErrorCode.provider_unavailable, f"ollama provider not ready: {probe['status']}", probe)
+            monitor = Monitor(repo.signing_key())
+            executor = Executor(repo, monitor)
+            context = AllowlistContextBuilder(profile_text=profile.text, tool_catalog_text=render_tool_catalog(),
+                                              presentation=frame_case["presentation_wrapper"], ledger=ledger)
+            rt = SubjectRuntime(provider=provider, monitor=monitor, executor=executor, store=repo, reader=repo,
+                                context_builder=context, ledger=ledger, response_schema=response_schema_for_decisions())
+            rt.resume(run)
+            await rt.run_bounded(run)
+            return _summary(rt, run, repo, label=RESUME_LABEL, model=manifest.model_requested,
+                            profile_id=manifest.profile_id,
+                            extra={"profile_placeholder_text": profile.placeholder, "resumed": True,
+                                   "state_root": str(state_root)})
         finally:
             repo.close()
 
