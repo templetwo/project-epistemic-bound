@@ -214,6 +214,22 @@ class SubjectRuntime:
             return stored
         return append
 
+    def _absorb_external_controls(self, run: RunRecord) -> None:
+        """STOP-01/02 across processes: another CLI may have persisted pause/cancel in the store. The
+        durable row wins over this process's memory; nothing already committed is undone."""
+        status_of = getattr(self._store, "run_status", None)
+        if status_of is None:
+            return
+        try:
+            durable = status_of(run.manifest.run_id)
+        except Exception:  # noqa: BLE001 — a store that cannot answer does not silently authorise continuing
+            run.stop_requested = True
+            return
+        if durable == RunStatus.cancelled:
+            run.stop_requested = True
+        elif durable == RunStatus.paused and run.status == RunStatus.running:
+            run.pause_requested = True
+
     def _set_status(self, run: RunRecord, status: RunStatus, *, bump_stop: bool = False) -> None:
         """Mirror a status transition into the durable store when it keeps run rows (S2 SqliteRepository)."""
         run.status = status
@@ -245,6 +261,37 @@ class SubjectRuntime:
     def request_cancel(self, run: RunRecord) -> None:
         run.stop_requested = True
 
+    def resume(self, run: RunRecord, *, by: Actor = Actor.operator) -> RunRecord:
+        """Explicit resume after a pause or a resolved review (§9.1, §9.3, §13, COMMIT-02).
+
+        A NEW subject session id is issued and the predecessor recorded; accepted undertakings,
+        unresolved corrections, revisions and observed history are inherited from RECORDS, not from any
+        claim that the model remembers them. Grants are re-read from the store when it holds them so a
+        revocation during the pause takes effect. Never automatic; never by timeout."""
+        if run.status not in (RunStatus.paused, RunStatus.waiting_review):
+            raise RunNotActive(f"run {run.manifest.run_id} is {run.status}; only paused or waiting_review runs resume")
+        if run.status == RunStatus.waiting_review and any(r.status == ReviewStatus.pending for r in run.reviews):
+            raise RunNotActive("a pending review must be resolved (allow/deny/expired) before resume")
+        append = self._appender(run)
+        predecessor = run.manifest.subject_session_id
+        new_session = new_id("ses")
+        run.manifest = run.manifest.model_copy(update={"subject_session_id": new_session,
+                                                       "predecessor_session_id": predecessor})
+        grants_of = getattr(self._store, "grants", None)
+        if grants_of is not None:
+            run.grants = list(grants_of(run.manifest.run_id))
+        run.pause_requested = False
+        run.stop_requested = False
+        self._set_status(run, RunStatus.running)
+        append(EventType.run_resumed, by,
+               {"step": run.step, "subject_session_id": new_session, "predecessor_session_id": predecessor,
+                "active_undertakings": [c.commitment_id for c in self.ledger.active(run.manifest.run_id)],
+                "corrections_on_record": [c.correction_id for c in self.ledger.corrections(run.manifest.run_id)],
+                "inherited_from": "records"})
+        run.history.append({"step": run.step, "resumed": True, "new_subject_session": new_session,
+                            "predecessor_session": predecessor})
+        return run
+
     async def run_bounded(self, run: RunRecord, *, max_steps: int | None = None) -> RunRecord:
         steps = 0
         while run.active and (max_steps is None or steps < max_steps):
@@ -261,6 +308,7 @@ class SubjectRuntime:
         step = run.step
 
         # §9.1 step 1: status, stop/pause boundary, budget — all before any model call.
+        self._absorb_external_controls(run)
         if run.stop_requested:
             return self._terminal(run, append, RunStatus.cancelled, TerminalReason.cancelled, step, [])
         if run.pause_requested:
