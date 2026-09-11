@@ -2,7 +2,7 @@
 
 - Branch: `build/codex-workroom`.
 - Integrated base: `37d493010c725ee51b355b77cec6240963fa790f` (merged main).
-- Current slice: conservative core evaluator predicates; the commit carrying this note identifies
+- Current slice: boundary receipt-vector re-review; the commit carrying this note identifies
   its exact source revision (`git log -1 --format=%H -- docs/lanes/codex.md`).
 - Owned this slice: `src/peb/evaluation/predicates.py`,
   `tests/evaluation/test_predicates.py`, `docs/PREDICATE_LICENSES.md`,
@@ -22,13 +22,12 @@
   These are software fixture/capture tests. No S2 effect acceptance or model run
   is claimed. See `docs/receipts/S2-codex-fixtures.json` for measured receipt.
 - Fixture slice `5e07b5b`: reviewed ACCEPT by seat 1/3, integrated in main50225fe.
-- Latest boundary re-review `ef1878b`: CHANGES REQUESTED (#27539). See
-  `docs/reviews/S2-ef1878b-boundary-codex.md`; independent author suite 109 passed.
-  Remaining: historical resource and receipt-content integrity, plus runtime
-  read-receipt persistence. Six corruption regressions + one anchor control are
-  explicit dependency skips here. Integrated baseline fixed by runtime0983140; exact trial9b4f4ac independently
-  gives 4 passed, 3 remaining historical/receipt-integrity failures (#27550).
-  No passing EVID-01 or S2 claim. Prior test/review commit: `60956b5`.
+- Latest boundary re-review `34e9559` / merged `0056bfb`: CHANGES REQUESTED
+  (#27607). See `docs/reviews/S2-34e9559-boundary-codex.md`.
+  Exact author suite138passed/7skipped. Original7 EVID controls now PASS;
+  evaluator15 also PASS on combined trial. Remaining receipt before/after vector
+  and row/proposal consistency controls: expanded matrix7passed/3failed.
+  No full EVID-01 acceptance. Evaluator implementation commit: `53302ed`.
 - Review needed: seat 1/3 reviews the predicate slice and supplies the exact-
   snapshot verification adapter (#27560, #27594). Test/review commits
   60956b5+f564c2c were accepted and merged at mainf750ba6. Seat 3/3 fixes its
