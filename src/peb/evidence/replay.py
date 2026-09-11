@@ -16,6 +16,39 @@ def _resource_body(resource_id: str, body: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _revision_pairs(current: dict[str, dict[str, Any]]) -> dict[str, tuple[int, str]]:
+    from ..storage.repository import resource_content_hash
+
+    out: dict[str, tuple[int, str]] = {}
+    for resource_id, body in current.items():
+        rev = int(body["revision"])
+        out[resource_id] = (rev, resource_content_hash(resource_id, rev, body["value"]))
+    return out
+
+
+def effect_before_after_maps(
+    events: list[StoredEvent],
+) -> dict[str, tuple[dict[str, tuple[int, str]], dict[str, tuple[int, str]]]]:
+    """event_id -> (before, after) maps reconstructed from genesis + prior applied effects."""
+    current: dict[str, dict[str, Any]] = {}
+    maps: dict[str, tuple[dict[str, tuple[int, str]], dict[str, tuple[int, str]]]] = {}
+    for event in events:
+        if event.event_type is EventType.run_created:
+            for raw in event.payload.get("resources") or []:
+                current[raw["resource_id"]] = _resource_body(raw["resource_id"], raw)
+            continue
+        if event.event_type is not EventType.effect_observed:
+            continue
+        if event.payload.get("status") != EffectStatus.applied.value:
+            continue
+        before = _revision_pairs(current)
+        for resource_id, raw in (event.payload.get("applied") or {}).items():
+            current[resource_id] = _resource_body(resource_id, raw)
+        after = _revision_pairs(current)
+        maps[event.event_id] = (before, after)
+    return maps
+
+
 def replay_history_from_events(events: list[StoredEvent]) -> dict[tuple[str, int], dict[str, Any]]:
     """Every historical revision implied by run_created + applied effects."""
     history: dict[tuple[str, int], dict[str, Any]] = {}

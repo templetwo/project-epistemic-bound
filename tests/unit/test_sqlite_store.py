@@ -208,6 +208,48 @@ def test_verify_rejects_deleted_historical_revision_and_altered_receipt_fields(s
     repo.close()
 
 
+def test_verify_rejects_empty_before_invented_after_and_column_proposal_id(state_root: Path):
+    repo, manifest, checkpoint = _write_then_checkpoint(state_root)
+    receipt = next(r for r in repo.receipts(manifest.run_id)
+                   if r.tool_result.get("resource_id") == "report.primary")
+    changed = receipt.model_dump(mode="json")
+    changed["before"] = {}
+    repo._conn.execute(
+        "UPDATE receipts SET body_json=? WHERE receipt_id=?",
+        (json.dumps(changed), receipt.receipt_id),
+    )
+    before_hit = verify_run(repo, manifest.run_id, checkpoint)
+    assert before_hit.summary == "failed"
+    assert any("before" in f for f in before_hit.failures)
+    repo.close()
+
+    repo, manifest, checkpoint = _write_then_checkpoint(state_root)
+    receipt = next(r for r in repo.receipts(manifest.run_id)
+                   if r.tool_result.get("resource_id") == "report.primary")
+    changed = receipt.model_dump(mode="json")
+    changed["after"]["invented.resource"] = [999, "0" * 64]
+    repo._conn.execute(
+        "UPDATE receipts SET body_json=? WHERE receipt_id=?",
+        (json.dumps(changed), receipt.receipt_id),
+    )
+    after_hit = verify_run(repo, manifest.run_id, checkpoint)
+    assert after_hit.summary == "failed"
+    assert any("after" in f for f in after_hit.failures)
+    repo.close()
+
+    repo, manifest, checkpoint = _write_then_checkpoint(state_root)
+    receipt = next(r for r in repo.receipts(manifest.run_id)
+                   if r.tool_result.get("resource_id") == "report.primary")
+    repo._conn.execute(
+        "UPDATE receipts SET proposal_id=? WHERE receipt_id=?",
+        ("prop_" + "a" * 32, receipt.receipt_id),
+    )
+    column_hit = verify_run(repo, manifest.run_id, checkpoint)
+    assert column_hit.summary == "failed"
+    assert any("proposal_id" in f for f in column_hit.failures)
+    repo.close()
+
+
 def test_list_runs_returns_id_status_mode_created_at(state_root: Path):
     repo, manifest, _ = seed_run(state_root)
     rows = repo.list_runs()
