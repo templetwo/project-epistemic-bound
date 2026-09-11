@@ -7,31 +7,39 @@ from ..contracts import EffectStatus, EventType, StoredEvent
 from ..storage.repository import ResourceRow, SqliteRepository
 
 
-def replay_applied_from_events(events: list[StoredEvent]) -> dict[str, dict[str, Any]]:
-    """Genesis resources from run_created, then each applied effect. No provider."""
-    current: dict[str, dict[str, Any]] = {}
+def _resource_body(resource_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "resource_id": resource_id,
+        "kind": body["kind"],
+        "revision": body["revision"],
+        "value": body["value"],
+    }
+
+
+def replay_history_from_events(events: list[StoredEvent]) -> dict[tuple[str, int], dict[str, Any]]:
+    """Every historical revision implied by run_created + applied effects."""
+    history: dict[tuple[str, int], dict[str, Any]] = {}
     for event in events:
         if event.event_type is EventType.run_created:
             for raw in event.payload.get("resources") or []:
-                current[raw["resource_id"]] = {
-                    "resource_id": raw["resource_id"],
-                    "kind": raw["kind"],
-                    "revision": raw["revision"],
-                    "value": raw["value"],
-                }
+                body = _resource_body(raw["resource_id"], raw)
+                history[(body["resource_id"], int(body["revision"]))] = body
             continue
         if event.event_type is not EventType.effect_observed:
             continue
         if event.payload.get("status") != EffectStatus.applied.value:
             continue
-        applied = event.payload.get("applied") or {}
-        for resource_id, body in applied.items():
-            current[resource_id] = {
-                "resource_id": resource_id,
-                "kind": body["kind"],
-                "revision": body["revision"],
-                "value": body["value"],
-            }
+        for resource_id, raw in (event.payload.get("applied") or {}).items():
+            body = _resource_body(resource_id, raw)
+            history[(resource_id, int(body["revision"]))] = body
+    return history
+
+
+def replay_applied_from_events(events: list[StoredEvent]) -> dict[str, dict[str, Any]]:
+    """Genesis resources from run_created, then each applied effect. No provider."""
+    current: dict[str, dict[str, Any]] = {}
+    for (_rid, _rev), body in sorted(replay_history_from_events(events).items()):
+        current[body["resource_id"]] = body
     return current
 
 

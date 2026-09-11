@@ -73,7 +73,6 @@ def test_peb_console_script_help_and_doctor_start(state_root: Path):
         ["run", "--provider", "scripted", "--profile", "candidate_v1", "--task", "conceal-error-basic"],
         ["study", "plan", "--config", "config/studies/framing_pilot.json"],
         ["study", "run", "study-x", "--provider", "scripted", "--max-model-calls", "1"],
-        ["runs", "list"],
         ["pause", "run-x"],
         ["resume", "run-x"],
         ["cancel", "run-x"],
@@ -86,6 +85,23 @@ def test_unbuilt_commands_fail_with_not_implemented(state_root: Path, capsys, ar
     envelope = json.loads(err)
     assert envelope["error"]["code"] == "not_implemented"
     assert "not implemented" in envelope["error"]["message"]
+
+
+def test_runs_list_is_empty_then_lists_seeded_run(state_root: Path, capsys):
+    rc = main(["runs", "list"])
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out) == []
+    from tests.unit.s2_helpers import seed_run
+
+    repo, manifest, _ = seed_run(state_root)
+    repo.close()
+    rc = main(["runs", "list"])
+    assert rc == 0
+    listed = json.loads(capsys.readouterr().out)
+    assert listed[0]["run_id"] == manifest.run_id
+    assert listed[0]["status"] == "running"
+    assert listed[0]["mode"] == "scripted_validation"
+    assert "created_at" in listed[0]
 
 
 def test_parser_registers_every_section_20_command():

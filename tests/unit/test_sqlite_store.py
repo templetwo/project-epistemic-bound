@@ -165,3 +165,55 @@ def test_verify_rejects_resource_receipt_and_manifest_edits(state_root: Path):
     assert manifest_hit.summary == "failed"
     assert any("manifest" in f for f in manifest_hit.failures)
     repo.close()
+
+
+def test_verify_rejects_deleted_historical_revision_and_altered_receipt_fields(state_root: Path):
+    repo, manifest, checkpoint = _write_then_checkpoint(state_root)
+    assert repo.resource_at(manifest.run_id, "report.primary", 1) is not None
+    repo._conn.execute(
+        "DELETE FROM resources WHERE run_id=? AND resource_id='report.primary' AND revision=1",
+        (manifest.run_id,),
+    )
+    historical = verify_run(repo, manifest.run_id, checkpoint)
+    assert historical.summary == "failed"
+    assert any("historical revision" in f or "resource history" in f for f in historical.failures)
+    repo.close()
+
+    repo, manifest, checkpoint = _write_then_checkpoint(state_root)
+    receipt = next(r for r in repo.receipts(manifest.run_id)
+                   if r.tool_result.get("resource_id") == "report.primary")
+    changed = receipt.model_dump(mode="json")
+    changed["tool_result"] = {"status": "fabricated-observation"}
+    repo._conn.execute(
+        "UPDATE receipts SET body_json=? WHERE receipt_id=?",
+        (json.dumps(changed), receipt.receipt_id),
+    )
+    result_hit = verify_run(repo, manifest.run_id, checkpoint)
+    assert result_hit.summary == "failed"
+    assert any("tool_result" in f for f in result_hit.failures)
+    repo.close()
+
+    repo, manifest, checkpoint = _write_then_checkpoint(state_root)
+    receipt = next(r for r in repo.receipts(manifest.run_id)
+                   if r.tool_result.get("resource_id") == "report.primary")
+    changed = receipt.model_dump(mode="json")
+    changed["event_ref"] = "evt_" + "f" * 32
+    repo._conn.execute(
+        "UPDATE receipts SET body_json=? WHERE receipt_id=?",
+        (json.dumps(changed), receipt.receipt_id),
+    )
+    ref_hit = verify_run(repo, manifest.run_id, checkpoint)
+    assert ref_hit.summary == "failed"
+    assert any("event_ref" in f for f in ref_hit.failures)
+    repo.close()
+
+
+def test_list_runs_returns_id_status_mode_created_at(state_root: Path):
+    repo, manifest, _ = seed_run(state_root)
+    rows = repo.list_runs()
+    assert len(rows) == 1
+    assert rows[0].run_id == manifest.run_id
+    assert rows[0].status == "running"
+    assert rows[0].mode == "scripted_validation"
+    assert rows[0].created_at is not None
+    repo.close()

@@ -175,6 +175,31 @@ def cmd_replay(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_runs_list(args: argparse.Namespace) -> int:
+    from .storage.repository import SqliteRepository
+
+    cfg = load_config(args.state_root)
+    repo = SqliteRepository.open(cfg.state_root)
+    try:
+        items = repo.list_runs()
+    finally:
+        repo.close()
+    print(json.dumps(
+        [
+            {
+                "run_id": item.run_id,
+                "status": item.status,
+                "mode": item.mode,
+                "created_at": item.created_at.isoformat(),
+            }
+            for item in items
+        ],
+        indent=2,
+        sort_keys=True,
+    ))
+    return 0
+
+
 # ----------------------------------------------------------------------------- parser
 
 def build_parser() -> argparse.ArgumentParser:
@@ -236,7 +261,7 @@ def build_parser() -> argparse.ArgumentParser:
     sr.set_defaults(fn=_stub("peb study run"))
 
     rl = sub.add_parser("runs", help="run inventory").add_subparsers(dest="runs_cmd", required=True)
-    rl.add_parser("list", help="list runs in the state root").set_defaults(fn=_stub("peb runs list"))
+    rl.add_parser("list", help="list runs in the state root").set_defaults(fn=cmd_runs_list)
     return p
 
 

@@ -73,6 +73,16 @@ class ResourceRow:
     content_hash: str
 
 
+@dataclass(frozen=True)
+class RunSummary:
+    """Inventory row for `peb runs list` (BUILD_SPEC §20)."""
+
+    run_id: str
+    status: str
+    mode: str
+    created_at: datetime
+
+
 def resource_content_hash(resource_id: str, revision: int, value: dict[str, Any]) -> str:
     return digest(DOMAIN_RESOURCE, {"resource_id": resource_id, "revision": revision, "value": value})
 
@@ -305,6 +315,23 @@ class SqliteRepository:
             )
             return self._append_conn(conn, event)
 
+    def list_runs(self) -> list[RunSummary]:
+        rows = self._conn.execute(
+            "SELECT run_id, status, manifest_json, created_at FROM runs ORDER BY created_at ASC"
+        ).fetchall()
+        out: list[RunSummary] = []
+        for row in rows:
+            manifest = _load_manifest(row["manifest_json"])
+            out.append(
+                RunSummary(
+                    run_id=row["run_id"],
+                    status=row["status"],
+                    mode=str(manifest.mode),
+                    created_at=_dt(row["created_at"]),
+                )
+            )
+        return out
+
     def run_exists(self, run_id: str) -> bool:
         row = self._conn.execute("SELECT 1 FROM runs WHERE run_id=?", (run_id,)).fetchone()
         return row is not None
@@ -452,7 +479,7 @@ class SqliteRepository:
     def _object_failures(
         self, run_id: str, events: list[StoredEvent], recomputed_manifest: str
     ) -> list[str]:
-        from ..evidence.replay import replay_applied_from_events
+        from ..evidence.replay import replay_applied_from_events, replay_history_from_events
 
         failures: list[str] = []
         stored_hash = self.manifest_hash(run_id)
@@ -462,12 +489,23 @@ class SqliteRepository:
             created_hash = events[0].payload.get("manifest_hash")
             if created_hash != recomputed_manifest:
                 failures.append("stored manifest does not match run_created manifest_hash")
-        for rec in self.resource_history(run_id):
+        stored_history = {(rec.resource_id, rec.revision): rec for rec in self.resource_history(run_id)}
+        for rec in stored_history.values():
             expected = resource_content_hash(rec.resource_id, rec.revision, rec.value)
             if expected != rec.content_hash:
                 failures.append(
                     f"resource {rec.resource_id} rev {rec.revision} content_hash does not recompute"
                 )
+        reconstructed = replay_history_from_events(events)
+        if set(reconstructed) != set(stored_history):
+            failures.append("resource history does not match reconstructed ledger")
+        for key, exp in reconstructed.items():
+            rec = stored_history.get(key)
+            if rec is None:
+                failures.append(f"missing historical revision {key[0]} rev {key[1]}")
+                continue
+            if rec.value != exp["value"] or rec.kind != exp["kind"]:
+                failures.append(f"resource {key[0]} rev {key[1]} does not match reconstructed ledger")
         replayed = replay_applied_from_events(events)
         current = self.current_resources(run_id)
         if set(replayed) != set(current):
@@ -478,6 +516,7 @@ class SqliteRepository:
                 continue
             if exp["revision"] != rec.revision or exp["value"] != rec.value or exp["kind"] != rec.kind:
                 failures.append(f"resource {rid} does not match reconstructed ledger")
+        events_by_id = {ev.event_id: ev for ev in events}
         observed_receipts: set[str] = set()
         for ev in events:
             if ev.event_type is not EventType.effect_observed:
@@ -487,17 +526,64 @@ class SqliteRepository:
                 failures.append(f"seq {ev.seq}: effect_observed missing receipt_id")
                 continue
             observed_receipts.add(receipt_id)
-            receipt = self.get_receipt(receipt_id)
-            if receipt is None:
+            row = self._conn.execute(
+                "SELECT run_id, body_json FROM receipts WHERE receipt_id=?", (receipt_id,)
+            ).fetchone()
+            if row is None:
                 failures.append(f"seq {ev.seq}: dangling receipt reference {receipt_id}")
                 continue
-            if receipt.proposal_id != ev.payload.get("proposal_id"):
-                failures.append(f"receipt {receipt_id} proposal_id does not match effect event")
-            if str(receipt.status) != ev.payload.get("status"):
-                failures.append(f"receipt {receipt_id} status does not match effect event")
+            if row["run_id"] != ev.run_id:
+                failures.append(f"receipt {receipt_id} run_id does not match effect event")
+            receipt = _load_receipt(row["body_json"])
+            failures.extend(self._receipt_event_failures(receipt, ev, events_by_id))
         for receipt in self.receipts(run_id):
             if receipt.receipt_id not in observed_receipts:
                 failures.append(f"receipt {receipt.receipt_id} has no effect_observed event")
+            elif receipt.event_ref not in events_by_id:
+                failures.append(f"receipt {receipt.receipt_id} event_ref does not exist")
+        return failures
+
+    def _receipt_event_failures(
+        self,
+        receipt: EffectReceipt,
+        ev: StoredEvent,
+        events_by_id: dict[str, StoredEvent],
+    ) -> list[str]:
+        failures: list[str] = []
+        rid = receipt.receipt_id
+        if receipt.event_ref != ev.event_id:
+            failures.append(f"receipt {rid} event_ref does not match effect event")
+        referenced = events_by_id.get(receipt.event_ref) if receipt.event_ref else None
+        if referenced is None:
+            failures.append(f"receipt {rid} event_ref does not exist")
+        elif referenced.event_type is not EventType.effect_observed:
+            failures.append(f"receipt {rid} event_ref is not an effect_observed event")
+        elif referenced.payload.get("receipt_id") != rid:
+            failures.append(f"receipt {rid} event_ref does not cite this receipt")
+        if receipt.proposal_id != ev.payload.get("proposal_id"):
+            failures.append(f"receipt {rid} proposal_id does not match effect event")
+        if str(receipt.status) != ev.payload.get("status"):
+            failures.append(f"receipt {rid} status does not match effect event")
+        if receipt.tool_result != ev.payload.get("tool_result"):
+            failures.append(f"receipt {rid} tool_result does not match effect event")
+        if receipt.transaction_ref != ev.payload.get("transaction_ref"):
+            failures.append(f"receipt {rid} transaction_ref does not match effect event")
+        if receipt.observed_at != ev.ts:
+            failures.append(f"receipt {rid} observed_at does not match effect event")
+        applied = ev.payload.get("applied") or {}
+        if not isinstance(applied, dict):
+            return failures
+        for resource_id, body in applied.items():
+            pair = receipt.after.get(resource_id)
+            if pair is None:
+                failures.append(f"receipt {rid} after is missing applied resource {resource_id}")
+                continue
+            rev, stored_hash = pair
+            if rev != int(body["revision"]):
+                failures.append(f"receipt {rid} after revision does not match applied {resource_id}")
+            expected_hash = resource_content_hash(resource_id, int(body["revision"]), body["value"])
+            if stored_hash != expected_hash:
+                failures.append(f"receipt {rid} after hash does not match applied {resource_id}")
         return failures
 
     def get_receipt(self, receipt_id: str) -> EffectReceipt | None:
