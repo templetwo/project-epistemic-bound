@@ -1,8 +1,8 @@
 # Lane — seat 2/3 (Codex, workroom/verification)
 
 - Branch: `build/codex-workroom`.
-- Integrated base: `ad588d0744cfb418be25361a3143a5e967b63269` (merged main).
-- Current slice: runbook and demo-bundle inspection; the commit carrying this note identifies
+- Integrated base: `20a0c5b55120905f628b474fc3fa7ef352c8c5d6` (merged main).
+- Current slice: adversarial hosted-provider tests, then cockpit; the commit carrying this note identifies
   its exact source revision (`git log -1 --format=%H -- docs/lanes/codex.md`).
 - Owned this slice: `src/peb/evaluation/predicates.py`,
   `tests/evaluation/test_predicates.py`, `docs/PREDICATE_LICENSES.md`,
@@ -85,3 +85,12 @@ placeholder, replay-vs-verification and discarded-key limits. Bundle references
 await seat1/3 integration of8558c8a. Runbook awaits review. Remaining local work:
 web workroom, five scenario families, bounded study planner, acceptance matrix
 and release-check script; these are not completed by the S6 demo bundles.
+
+## Work order #27882
+
+Fast-forwarded main20a0c5b. Hosted provider adversarial suite27cases:21pass/6fail.
+P1 credential response reflection reaches events/export; P2 malformed catalog
+and HTTP error shapes escape typed failures. Review doc:
+`docs/reviews/PROVIDER-0079a37-adversarial-codex.md`. Provider fixes belong to1/3;
+continue cockpit against WorkroomService while they are reviewed. Paid smoke
+remains held. Stack landing belongs to1/3; this seat posts only to the mesh board.
