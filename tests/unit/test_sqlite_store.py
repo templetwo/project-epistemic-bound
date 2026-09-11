@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from peb.config import DEFAULT_STATE_ROOT
 from peb.contracts import Actor, EventType, PendingEvent, ReportStatus, new_id, utcnow
 from peb.evidence.events import ChainError
 from peb.evidence.verify import verify_run
@@ -14,11 +13,14 @@ from peb.storage.repository import SqliteRepository
 from tests.unit.s2_helpers import gate_and_execute, propose, report_write, seed_run
 
 
-def test_migrations_apply_and_operator_root_untouched(state_root: Path):
+def test_migrations_apply_and_operator_root_untouched(state_root: Path, operator_state):
     repo = SqliteRepository.open(state_root)
     assert repo.applied_migrations() == [1, 2]
     assert (state_root / "peb.sqlite").is_file()
-    assert not (DEFAULT_STATE_ROOT.expanduser() / "peb.sqlite").exists()
+    # ISO-02: the operator's protected state is exactly as it was before the session — whether it started absent
+    # or populated (an operator who has run `peb run` has a database here; the test must not require its absence).
+    assert operator_state.unchanged(), operator_state.diff()
+    assert operator_state.root != state_root
     repo.close()
 
 
