@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "project": "project-epistemic-bound",
+  "source": "commit carrying this receipt; cockpit diff composed onto exact953921e7d18d704da5e89538d655f97089321088",
+  "command": "uv run --locked pytest tests/web -q --junitxml=/private/tmp/astra-web-953921e.xml",
+  "exit_code": 0,
+  "tests": {
+    "passed": 22,
+    "failed": 0,
+    "skipped": 0
+  },
+  "junit_sha256": "e87b7c5cff0e1e912952491b6f99ca74755dfa55806dd919b3c2daa49b1d5a24",
+  "browser": {
+    "script": "tests/browser/workroom.cjs",
+    "engine": "Chromium headless shell1169 via Playwright1.51.1",
+    "viewport_desktop": [
+      1400,
+      1050
+    ],
+    "viewport_mobile": [
+      390,
+      844
+    ],
+    "hostile_text_inert": true,
+    "actual_demo_visible": true,
+    "mobile_no_overflow": true,
+    "page_errors": []
+  },
+  "limits": [
+    "Partial UI-01; see docs/WORKROOM.md.",
+    "No model call; scripted runtime and mocked service only.",
+    "Browser review used disposable local state; not a full review/pause model workflow.",
+    "This is a slice receipt, not a release verdict."
+  ]
+}

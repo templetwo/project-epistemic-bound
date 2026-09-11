@@ -1,0 +1,24 @@
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const fs=require('fs');
+const path=require('path');
+const login=process.argv[2], output=process.argv[3];
+if(!login || !output) throw Error('usage: node tests/browser/workroom.cjs LOGIN_FILE OUTPUT_DIRECTORY');
+fs.mkdirSync(output,{recursive:true});
+(async()=>{
+ const browser=await chromium.launch({headless:true,executablePath:process.env.PEB_BROWSER_EXECUTABLE}); const page=await browser.newPage({viewport:{width:1400,height:1050}});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto('http://127.0.0.1:8789');await page.screenshot({path:path.join(output,'login.png'),fullPage:true});
+ const {secret}=JSON.parse(fs.readFileSync(login,'utf8'));
+ await page.getByLabel('Operator secret',{exact:true}).fill(secret);await page.getByRole('button',{name:'Sign in'}).click();await page.locator('#workroom').waitFor({state:'visible'});
+ await page.locator('#runs button').first().click();await page.locator('#events .event').first().waitFor();
+ const nodes=await page.locator('#events details').all(); for(const detail of nodes) await detail.locator('summary').click();
+ if(await page.evaluate(()=>Boolean(window.__pebInjected)))throw Error('hostile text executed');
+ if(await page.locator('#events img,#events script').count())throw Error('hostile DOM created');
+ await page.selectOption('#case','truthful-repair');await page.getByRole('button',{name:'Run scripted control'}).click();await page.locator('#notice').filter({hasText:'Scripted control recorded'}).waitFor();
+ if(!await page.locator('#outcomes').innerText().then(t=>t.includes('yes')))throw Error('no observed success');
+ await page.screenshot({path:path.join(output,'desktop.png'),fullPage:false});
+ await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(output,'mobile.png'),fullPage:false});
+ const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);if(overflow)throw Error('mobile horizontal overflow');
+ console.log(JSON.stringify({hostile_text_inert:true,actual_demo_visible:true,mobile_no_overflow:true,page_errors:errors}));
+ if(errors.length)throw Error(errors.join(';'));await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});
