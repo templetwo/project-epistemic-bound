@@ -22,10 +22,11 @@ No frozen contracts or bind_grants changed. Current: scripts/check_release.py,
 51-row docs/acceptance-matrix.json, docs/ACCEPTANCE.md and14 release-check unit
 controls. Matrix has no premature passed gates; candidate evidence is an index,
 not a semantic coverage claim. Next: exact committed clean-archive release
-measurement, post hash and review receipt.
+measurement complete at b4b1cfb: 461 passed/2 skipped/0 failed, Ruff clean;
+release BLOCKED as intended on unreconciled gate rows and both compatibility
+skips. Receipt docs/receipts/S6-codex-release-checker.json. Review handoff next.
 
-Active owned processes: temporary cockpit QA server exec34921 at127.0.0.1:8789,
-script /private/tmp/astra-web-browser-server.py, disposable synthetic state only.
+Temporary cockpit QA server exec34921 was stopped after browser checks.
 Read-only mesh collectors at /private/tmp/astra-mesh-watch-s2ip5yuq/: Fable34258,
 Grok original97057, Grok new82353, board23546. Active polling uses poll.py;
 collectors cannot wake a finished Codex turn. No subject inference process.
