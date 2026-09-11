@@ -10,7 +10,10 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from ..boundary.canonical import proposal_digest
 from ..contracts import (
+    ActionDecision,
+    ActionProposal,
     Actor,
     Commitment,
     CommitmentKind,
@@ -18,16 +21,21 @@ from ..contracts import (
     Correction,
     DisclosureLabel,
     EventType,
+    GateDecision,
+    GateOutcome,
+    GateReason,
     ReviewRequest,
     ReviewStatus,
     RunStatus,
     StoredEvent,
+    StrictParseError,
     TaskSpec,
     TerminalReason,
+    parse_decision,
 )
 from ..errors import ErrorCode, PebError
 from .commitments import CommitmentLedger
-from .state import RunRecord
+from .state import HeldProposal, RunRecord
 
 
 def _dt(v: str) -> datetime:
@@ -69,17 +77,6 @@ def reconstruct_run(repo: Any, run_id: str, task: TaskSpec) -> tuple[RunRecord, 
             comp = p.get("completion")
             if isinstance(comp, dict):
                 run.completion = dict(comp)
-        elif ev.event_type == EventType.review_opened:
-            run.reviews.append(ReviewRequest(
-                review_id=p["review_id"], run_id=run_id, proposal_id=p.get("proposal_id"),
-                conflict=str(p.get("conflict") or "recorded review"), recipient_role=str(p.get("recipient_role") or "operator"),
-                opened_at=ev.ts, deadline_at=_dt(p["deadline_at"]) if p.get("deadline_at") else ev.ts,
-                status=ReviewStatus.pending, receipt_id=p["receipt_id"]))
-        elif ev.event_type == EventType.review_resolved:
-            rid = p.get("review_id")
-            new_status = p.get("status")
-            run.reviews = [r.model_copy(update={"status": ReviewStatus(new_status)}) if r.review_id == rid and new_status else r
-                           for r in run.reviews]
         elif ev.event_type == EventType.commitment_proposed:
             c = Commitment(commitment_id=p["commitment_id"], kind=CommitmentKind(p.get("kind", "undertaking")),
                            origin=Actor(p.get("origin", "subject")), run_id=run_id, task_id=task.task_id,
@@ -94,12 +91,6 @@ def reconstruct_run(repo: Any, run_id: str, task: TaskSpec) -> tuple[RunRecord, 
             cid = p.get("commitment_id")
             ledger._by_run[run_id] = [x.model_copy(update={"status": CommitmentStatus.accepted}) if x.commitment_id == cid else x
                                       for x in ledger._by_run[run_id]]
-        elif ev.event_type == EventType.claim_corrected:
-            ledger._corrections[run_id].append(Correction(
-                correction_id=p["correction_id"], previous_claim_id=p.get("previous_claim_id"),
-                previous_event_id=p.get("previous_event_id"), corrected_statement=str(p.get("corrected_statement") or ""),
-                evidence_refs=list(p.get("evidence_refs") or []), disclosed_by=Actor(ev.actor),
-                disclosure=DisclosureLabel(p.get("disclosure", "unknown")), proposed_repair=None, created_at=ev.ts))
 
     # History recorded with the LAST model_request is what the subject saw before its last decision;
     # results of that last step live in the events after it. Replay them onto the history the same way
@@ -109,9 +100,111 @@ def reconstruct_run(repo: Any, run_id: str, task: TaskSpec) -> tuple[RunRecord, 
     _replay_tail_into_history(run, tail, repo)
     run.step = steps_started
     run.model_calls = steps_started
+    run.reviews = reviews_from_events(run_id, events)
+    ledger._corrections[run_id] = corrections_from_events(events)
+    run.held = held_proposals_from_events(run_id, events, run.reviews, policy_version=run.policy_version)
     # Report claims (for reversal-vs-update) come from applied report writes in the chain.
     _rebuild_report_claims(run, events)
     return run, ledger
+
+
+def reviews_from_events(run_id: str, events: list[StoredEvent]) -> list[ReviewRequest]:
+    """Queue state from records only: review_opened creates, review_resolved moves the status (including
+    the non-final `acknowledged` and the timeout `expired`)."""
+    reviews: list[ReviewRequest] = []
+    for ev in events:
+        p = ev.payload
+        if ev.event_type == EventType.review_opened:
+            reviews.append(ReviewRequest(
+                review_id=p["review_id"], run_id=run_id, proposal_id=p.get("proposal_id"),
+                conflict=str(p.get("conflict") or "recorded review"),
+                recipient_role=str(p.get("recipient_role") or "operator"),
+                opened_at=ev.ts, deadline_at=_dt(p["deadline_at"]) if p.get("deadline_at") else ev.ts,
+                status=ReviewStatus.pending, receipt_id=p["receipt_id"]))
+        elif ev.event_type == EventType.review_resolved:
+            rid = p.get("review_id")
+            new_status = p.get("status")
+            if isinstance(new_status, str):
+                reviews = [r.model_copy(update={"status": ReviewStatus(new_status)}) if r.review_id == rid else r
+                           for r in reviews]
+    return reviews
+
+
+def corrections_from_events(events: list[StoredEvent]) -> list[Correction]:
+    out: list[Correction] = []
+    for ev in events:
+        if ev.event_type != EventType.claim_corrected:
+            continue
+        p = ev.payload
+        out.append(Correction(
+            correction_id=p["correction_id"], previous_claim_id=p.get("previous_claim_id"),
+            previous_event_id=p.get("previous_event_id"), corrected_statement=str(p.get("corrected_statement") or ""),
+            evidence_refs=list(p.get("evidence_refs") or []), disclosed_by=Actor(ev.actor),
+            disclosure=DisclosureLabel(p.get("disclosure", "unknown")), proposed_repair=None, created_at=ev.ts))
+    return out
+
+
+def held_proposals_from_events(run_id: str, events: list[StoredEvent], reviews: list[ReviewRequest], *,
+                               policy_version: str) -> dict[str, HeldProposal]:
+    """Rebuild the ORIGINAL ActionProposal behind every unresolved `needs_approval` review, from records:
+    the call is re-parsed from the recorded model_response at that step (never from a summary), the
+    subject session is the one active at that step (run_resumed chain), ids and digest come from
+    action_proposed, and the recomputed digest must equal the recorded one or the proposal is not held."""
+    open_ids = {r.proposal_id for r in reviews
+                if r.proposal_id and r.status in (ReviewStatus.pending, ReviewStatus.acknowledged)}
+    if not open_ids:
+        return {}
+    review_of = {r.proposal_id: r for r in reviews if r.proposal_id in open_ids}
+    session: str | None = None
+    decisions: dict[int, Any] = {}
+    preaction_steps: set[int] = set()
+    proposed: dict[str, StoredEvent] = {}
+    gates: dict[str, StoredEvent] = {}
+    for ev in events:
+        p = ev.payload
+        if ev.event_type == EventType.run_created or ev.event_type == EventType.run_resumed:
+            session = p.get("subject_session_id") or session
+        elif ev.event_type == EventType.model_response and p.get("error") is None and isinstance(p.get("content"), str):
+            try:
+                decisions[int(p["step"])] = (parse_decision(p["content"]), session)
+            except (StrictParseError, KeyError, ValueError):
+                continue
+        elif ev.event_type == EventType.preaction_declared:
+            preaction_steps.add(int(p.get("step", -1)))
+        elif ev.event_type == EventType.action_proposed and p.get("proposal_id") in open_ids:
+            proposed[p["proposal_id"]] = ev
+        elif ev.event_type == EventType.gate_decided and p.get("proposal_id") in open_ids and p.get("outcome") == "needs_approval":
+            gates[p["proposal_id"]] = ev
+    held: dict[str, HeldProposal] = {}
+    for pid, ev in proposed.items():
+        p = ev.payload
+        step = int(p["step"])
+        parsed = decisions.get(step)
+        gate_ev = gates.get(pid)
+        if parsed is None or gate_ev is None or not isinstance(parsed[0], ActionDecision) or parsed[1] is None:
+            continue
+        decision, ses = parsed
+        call_json = decision.action.model_dump(mode="json")
+        recomputed = proposal_digest(run_id, ses, step, call_json)
+        if recomputed != p.get("action_digest"):
+            continue  # records disagree with themselves; nothing is held on a guess
+        proposal = ActionProposal(proposal_id=pid, run_id=run_id, subject_session_id=ses, step=step,
+                                  call=decision.action, expected_revisions=_expected_revisions(call_json),
+                                  action_digest=recomputed, captured_at=ev.ts)
+        gp = gate_ev.payload
+        gate = GateDecision(proposal_id=pid, outcome=GateOutcome.needs_approval,
+                            reason=GateReason(gp.get("reason", "needs_operator_approval")),
+                            resolved_grant_id=gp.get("resolved_grant_id"), checked_digest=gp.get("checked_digest", recomputed),
+                            checked_revision_vector={}, policy_version=policy_version, decided_at=gate_ev.ts)
+        held[review_of[pid].review_id] = HeldProposal(proposal=proposal, gate=gate, preaction_present=step in preaction_steps)
+    return held
+
+
+def _expected_revisions(call_json: dict) -> dict[str, int]:
+    args = call_json.get("arguments", {})
+    if "resource_id" in args and "expected_revision" in args:
+        return {args["resource_id"]: int(args["expected_revision"])}
+    return {}
 
 
 def _events_after_last_request(events: list[StoredEvent]) -> list[StoredEvent]:

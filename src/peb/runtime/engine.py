@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Protocol
+from typing import Any, Protocol
 
 from ..boundary.canonical import DOMAIN_MODEL_INPUT, digest, proposal_digest
 from ..contracts import (
@@ -56,7 +56,7 @@ from ..errors import PebError
 from ..providers.base import ProviderError
 from .commitments import CommitmentLedger
 from .context import ContextBuilder
-from .state import RunRecord, StepOutcome
+from .state import HeldProposal, RunRecord, StepOutcome
 
 Decision = ActionDecision | DeclineDecision | EscalateDecision | FinishDecision
 AppendFn = Callable[[EventType, Actor, dict], StoredEvent]
@@ -197,6 +197,7 @@ class SubjectRuntime:
                  store: EvidenceStore, context_builder: ContextBuilder, reader: ResourceReader | None = None,
                  ledger: CommitmentLedger | None = None, response_schema: dict | None = None,
                  review_recipient_role: str = "operator", review_window_s: int = 600,
+                 approval_issuer: Callable[..., Any] | None = None, approval_ttl_s: int = 600,
                  clock: Callable[[], datetime] = utcnow) -> None:
         self._provider = provider
         self._monitor = monitor
@@ -214,6 +215,10 @@ class SubjectRuntime:
         self._context = context_builder
         self._review_role = review_recipient_role  # resolved from operator configuration, never a fixture role
         self._review_window = timedelta(seconds=review_window_s)
+        # §13: approvals are issued by the boundary lane's code (default: lazy import of boundary.approvals);
+        # a development store may inject an issuer. Never the subject; never automatic.
+        self._approval_issuer = approval_issuer
+        self._approval_ttl_s = approval_ttl_s
         self._clock = clock
 
     # -- events -----------------------------------------------------------------------------------
@@ -433,12 +438,32 @@ class SubjectRuntime:
         else:  # needs_approval
             review = self._open_review(run, append, proposal_id=proposal.proposal_id,
                                        conflict=f"{proposal.call.tool} requires an operator decision", events=events)
+            # Keep the ORIGINAL proposal for the operator's act (§13); nothing is re-derived from model text later.
+            run.held[review.review_id] = HeldProposal(proposal=proposal, gate=gate, preaction_present=cap.preaction_present)
             outcome.review = review
 
         outcome.status = run.status
         if run.active:
             run.step += 1
         return outcome
+
+    # -- §13 review route (runtime/review.py) --------------------------------------------------------
+
+    def resolve_review(self, run: RunRecord, review_id: str, decision: str, *, by: Actor = Actor.operator,
+                       note: str = ""):
+        """Operator (or labelled scripted reviewer) resolves a held review: allow → approval issued through
+        the boundary's approvals module and the HELD proposal re-gated and executed; deny → recorded and
+        the subject sees it. Expired reviews hold. See runtime/review.py."""
+        from .review import resolve_review
+        return resolve_review(self, run, review_id, decision, by=by, note=note)  # type: ignore[arg-type]
+
+    def acknowledge_review(self, run: RunRecord, review_id: str, *, by: Actor = Actor.operator, note: str = ""):
+        from .review import acknowledge_review
+        return acknowledge_review(self, run, review_id, by=by, note=note)
+
+    def expire_reviews(self, run: RunRecord, *, now: datetime | None = None):
+        from .review import expire_reviews
+        return expire_reviews(self, run, now=now)
 
     # -- helpers ----------------------------------------------------------------------------------
 

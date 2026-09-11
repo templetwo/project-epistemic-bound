@@ -117,9 +117,8 @@ def test_pause_and_cancel_cli_persist_durable_boundaries(tmp_path, monkeypatch, 
 def test_resume_from_records_under_a_new_subject_session(tmp_path):
     """COMMIT-02 / §9.3 across processes: pause a model run, drop every in-memory object, rebuild from the
     repository alone, resume under a new subject session, finish, verify."""
-    from peb.storage.repository import SqliteRepository
-
     from peb.runtime.bootstrap import RESUME_LABEL, compose_model_run, resume_run
+    from peb.storage.repository import SqliteRepository
 
     state = tmp_path / "state"
     transport, fake_state = fake_ollama(load_script("truthful-repair"))

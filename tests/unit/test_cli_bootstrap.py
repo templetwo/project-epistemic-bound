@@ -52,11 +52,18 @@ def test_unbuilt_commands_fail_with_not_implemented(state_root: Path, capsys, ar
     assert "not implemented" in envelope["error"]["message"]
 
 
-def test_parser_registers_every_section_20_command():
+SECTION_20 = {"doctor", "demo", "serve", "providers", "run", "verify", "export", "replay",
+              "study", "runs", "pause", "resume", "cancel"}
+# §20: "match them exactly or record a reviewed interface amendment before divergence".
+# Additions are listed here WITH their amendment; anything else is a divergence the test catches.
+RECORDED_ADDITIONS = {"review": "ADR-015 (§13 review route: list/ack/allow/deny a held proposal without the web UI)"}
+
+
+def test_parser_registers_every_section_20_command_and_only_recorded_additions():
     parser = build_parser()
     names = set(parser._subparsers._group_actions[0].choices)
-    assert names == {"doctor", "demo", "serve", "providers", "run", "verify", "export", "replay",
-                     "study", "runs", "pause", "resume", "cancel"}
+    assert SECTION_20 <= names
+    assert names - SECTION_20 == set(RECORDED_ADDITIONS)
 
 
 def test_demo_rejects_unknown_case(state_root: Path):

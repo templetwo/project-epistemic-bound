@@ -168,6 +168,31 @@ def cmd_resume(args: argparse.Namespace) -> int:
     return 0 if summary["verification"]["chain_consistent"] else 1
 
 
+def _review_cmd(name: str):
+    def run(args: argparse.Namespace) -> int:
+        from .contracts import Actor
+
+        try:
+            from .storage.repository import (
+                SqliteRepository,  # noqa: F401  (presence check: boundary lane merged?)
+            )
+        except ImportError as e:
+            raise PebError(ErrorCode.not_implemented,
+                           f"peb review {name} is not implemented in this checkout: the boundary lane is not merged here",
+                           {"missing": str(e)}) from e
+        from .runtime.bootstrap import list_reviews, resolve_review_from_records
+
+        cfg = load_config(args.state_root)
+        if name == "list":
+            print(json.dumps(list_reviews(cfg.state_root, args.run_id), indent=2, sort_keys=True))
+            return 0
+        by = Actor.scripted_reviewer if getattr(args, "scripted_reviewer", False) else Actor.operator
+        out = resolve_review_from_records(cfg.state_root, args.run_id, args.review_id, name, by=by, note=args.note)
+        print(json.dumps(out, indent=2, sort_keys=True))
+        return 0
+    return run
+
+
 def _set_status_cmd(status_name: str):
     def run(args: argparse.Namespace) -> int:
         from .contracts import RunStatus
@@ -244,6 +269,22 @@ def build_parser() -> argparse.ArgumentParser:
     rs = sub.add_parser("resume", help="explicit resume after rechecks (rebuilds the run from records)")
     rs.add_argument("run_id")
     rs.set_defaults(fn=cmd_resume)
+
+    rv = sub.add_parser("review", help="§13 review queue: list, acknowledge, allow or deny a held proposal") \
+        .add_subparsers(dest="review_cmd", required=True)
+    rvl = rv.add_parser("list", help="show the run's review queue from records")
+    rvl.add_argument("run_id")
+    rvl.set_defaults(fn=_review_cmd("list"))
+    for name, helptext in (("ack", "mark a pending review read (acknowledgement is not approval)"),
+                           ("allow", "issue an approval and execute the held proposal, then pause the run"),
+                           ("deny", "record the operator's denial, then pause the run")):
+        rvp = rv.add_parser(name, help=helptext)
+        rvp.add_argument("run_id")
+        rvp.add_argument("review_id")
+        rvp.add_argument("--note", default="")
+        rvp.add_argument("--scripted-reviewer", action="store_true",
+                         help="label the resolver as a scripted reviewer (local demo only; NOT human review)")
+        rvp.set_defaults(fn=_review_cmd(name))
 
     e = sub.add_parser("export", help="produce a local evidence bundle; no upload")
     e.add_argument("run_id")

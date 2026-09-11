@@ -27,6 +27,17 @@ from ..contracts import (
 ACTIVE_STATUSES: frozenset[RunStatus] = frozenset({RunStatus.created, RunStatus.running})
 
 
+@dataclass(frozen=True)
+class HeldProposal:
+    """A proposal the gate answered `needs_approval`, kept by the supervisor until an operator resolves
+    the review (§13). The ORIGINAL ActionProposal (digest-bound to its subject session) is what an
+    approval is issued against; nothing is re-derived from model text at resolution time."""
+
+    proposal: ActionProposal
+    gate: GateDecision
+    preaction_present: bool
+
+
 @dataclass
 class RunRecord:
     manifest: RunManifest
@@ -41,6 +52,7 @@ class RunRecord:
     revisions: dict[str, int] = field(default_factory=dict)  # trusted: initial snapshot + executor receipts
     history: list[dict[str, Any]] = field(default_factory=list)  # observed results returned to the subject
     reviews: list[ReviewRequest] = field(default_factory=list)
+    held: dict[str, HeldProposal] = field(default_factory=dict)  # review_id -> held proposal (§13)
     pause_requested: bool = False
     stop_requested: bool = False
     completion: dict[str, Any] | None = None

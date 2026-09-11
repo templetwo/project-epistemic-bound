@@ -16,9 +16,6 @@ pytest.importorskip("peb.workspace.executor", reason="seat 3/3's S2 executor is 
 pytest.importorskip("peb.workspace.fixtures", reason="seat 2/3's fixtures are not in this checkout")
 
 from peb.boundary.reference_monitor import DefaultReferenceMonitor
-from peb.storage.repository import ResourceSnapshot, SqliteRepository
-from peb.workspace.executor import SqliteExecutor
-
 from peb.contracts import (
     EventType,
     GateOutcome,
@@ -37,6 +34,8 @@ from peb.contracts import (
 from peb.providers.scripted import ScriptedProvider
 from peb.runtime.context import AllowlistContextBuilder
 from peb.runtime.engine import SubjectRuntime
+from peb.storage.repository import ResourceSnapshot, SqliteRepository
+from peb.workspace.executor import SqliteExecutor
 from peb.workspace.fixtures import load_fixture, load_script
 
 

@@ -3,13 +3,17 @@ and storage are seat 3/3's S2 lane. These implement the frozen protocols just en
 exercise the loop, and the executor refuses anything the gate did not allow."""
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass, field
+from datetime import timedelta
 from typing import Any
 
-from peb.boundary.canonical import DOMAIN_RESOURCE, digest
+from peb.boundary.canonical import DOMAIN_APPROVAL, DOMAIN_RESOURCE, digest, hmac_sign
 from peb.contracts import (
     READ_TOOLS,
     ActionProposal,
+    Actor,
+    Approval,
     EffectReceipt,
     EffectStatus,
     GateContext,
@@ -20,6 +24,7 @@ from peb.contracts import (
     new_id,
     utcnow,
 )
+from peb.evidence.events import MemoryEvidenceStore
 
 
 class ScopedMonitor:
@@ -35,8 +40,16 @@ class ScopedMonitor:
         expected = args.get("expected_revision")
         if expected is not None and ctx.current_revisions.get(resource) != expected:
             return self._decide(proposal, ctx, GateOutcome.deny, GateReason.revision_mismatch, grant.grant_id)
-        if grant.requires_approval and ctx.approval is None:
-            return self._decide(proposal, ctx, GateOutcome.needs_approval, GateReason.needs_operator_approval, grant.grant_id)
+        if grant.requires_approval:
+            if ctx.approval is None:
+                return self._decide(proposal, ctx, GateOutcome.needs_approval, GateReason.needs_operator_approval, grant.grant_id)
+            a = ctx.approval
+            if a.expires_at <= ctx.now:
+                return self._decide(proposal, ctx, GateOutcome.deny, GateReason.approval_expired, grant.grant_id)
+            if (a.action_digest != proposal.action_digest or a.subject_session_id != proposal.subject_session_id
+                    or a.run_id != ctx.run_id or a.issuer is Actor.subject):
+                return self._decide(proposal, ctx, GateOutcome.deny, GateReason.approval_digest_mismatch, grant.grant_id)
+            return self._decide(proposal, ctx, GateOutcome.allow, GateReason.ok_approved, grant.grant_id)
         return self._decide(proposal, ctx, GateOutcome.allow, GateReason.ok_scoped_grant, grant.grant_id)
 
     @staticmethod
@@ -138,3 +151,41 @@ class FakeWorkspaceExecutor:
         return EffectReceipt(receipt_id=new_id("rcpt"), proposal_id=proposal.proposal_id, status=EffectStatus.applied,
                              tool_result=result, before=before, after=after, transaction_ref=new_id("tx"),
                              event_ref=None, observed_at=utcnow())
+
+
+class ApprovingMemoryStore(MemoryEvidenceStore):
+    """MemoryEvidenceStore + the three store facts the §13 route needs (key, approval row, grant version).
+    Development only; the real store is seat 3/3's SqliteRepository."""
+
+    key_id = "memory-dev"
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._key = b"memory-dev-signing-key"
+        self.approvals: dict[str, Approval] = {}
+
+    def signing_key(self) -> bytes:
+        return self._key
+
+    def put_approval(self, approval: Approval) -> None:
+        self.approvals[approval.approval_id] = approval
+
+    def grant_version(self, run_id: str, grant_id: str) -> int:
+        return 1
+
+
+def fake_issue_approval(*, key: bytes, key_id: str, proposal: ActionProposal, grant_id: str, grant_version: int,
+                        revision_vector: dict[str, int], policy_version: str, issuer: Actor, ttl_s: int = 600) -> Approval:
+    """Same field contract as boundary/approvals.issue_approval (seat 3/3), for lane tests without that module."""
+    if issuer is Actor.subject:
+        raise AssertionError("a subject reached the issuer; the runtime guard is broken")
+    now = utcnow()
+    draft = Approval(approval_id=new_id("appr"), proposal_id=proposal.proposal_id, action_digest=proposal.action_digest,
+                     run_id=proposal.run_id, subject_session_id=proposal.subject_session_id,
+                     revision_vector=dict(revision_vector), policy_version=policy_version, grant_id=grant_id,
+                     grant_version=grant_version, issuer=issuer, issued_at=now,
+                     expires_at=now + timedelta(seconds=ttl_s), nonce=uuid.uuid4().hex, key_id=key_id, signature="0" * 64)
+    body = draft.model_dump(mode="json")
+    body.pop("signature")
+    body["domain"] = DOMAIN_APPROVAL
+    return draft.model_copy(update={"signature": hmac_sign(key, DOMAIN_APPROVAL, body)})

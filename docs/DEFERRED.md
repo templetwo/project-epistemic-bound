@@ -15,3 +15,12 @@ why not now.
   allows reads on any run-seeded resource (#27510 finding 3). Interface amendment
   candidate: `GateContext.permitted_resource_ids`. Runtime enforces the allowlist
   meanwhile.
+- 2026-09-11, seat 1/3 — `EventType.review_acknowledged`. Acknowledgement is recorded as
+  `review_resolved {status: acknowledged, final: false}` because `EventType` is frozen (ADR-015 §7).
+  Candidate S1 amendment together with putting `checked_revision_vector` into the `gate_decided`
+  payload (the held gate rebuilt from records carries `{}` for it).
+- 2026-09-11, seat 1/3 — `runtime/service.py` (`WorkroomService`, `Operation`) and `peb serve` wiring
+  to seat 2/3's `create_workroom` (INTERFACES §15). Interface published first so the web lane can
+  build against it; implementation follows the main merge of S2/S3.
+- 2026-09-11, seat 1/3 — Once seat 2/3 lands `evaluation.metrics.AUTHORITY_DENY_REASONS` (#27633 R1),
+  drop the identical fallback set from `runtime/bootstrap.py` so there is one source.
