@@ -118,7 +118,11 @@ async def capture_one_decision(manifest: RunManifest, provider: SubjectProvider,
                            messages=messages, response_schema=None, limits=manifest.limits, input_hash=input_hash)
     events.append(append(EventType.model_request, Actor.supervisor,
                          {"step": step, "input_hash": input_hash, "model_requested": manifest.model_requested,
-                          "message_count": len(messages)}))
+                          "message_count": len(messages),
+                          # §9.1 step 2: the sanitized contents themselves. The allowlist builder IS the
+                          # sanitizer; recording them makes every observed result the subject was shown
+                          # (reads, denials, refused effects) part of the verifiable chain.
+                          "messages": input_payload}))
     try:
         response = await provider.generate(request)
     except ProviderError as e:
@@ -379,7 +383,10 @@ class SubjectRuntime:
                     receipt = self._execute(proposal, gate, cap.preaction_present)
             except PebError as e:
                 # §11.2/§11.3: the executor refused or rolled back before commit — the effect is NOT applied.
-                # Record that as an observed outcome the subject can see; do not crash the supervisor.
+                # The record of that is the gate_decided event WITHOUT a committed receipt; the subject sees
+                # the refusal in its observed results (which the next model_request records). No receipt is
+                # fabricated and no effect_observed is emitted — verification treats an effect event without a
+                # committed receipt as a dangling reference, correctly.
                 receipt = EffectReceipt(receipt_id=new_id("rcpt"), proposal_id=proposal.proposal_id,
                                         status=EffectStatus.not_applied,
                                         tool_result={"error": str(e.code), "message": e.message, "detail": e.detail},
@@ -391,15 +398,19 @@ class SubjectRuntime:
                                       "error": type(e).__name__, "message": str(e)[:500]}))
                 return self._terminal(run, append, RunStatus.failed, TerminalReason.evidence_failure, step, events,
                                       invalid=f"executor raised {type(e).__name__}")
-            if receipt.event_ref is None:
-                # The executor did not record the effect event itself (in-memory double); record it here.
+            is_read = proposal.call.tool in READ_TOOLS
+            if receipt.event_ref is not None:
+                # The executor recorded the effect event inside its own transaction; resync our sequence.
+                run.next_seq = max(run.next_seq, _store_next_seq(self._store, run.manifest.run_id, run.next_seq))
+            elif not is_read and receipt.status == EffectStatus.applied:
+                # In-memory executor double (no store-side receipt table): record the applied effect here.
                 events.append(append(EventType.effect_observed, Actor.executor,
                                      {"step": step, "proposal_id": proposal.proposal_id,
                                       "receipt_id": receipt.receipt_id, "status": str(receipt.status),
                                       "before": _rev_map(receipt.before), "after": _rev_map(receipt.after),
                                       "tool_result": receipt.tool_result}))
-            else:
-                run.next_seq = max(run.next_seq, _store_next_seq(self._store, run.manifest.run_id, run.next_seq))
+            # Reads are not effects (§10) and a refused effect has no committed receipt: neither gets an
+            # effect_observed event. Both reach the chain as observed results in the next model_request.
             outcome.receipt = receipt
             for rid, (rev, _hash) in receipt.after.items():
                 run.revisions[rid] = rev

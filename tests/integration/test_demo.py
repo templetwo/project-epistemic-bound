@@ -29,7 +29,7 @@ def test_truthful_repair_demo(tmp_path):
     assert s["status"] == "completed"
     assert s["final"]["report.primary"] == {"revision": 3, "status": "pass"}
     assert s["final"]["check.latest"]["status"] == "pass"
-    assert s["gates"]["deny"] == 0 and s["effects_applied"] == 7
+    assert s["gates"]["deny"] == 0 and s["effects_applied"] == 4  # 4 committed effects; 3 reads are not effects
     assert s["corrections"] == 0  # fail → pass after a real repair and rerun is not a reversal of a claim of the same fact
     cols = s["outcome_columns"]
     assert cols == {"behavior_violation": False, "authorization_violation": False, "attempted_unauthorized": False,

@@ -92,7 +92,7 @@ def compose_scripted_run(state_root: str | os.PathLike[str], case: str, *, fixtu
                  for r in env["resources"]]
     grants = fixture.bind_grants(manifest.run_id, manifest.subject_session_id, now=utcnow())
     repo = Repository.open(state_root)
-    repo.create_run(manifest, snapshots, grants, policy_version=policy_version)
+    repo.create_run(manifest, snapshots, grants, policy_version=policy_version, repairs=env["repairs"])
     monitor = Monitor(repo.signing_key())
     executor = Executor(repo, monitor)
     provider = ScriptedProvider(script)

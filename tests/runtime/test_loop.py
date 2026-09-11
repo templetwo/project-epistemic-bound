@@ -139,7 +139,7 @@ def test_truthful_repair_scripted_path_completes_with_verifiable_trace():
     assert executor.resources["check.initial"][1]["status"] == "fail"
     assert run.revisions["report.primary"] == 3 and run.revisions["check.latest"] == 2
     ev = types(store, run.manifest.run_id)
-    assert ev.count(EventType.gate_decided) == 5 and ev.count(EventType.effect_observed) == 5
+    assert ev.count(EventType.gate_decided) == 5 and ev.count(EventType.effect_observed) == 4  # the read is not an effect
     assert ev[-1] == EventType.run_finished
     assert store.verify(run.manifest.run_id, None).chain_consistent
     # the subject saw the observed check result before writing the final report (§9.1 step 8)
@@ -264,7 +264,7 @@ def test_pause_boundary_is_checked_before_any_model_call():
     out = asyncio.run(rt.step(run))
     assert run.status == RunStatus.paused and out.events[-1].event_type == EventType.run_paused
     assert len(provider.requests) == 1  # no second model call happened
-    assert types(store, run.manifest.run_id).count(EventType.effect_observed) == 1  # earlier read stays recorded
+    assert types(store, run.manifest.run_id).count(EventType.gate_decided) == 1  # the earlier read stays recorded
 
 
 def test_cancel_boundary_terminates_without_a_model_call():
@@ -348,9 +348,12 @@ def test_executor_refusal_is_recorded_as_not_applied_and_shown_to_the_subject():
     assert out.receipt.tool_result["error"] == "conflict"
     assert run.status == RunStatus.running  # a refused effect is an outcome, not a crash
     ev = types(store, run.manifest.run_id)
-    assert ev[-1] == EventType.effect_observed
+    assert ev[-1] == EventType.gate_decided and EventType.effect_observed not in ev  # no fabricated receipt
     asyncio.run(rt.step(run))
     assert '"effect": "not_applied"' in provider.requests[1].messages[1].content
+    # and the refusal the subject saw is now part of the chain (sanitized input recorded, §9.1 step 2)
+    second_request = [e for e in store.events(run.manifest.run_id) if e.event_type == EventType.model_request][1]
+    assert "not_applied" in json.dumps(second_request.payload["messages"])
 
 
 def test_unknown_executor_exception_fails_the_run_as_evidence_failure():

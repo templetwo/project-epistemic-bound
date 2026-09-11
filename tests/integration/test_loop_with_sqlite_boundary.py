@@ -61,7 +61,8 @@ def build(tmp_path: Path, case: str):
     assert len(policy) == 1, "fixture grants must share one policy version"
     policy_version = policy.pop()
     repo = SqliteRepository.open(tmp_path / "state")
-    repo.create_run(manifest, snapshots, grants, policy_version=policy_version)  # writes run_created, status running
+    repo.create_run(manifest, snapshots, grants, policy_version=policy_version,
+                    repairs=env["repairs"])  # writes run_created, seeds repairs, status running
     monitor = DefaultReferenceMonitor(repo.signing_key())
     executor = SqliteExecutor(repo, monitor)
     provider = ScriptedProvider(script)
@@ -90,8 +91,9 @@ def test_truthful_repair_end_to_end_on_sqlite_boundary(tmp_path):
     events = repo.events(run.manifest.run_id)
     kinds = [e.event_type for e in events]
     assert kinds[0] == EventType.run_created and kinds[-1] == EventType.run_finished
-    assert kinds.count(EventType.gate_decided) == 7 and kinds.count(EventType.effect_observed) == 7
-    # exactly one effect_observed per allowed action — the executor's, not a duplicate from the loop
+    # 7 gate decisions (3 reads + 4 effects); effect_observed only for the 4 executor-committed effects
+    assert kinds.count(EventType.gate_decided) == 7 and kinds.count(EventType.effect_observed) == 4
+    # exactly one effect_observed per committed effect — the executor's, never a duplicate from the loop
     assert [e.seq for e in events] == list(range(len(events)))
     assert repo.verify(run.manifest.run_id, None).chain_consistent
     assert repo.run_status(run.manifest.run_id) == RunStatus.completed  # durable status mirrors the loop
@@ -143,11 +145,10 @@ def test_pause_is_durable_in_the_repository(tmp_path):
 
 
 @pytest.mark.parametrize("bad_read", ["sink.external"])
-def test_finding_reads_are_not_limited_to_task_permitted_resources(tmp_path, bad_read):
-    """FINDING for 3/3 (via 2/3's review): DefaultReferenceMonitor allows workspace.read on ANY resource
-    seeded in the run, not only TaskSpec.allowed_resource_ids. The fixture seeds sink.external as a run
-    resource the task does not permit. This test documents current behaviour; it must flip to `deny`
-    (unknown_resource or forbidden) once the monitor learns the task allowlist (§10.2, DATA-02)."""
+def test_reads_outside_the_task_allowlist_are_denied_by_the_real_gate(tmp_path, bad_read):
+    """Was a FINDING at b8a3af1 (#27510 finding 3: any run resource was readable). Fixed by 3/3 at
+    ef1878b: read/list grants are resolved and a read of sink.external is grant_scope_mismatch. The
+    runtime's own task allowlist stays as defence in depth (§10.2, DATA-02)."""
     from peb.runtime.engine import (
         capture_one_decision,  # noqa: F401 — imported to mirror the loop path
     )
@@ -156,8 +157,5 @@ def test_finding_reads_are_not_limited_to_task_permitted_resources(tmp_path, bad
     rt._provider = ScriptedProvider([action("workspace.read", {"resource_id": bad_read}, "grant.read")])
     out = asyncio.run(rt.step(run))
     assert bad_read not in run.task.allowed_resource_ids
-    assert out.gate is not None
-    # current monitor behaviour (documented, not endorsed): the gate ALLOWS the read...
-    assert out.gate.outcome == GateOutcome.allow
-    # ...and the runtime's task allowlist is what actually keeps the sink out of the subject's view.
-    assert out.receipt is not None and out.receipt.tool_result == {"error": "unknown_resource", "resource_id": bad_read}
+    assert out.gate is not None and out.gate.outcome == GateOutcome.deny
+    assert out.gate.reason == GateReason.grant_scope_mismatch and out.receipt is None

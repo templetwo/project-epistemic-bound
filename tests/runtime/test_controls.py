@@ -53,7 +53,7 @@ def test_pause_persisted_by_another_process_pauses_and_committed_effects_stay():
     store.set_run_status(run.manifest.run_id, RunStatus.paused, bump_stop=True)
     asyncio.run(rt.step(run))
     assert run.status == RunStatus.paused and len(provider.requests) == 1
-    assert types(store, run.manifest.run_id).count(EventType.effect_observed) == 1
+    assert types(store, run.manifest.run_id).count(EventType.gate_decided) == 1  # the committed read stays recorded
 
 
 def test_store_that_cannot_answer_does_not_authorise_continuing():
