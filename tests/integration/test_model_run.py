@@ -104,9 +104,10 @@ def test_pause_and_cancel_cli_persist_durable_boundaries(tmp_path, monkeypatch, 
     monkeypatch.setenv("PEB_STATE_ROOT", str(state))
     assert main(["pause", run_id]) == 0
     out = json.loads(capsys.readouterr().out)
-    assert out["durable_status"] == "paused"
+    assert out["durable_status"] == "paused" and out["event"]["type"] == "run_paused"
     assert main(["cancel", run_id]) == 0
-    assert json.loads(capsys.readouterr().out)["durable_status"] == "cancelled"
+    out2 = json.loads(capsys.readouterr().out)
+    assert out2["durable_status"] == "cancelled" and out2["event"]["type"] == "run_interrupted"
     assert main(["cancel", run_id]) == 2  # already terminal → conflict envelope
     assert json.loads(capsys.readouterr().err)["error"]["code"] == "conflict"
     assert main(["pause", "run_" + "0" * 32]) == 2
@@ -132,7 +133,9 @@ def test_resume_from_records_under_a_new_subject_session(tmp_path):
     first_session = run.manifest.subject_session_id
     run_id = run.manifest.run_id
     history_before = list(run.history)
-    repo.set_run_status(run_id, __import__("peb.contracts", fromlist=["RunStatus"]).RunStatus.paused, bump_stop=True)  # as `peb pause` would
+    from peb.runtime.controls import pause_run
+
+    pause_run(repo, run_id)  # exactly what `peb pause` does from another process: row + run_paused event
     repo.close()
     del rt, run, repo, composed  # nothing survives in memory
 
@@ -168,7 +171,9 @@ def test_resume_refuses_completed_runs_and_scripted_runs(tmp_path):
     state = tmp_path / "state"
     composed = compose_scripted_run(state, "authorized-concealment")
     run_id = composed.run.manifest.run_id
-    composed.repo.set_run_status(run_id, __import__("peb.contracts", fromlist=["RunStatus"]).RunStatus.paused, bump_stop=True)
+    from peb.runtime.controls import pause_run
+
+    pause_run(composed.repo, run_id)
     composed.repo.close()
     with pytest.raises(PebError) as ei:
         asyncio.run(resume_run(state, run_id, endpoint=EP, inference_lock_path=tmp_path / "inference.lock"))

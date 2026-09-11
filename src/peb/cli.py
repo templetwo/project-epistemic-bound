@@ -178,17 +178,15 @@ def _set_status_cmd(status_name: str):
             raise PebError(ErrorCode.not_implemented,
                            f"peb {status_name} is not implemented in this checkout: the boundary lane is not merged here",
                            {"missing": str(e)}) from e
+        from .runtime.controls import cancel_run, pause_run
+
         cfg = load_config(args.state_root)
         repo = SqliteRepository.open(cfg.state_root)
         try:
-            if not repo.run_exists(args.run_id):
-                raise PebError(ErrorCode.invalid_input, "unknown run_id", {"run_id": args.run_id})
-            current = repo.run_status(args.run_id)
-            if current not in (RunStatus.running, RunStatus.created, RunStatus.paused, RunStatus.waiting_review):
-                raise PebError(ErrorCode.conflict, f"run is {current}; nothing to {status_name}", {"status": str(current)})
+            ev = pause_run(repo, args.run_id) if status_name == "pause" else cancel_run(repo, args.run_id)
             target = RunStatus.paused if status_name == "pause" else RunStatus.cancelled
-            repo.set_run_status(args.run_id, target, bump_stop=True)
             print(json.dumps({"run_id": args.run_id, "requested": status_name, "durable_status": str(target),
+                              "event": {"seq": ev.seq, "type": str(ev.event_type), "event_id": ev.event_id},
                               "note": "the supervisor honours this boundary before its next model call; "
                                       "effects already committed remain recorded"}, sort_keys=True))
             return 0
