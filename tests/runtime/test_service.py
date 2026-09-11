@@ -14,7 +14,7 @@ REV = "rev_" + "b" * 32
 
 
 def test_operation_set_matches_interfaces_section_15():
-    assert {o.value for o in Operation} == {"health.get", "demo.run", "run.start", "profiles.list", "runs.list",
+    assert {o.value for o in Operation} == {"health.get", "demo.run", "run.start", "run.preview", "profiles.list", "runs.list",
                                             "run.get", "run.pause", "run.cancel", "run.resume", "review.list",
                                             "review.resolve", "evidence.verify", "evidence.export"}
 
@@ -28,6 +28,11 @@ def test_operation_set_matches_interfaces_section_15():
     ("run.start", {"provider": "ollama", "model": "m", "profile": "baseline", "max_model_calls": 0, "confirm": True}),
     ("run.start", {"provider": "ollama", "model": "m", "profile": "baseline", "task": "other", "confirm": True}),
     ("health.get", {"deep": True}),
+    ("run.preview", {"provider": "ollama", "model": "m", "profile": "baseline", "confirm": True}),      # preview never confirms
+    ("run.preview", {"provider": "deepseek", "model": "m", "profile": "baseline", "input_rate": 0.5}),  # rates come together
+    ("run.preview", {"provider": "deepseek", "model": "m", "profile": "baseline", "input_rate": 0, "output_rate": 1}),
+    ("run.preview", {"provider": "deepseek", "model": "m", "profile": "baseline", "rates_provenance": "x"}),
+    ("run.preview", {"provider": "scripted", "model": "m", "profile": "baseline"}),
 ])
 def test_launch_payloads_are_strict(op, payload):
     with pytest.raises(PebError) as e:
@@ -104,3 +109,29 @@ def test_without_the_boundary_lane_every_store_operation_is_not_implemented(tmp_
         with pytest.raises(PebError) as e:
             asyncio.run(svc.request(op, ids, payload))
         assert e.value.code == ErrorCode.not_implemented
+
+
+def test_run_preview_is_the_same_endpoint_dry_run_and_touches_nothing(tmp_path, monkeypatch):
+    """Seat 2/3's seam (#27923): the cockpit shows this before any hosted start and binds its preview token to
+    `start_payload`. No network (the deepseek endpoint is never contacted; the ollama one is a closed port), no store,
+    and the state root is not even created."""
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    root = tmp_path / "state"
+    svc = WorkroomService(root, ollama_endpoint="http://127.0.0.1:1")
+    sel = {"provider": "deepseek", "model": "deepseek-flash", "profile": "baseline", "max_model_calls": 8, "max_output_tokens": 1024}
+    out = asyncio.run(svc.request("run.preview", {}, sel))
+    assert out["preview"] is True and out["endpoint_scheme"] == "https" and out["endpoint_host"] == "api.deepseek.com"
+    assert out["budget"]["max_output_tokens_total"] == 8 * 1024 and out["budget"]["max_input_tokens_total_worst_case"] == 8 * 15_000
+    assert out["worst_case_cost"]["total_usd_worst_case"] is None  # no rates supplied → no cost asserted
+    assert out["start_payload"] == {**sel, "task": "conceal-error-basic", "confirm": True}
+    assert not root.exists()
+    priced = asyncio.run(svc.request("run.preview", {}, {**sel, "input_rate": 1.0, "output_rate": 2.0, "rates_provenance": "test"}))
+    assert priced["worst_case_cost"]["total_usd_worst_case"] == round((8 * 15_000 * 1.0 + 8 * 1024 * 2.0) / 1e6, 4)
+    assert priced["worst_case_cost"]["rates_provenance"] == "test" and priced["start_payload"] == out["start_payload"]
+    local = asyncio.run(svc.request("run.preview", {}, {"provider": "ollama", "model": "mistral:7b-instruct", "profile": "baseline"}))
+    assert local["endpoint"] == "http://127.0.0.1:1" and local["endpoint_host"] == "127.0.0.1" and local["key"].startswith("none")
+    assert local["start_payload"]["max_model_calls"] == 16 and local["start_payload"]["confirm"] is True
+    with pytest.raises(PebError) as e:
+        asyncio.run(svc.request("run.preview", {}, {**sel, "profile": "no-such-profile"}))
+    assert e.value.code == ErrorCode.invalid_input
+    assert not root.exists()

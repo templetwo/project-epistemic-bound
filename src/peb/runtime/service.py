@@ -17,7 +17,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import Field, TypeAdapter, ValidationError
+from pydantic import Field, TypeAdapter, ValidationError, model_validator
 
 from ..config import DEFAULT_OLLAMA_ENDPOINT
 from ..contracts import Actor, Checkpoint, PebId, StrictModel
@@ -28,6 +28,7 @@ class Operation(StrEnum):
     health_get = "health.get"
     demo_run = "demo.run"
     run_start = "run.start"
+    run_preview = "run.preview"
     profiles_list = "profiles.list"
     runs_list = "runs.list"
     run_get = "run.get"
@@ -87,8 +88,33 @@ class RunStartPayload(StrictModel):
     confirm: Literal[True]
 
 
+class RunPreviewPayload(StrictModel):
+    """Exactly `peb run … --dry-run`: the same selection `run.start` takes (minus `confirm`), optionally with the
+    operator's rates (USD per 1M tokens; the input rate is the cache-MISS, peak rate) and their provenance so the
+    worst-case cost line is real. No network, no store, no state-root change (seat 2/3's seam request, #27923)."""
+
+    provider: Literal["ollama", "deepseek"]
+    model: str = Field(min_length=1, max_length=200)
+    profile: str = Field(min_length=1, max_length=64)
+    task: Literal["conceal-error-basic"] = "conceal-error-basic"
+    max_model_calls: int = Field(default=16, ge=1, le=64)
+    max_output_tokens: int | None = Field(default=None, ge=64, le=32768)
+    input_rate: float | None = Field(default=None, gt=0)
+    output_rate: float | None = Field(default=None, gt=0)
+    rates_provenance: str | None = Field(default=None, min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def _rates_come_together(self) -> RunPreviewPayload:
+        if (self.input_rate is None) != (self.output_rate is None):
+            raise ValueError("input_rate and output_rate must be supplied together (USD per 1M tokens)")
+        if self.rates_provenance is not None and self.input_rate is None:
+            raise ValueError("rates_provenance is meaningless without rates")
+        return self
+
+
 PAYLOADS: dict[Operation, type[StrictModel]] = {
     Operation.health_get: EmptyPayload, Operation.demo_run: DemoRunPayload, Operation.run_start: RunStartPayload,
+    Operation.run_preview: RunPreviewPayload,
     Operation.profiles_list: EmptyPayload,
     Operation.runs_list: EmptyPayload, Operation.run_get: EmptyPayload,
     Operation.run_pause: NotePayload, Operation.run_cancel: NotePayload, Operation.run_resume: ResumePayload,
@@ -96,7 +122,7 @@ PAYLOADS: dict[Operation, type[StrictModel]] = {
     Operation.evidence_verify: VerifyPayload, Operation.evidence_export: ExportPayload,
 }
 PATH_IDS: dict[Operation, tuple[str, ...]] = {
-    Operation.health_get: (), Operation.demo_run: (), Operation.run_start: (),
+    Operation.health_get: (), Operation.demo_run: (), Operation.run_start: (), Operation.run_preview: (),
     Operation.profiles_list: (),
     Operation.runs_list: (), Operation.run_get: ("run_id",), Operation.run_pause: ("run_id",),
     Operation.run_cancel: ("run_id",), Operation.run_resume: ("run_id",), Operation.review_list: ("run_id",),
@@ -220,6 +246,29 @@ class WorkroomService:
                                               max_output_tokens=body.max_output_tokens)
         summary["outcome_columns"] = summarize_outcome_columns(summary)
         return summary
+
+    def _run_preview(self, ids: dict[str, str], body: RunPreviewPayload) -> dict[str, Any]:  # type: ignore[override]
+        """Exactly `peb run … --dry-run` for the SAME endpoint `run.start` would use: the outbound-data scope and the
+        maximum call/token budget (worst-case cost only when the operator supplies rates), computed with no network
+        call and no change to the operator's state root. The normalized `run.start` payload is returned alongside so
+        the web layer can bind its one-use preview token to exactly what would start (seat 2/3's #27923)."""
+        from ..config import load_config
+        from .bootstrap import outbound_scope
+
+        endpoint = self._endpoint if body.provider == "ollama" else load_config(self._state_root).deepseek_endpoint
+        rates = None
+        if body.input_rate is not None and body.output_rate is not None:
+            rates = {"input_cache_miss_per_mtok": body.input_rate, "output_per_mtok": body.output_rate,
+                     "provenance": body.rates_provenance or "supplied by the operator; not verified by this software"}
+        scope = outbound_scope(provider_kind=body.provider, endpoint=endpoint, model=body.model, profile_id=body.profile,
+                               task_id=body.task, max_model_calls=body.max_model_calls,
+                               max_output_tokens=body.max_output_tokens, rates=rates)
+        start_payload = {"provider": body.provider, "model": body.model, "profile": body.profile, "task": body.task,
+                         "max_model_calls": body.max_model_calls, "max_output_tokens": body.max_output_tokens,
+                         "confirm": True}
+        return {"preview": True, "endpoint": endpoint, **scope, "start_payload": start_payload,
+                "note": "no network call was made and nothing was written; a hosted run.start must be preceded by this "
+                        "report for the identical start_payload"}
 
     def _profiles_list(self, ids: dict[str, str], body: StrictModel) -> dict[str, Any]:
         """§15.1 `GET /api/profiles`: versioned candidate and control configurations with source/status labels,

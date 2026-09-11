@@ -28,6 +28,10 @@ def test_populated_root_unchanged_when_untouched_and_changed_when_written(tmp_pa
     assert "peb.sqlite-wal" in g.diff()
     (root / "operator.secret").unlink()  # and a deletion
     assert "operator.secret" in g.diff()
+    (root / "keys" / "extra.key").write_bytes(b"x")  # any new file under keys/ is a change (3/3, #27878)
+    assert "keys/extra.key" in g.diff()
+    (root / "peb.sqlite-journal").write_bytes(b"j")  # a rollback journal appearing is a change
+    assert "peb.sqlite-journal" in g.diff()
 
 
 def test_session_redirects_the_default_state_root_away_from_the_operator(operator_state):
