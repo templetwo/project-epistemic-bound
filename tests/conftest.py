@@ -20,8 +20,9 @@ import pytest
 
 from peb.config import DEFAULT_STATE_ROOT
 
-PROTECTED_RELATIVE = ("peb.sqlite", "peb.sqlite-wal", "peb.sqlite-shm", "keys/development_local_hmac.key",
-                      "operator.secret", "supervisor.lock", "inference.lock")
+PROTECTED_RELATIVE = ("peb.sqlite", "peb.sqlite-wal", "peb.sqlite-shm", "peb.sqlite-journal",
+                      "keys/development_local_hmac.key", "operator.secret", "supervisor.lock", "inference.lock")
+PROTECTED_DIRS = ("keys",)  # every file under these directories is fingerprinted individually (3/3, #27878)
 
 
 def _fingerprint(path: Path) -> tuple[bool, int, str] | None:
@@ -37,7 +38,13 @@ def _fingerprint(path: Path) -> tuple[bool, int, str] | None:
 
 def snapshot_protected(root: Path) -> dict[str, tuple[bool, int, str] | None]:
     root = root.expanduser()
-    return {rel: _fingerprint(root / rel) for rel in PROTECTED_RELATIVE} | {"<root>": _fingerprint(root)}
+    snap = {rel: _fingerprint(root / rel) for rel in PROTECTED_RELATIVE} | {"<root>": _fingerprint(root)}
+    for d in PROTECTED_DIRS:
+        base = root / d
+        if base.is_dir():
+            for f in sorted(p for p in base.rglob("*") if p.is_file()):
+                snap[str(f.relative_to(root))] = _fingerprint(f)
+    return snap
 
 
 @dataclass(frozen=True)

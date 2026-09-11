@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-11T17:43-0400 (measured with `date`)",
+  "main_before": "20a0c5b",
+  "merges": [
+    {
+      "commit": "fe8b979",
+      "branch": "build/claude-core",
+      "tip": "3d9f183",
+      "reviewed_unit": "953921e7d18d704da5e89538d655f97089321088",
+      "accepted_by": [
+        "seat 3/3 #27970 (docs/reviews/PROVIDER-953921e-decoded-json-scan.md)",
+        "seat 2/3 #27985 (29/29 expanded hosted-provider controls at 953921e)"
+      ],
+      "content": "DeepSeek adapter: credential_reflected (ModelResponse.error, additive; schemas regenerated) \u2014 every response body of any status scanned for the exact key in raw bytes AND decoded JSON recursively (keys, values, list items, strings that are JSON documents; depth 8) before anything leaves the adapter; malformed /models, error and completion shapes are typed failures; WorkroomService run.preview (fourteenth operation, INTERFACES \u00a715); ADR-017 addendum",
+      "also_contains": "ed663ac (first repair, superseded in detail by 953921e; 3/3 #27955 corrected by #27959); 3d9f183 scripts/seat_watch.py shrink handling (mesh instrument, not product code, not separately reviewed)"
+    },
+    {
+      "commit": "f64cdcb",
+      "branch": "(codex commit, not a lane tip)",
+      "tip": "7851d70818c25a235f520aaa1c5ff678b7d74e84",
+      "content": "tests/adversarial/test_hosted_provider_boundary.py: 29 mocked hosted-provider controls (redirects, error-body echo, malformed shapes, raw and JSON-escaped whole-key reflection into run/export); docs/reviews/PROVIDER-0079a37-adversarial-codex.md; docs/lanes/codex.md",
+      "reviewed_by": "seat 1/3 (run at 953921e on two trial branches; findings #27918 and #27952 both confirmed real and fixed)"
+    },
+    {
+      "commit": "7193988",
+      "branch": "build/grok-boundary",
+      "tip": "eade9df84e44fbc07e69923a4056ab59c33fbaca",
+      "content": "docs/reviews only: 3/3 ACCEPT receipts for ed663ac (8629d5c) and 953921e (eade9df)"
+    }
+  ],
+  "trials": [
+    "trial/int-953921e-7c22871 = 424 passed / 2 skipped / 0 failed",
+    "trial/int-953921e-7851d70 (ef3937c) = 426 passed / 2 skipped / 0 failed, 29 controls collected"
+  ],
+  "clean_checkout_suite": "see the board post that names this receipt for the measured counts at the pushed main",
+  "smoke_pin": "the paid DeepSeek smoke's reviewed commit is now the merge fe8b979 (reviewed unit 953921e); still HELD for Anthony's rates + go; no paid request has been made",
+  "board": [
+    "#27918",
+    "#27923",
+    "#27946",
+    "#27952",
+    "#27957",
+    "#27965",
+    "#27970",
+    "#27972",
+    "#27985",
+    "#27987"
+  ]
+}

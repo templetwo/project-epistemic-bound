@@ -197,3 +197,113 @@ def test_usage_fields_stay_none_when_the_server_omits_them(monkeypatch):
     assert u["requests_attempted"] == 1 and u["responses_received"] == 1
     assert u["responses_with_usage"] == 0 and u["responses_without_usage"] == 1  # missing usage is visible, never zero
     assert u["prompt_tokens"] is None and u["completion_tokens"] is None
+
+
+# ----------------------------------------------------------------------------- seat 2/3's adversarial findings (#27918)
+
+@pytest.mark.parametrize("finish", ["stop", "length"])
+def test_a_completion_that_echoes_the_key_is_refused_whole(monkeypatch, finish):
+    p = provider(completion('{"kind": "finish", "statement": "' + KEY + '"}', finish=finish), monkeypatch)
+    r = asyncio.run(p.generate(request()))
+    assert r.error == "credential_reflected" and r.content == "" and r.model_resolved is None
+    assert KEY not in json.dumps(r.model_dump(mode="json"))
+    report = p.usage_report()
+    assert report["credential_reflected"] == 1 and report["responses_received"] == 0 and report["requests_attempted"] == 1
+
+
+def test_an_error_body_that_echoes_the_key_is_refused_whole_before_status_mapping(monkeypatch):
+    p = provider(error(401, "bad key " + KEY), monkeypatch)
+    r = asyncio.run(p.generate(request()))
+    assert r.error == "credential_reflected" and r.content == ""
+
+
+def test_a_model_catalog_that_echoes_the_key_is_refused_whole(monkeypatch):
+    p = provider(lambda req: httpx.Response(200, json={"data": [{"id": MODEL}, {"id": KEY}]}), monkeypatch)
+    out = asyncio.run(p.probe())
+    assert out["status"] == "credential_reflected" and "available_models" not in out
+    assert KEY not in json.dumps(out) and p.usage_report()["credential_reflected"] == 1
+
+
+@pytest.mark.parametrize("body", [[], None, 42, "x", {"data": None}, {"data": 42}, {"data": "deepseek-flash"}, {"object": "list"}])
+def test_malformed_model_catalog_shapes_are_typed_failures_never_exceptions(monkeypatch, body):
+    p = provider(lambda req: httpx.Response(200, json=body), monkeypatch)
+    assert asyncio.run(p.probe())["status"] == "transport"
+
+
+@pytest.mark.parametrize("body", [[], None, 42, "x", {"error": None}, {"error": []}, {"error": {"message": None}}, {"error": {"message": True}}])
+def test_nonobject_error_bodies_still_map_by_status(monkeypatch, body):
+    p = provider(lambda req: httpx.Response(400, json=body), monkeypatch)
+    r = asyncio.run(p.generate(request()))
+    assert r.error == "bad_request" and r.content == ""
+
+
+@pytest.mark.parametrize("payload", [{"choices": [None]}, {"choices": ["x"]}, {"choices": [{"message": "x"}]},
+                                     {"choices": [{"message": None}]}, {"choices": {}}, [], None, "x", 7])
+def test_malformed_completion_shapes_are_typed_failures_never_exceptions(monkeypatch, payload):
+    p = provider(lambda req: httpx.Response(200, json=payload), monkeypatch)
+    r = asyncio.run(p.generate(request()))
+    assert r.error == "transport" and r.content == ""
+
+
+# ----------------------------------------------------------------------------- seat 2/3's follow-up (#27952): escaped reflections
+
+ESCAPED_KEY = "".join(f"\\u{ord(c):04x}" for c in KEY)  # the whole key as JSON \uXXXX escapes; decodes to the exact key
+
+
+def _raw(status: int, text: str):
+    return lambda req: httpx.Response(status, content=text.encode(), headers={"content-type": "application/json"})
+
+
+@pytest.mark.parametrize("finish", ["stop", "length"])
+def test_a_completion_whose_content_is_the_escaped_key_is_refused_whole(monkeypatch, finish):
+    # Outer-level escaping: the raw bytes never contain the key; r.json() decodes it into `content`.
+    text = f'{{"model": "{MODEL}", "choices": [{{"message": {{"content": "{ESCAPED_KEY}"}}, "finish_reason": "{finish}"}}]}}'
+    assert KEY not in text
+    p = provider(_raw(200, text), monkeypatch)
+    r = asyncio.run(p.generate(request()))
+    assert r.error == "credential_reflected" and r.content == "" and KEY not in json.dumps(r.model_dump(mode="json"))
+    assert p.usage_report()["credential_reflected"] == 1
+
+
+@pytest.mark.parametrize("finish", ["stop", "length"])
+def test_a_decision_document_inside_content_that_escapes_the_key_is_refused_whole(monkeypatch, finish):
+    # Nested escaping: `content` is itself a JSON document whose string value escapes the key; the runtime would
+    # decode it again when parsing the decision. httpx serialises the backslashes, so the raw bytes hold `\\u00..`.
+    inner = '{"schema_version": 1, "kind": "finish", "statement": "' + ESCAPED_KEY + '", "completion_claim": "done"}'
+    p = provider(completion(inner, finish=finish), monkeypatch)
+    r = asyncio.run(p.generate(request()))
+    assert r.error == "credential_reflected" and r.content == ""
+
+
+def test_an_escaped_key_in_a_catalog_id_or_error_message_is_refused_whole(monkeypatch):
+    p = provider(_raw(200, f'{{"data": [{{"id": "{MODEL}"}}, {{"id": "{ESCAPED_KEY}"}}]}}'), monkeypatch)
+    out = asyncio.run(p.probe())
+    assert out["status"] == "credential_reflected" and KEY not in json.dumps(out)
+    p = provider(_raw(429, f'{{"error": {{"message": "slow down {ESCAPED_KEY}"}}}}'), monkeypatch)
+    r = asyncio.run(p.generate(request()))
+    assert r.error == "credential_reflected" and r.content == ""
+
+
+def test_the_decoded_scan_is_exact_and_bounded(monkeypatch):
+    from peb.providers.deepseek import _contains_secret
+
+    assert _contains_secret({"a": [{"b": KEY}]}, KEY)
+    assert _contains_secret({KEY: 1}, KEY)  # object keys too
+    assert _contains_secret('{"x": "' + ESCAPED_KEY + '"}', KEY)  # a string that is a JSON document
+    assert _contains_secret('"' + ESCAPED_KEY + '"', KEY)  # a bare JSON string
+    assert not _contains_secret({"a": KEY[:20], "b": KEY[20:]}, KEY)  # split reflections are out of scope, by design
+    def escaped_levels(n: int) -> str:
+        # Innermost level: the key as \uXXXX escapes (a JSON string literal decoding to the key). Each outer level is
+        # the plain JSON encoding of the level below (backslashes doubled), so the key is literal at NO level and
+        # n decodes are needed to reach it. Growth is ~2x per level, not 6x (a 6x build is gigabytes by level ten).
+        text = '"' + "".join(f"\\u{ord(c):04x}" for c in KEY) + '"'
+        for _ in range(n - 1):
+            text = json.dumps(text)
+        assert KEY not in text
+        return text
+
+    assert _contains_secret(escaped_levels(3), KEY)  # within the bound: found through three decodes
+    assert not _contains_secret(escaped_levels(12), KEY)  # beyond the bound: the scan stops (bounded, not recursive forever)
+    # A legitimate completion that merely mentions the word "key" is not a reflection.
+    p = provider(completion('{"kind": "finish", "statement": "the key result is 6"}'), monkeypatch)
+    assert asyncio.run(p.generate(request())).error is None

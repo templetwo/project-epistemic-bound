@@ -95,7 +95,7 @@ def test_response_echo_cannot_copy_authentication_key_into_run_or_export(tmp_pat
         body = json.dumps({"model": MODEL, "choices": [
             {"message": {"content": content}, "finish_reason": finish}]})
         if escaped:
-            encoded = "".join("\\u%04x" % ord(char) for char in credential)
+            encoded = "".join(f"\\u{ord(char):04x}" for char in credential)
             body = body.replace(credential, encoded)
         return httpx.Response(200, content=body, headers={"content-type": "application/json"})
 
