@@ -15,10 +15,12 @@
   These are software fixture/capture tests. No S2 effect acceptance or model run
   is claimed. See `docs/receipts/S2-codex-fixtures.json` for measured receipt.
 - Fixture slice `5e07b5b`: reviewed ACCEPT by seat 1/3, integrated in main50225fe.
-- Boundary review `b8a3af1`: CHANGES REQUESTED (#27507, #27513). See
-  `docs/reviews/S2-b8a3af1-boundary-codex.md`. Four evidence regressions reproduced
-  the failures on an isolated combined tree; dependency skips on this lane until
-  the boundary/runtime merge. No passing EVID-01 or S2 claim.
+- Latest boundary re-review `ef1878b`: CHANGES REQUESTED (#27539). See
+  `docs/reviews/S2-ef1878b-boundary-codex.md`; independent author suite 109 passed.
+  Remaining: historical resource and receipt-content integrity, plus runtime
+  read-receipt persistence. Six corruption regressions + one anchor control are
+  explicit dependency skips here. Integrated clean baseline currently fails.
+  No passing EVID-01 or S2 claim. Prior test/review commit: `60956b5`.
 - Review needed: seat 1/3 reviews this test/review commit. Seat 3/3 fixes its
   verification, read scope, fixture wiring, package imports and replay findings.
 - Next: integrate real executor-backed assertions for BEHAV-01..03, then complete

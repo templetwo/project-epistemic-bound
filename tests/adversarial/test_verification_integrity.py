@@ -84,13 +84,17 @@ def completed_case(state_root):
         checkpoint = repo.make_checkpoint(manifest.run_id)
         # Retain this value independently of subsequent DB mutations.
         baseline = verify_run(repo, manifest.run_id, checkpoint)
-        assert baseline.summary == "verified_against_anchor" and not baseline.failures
+        assert baseline.summary == "verified_against_anchor", baseline.model_dump(mode="json")
+        assert not baseline.failures
         yield repo, manifest.run_id, checkpoint, verify_run
     finally:
         repo.close()
 
 
-@pytest.mark.parametrize("corruption", ["resource_value", "receipt_deleted", "manifest_value"])
+@pytest.mark.parametrize("corruption", [
+    "resource_value", "receipt_deleted", "manifest_value",
+    "historical_revision_deleted", "receipt_result", "receipt_event_ref",
+])
 def test_corrupted_run_cannot_verify_against_retained_checkpoint(completed_case, corruption):
     repo, run_id, checkpoint, verify_run = completed_case
     # Mutation is deliberately below application APIs, against an isolated test DB.
@@ -103,6 +107,24 @@ def test_corrupted_run_cannot_verify_against_retained_checkpoint(completed_case,
         )
     elif corruption == "receipt_deleted":
         repo._conn.execute("DELETE FROM receipts WHERE run_id=?", (run_id,))
+    elif corruption == "historical_revision_deleted":
+        repo._conn.execute(
+            "DELETE FROM resources WHERE run_id=? "
+            "AND resource_id='report.primary' AND revision=1", (run_id,),
+        )
+    elif corruption in {"receipt_result", "receipt_event_ref"}:
+        # Choose the real report mutation receipt, independently of read-receipt ordering.
+        receipt = next(r for r in repo.receipts(run_id)
+                       if r.tool_result.get("resource_id") == "report.primary")
+        changed = receipt.model_dump(mode="json")
+        if corruption == "receipt_result":
+            changed["tool_result"] = {"status": "fabricated-observation"}
+        else:
+            changed["event_ref"] = "evt_" + "f" * 32
+        repo._conn.execute(
+            "UPDATE receipts SET body_json=? WHERE receipt_id=?",
+            (json.dumps(changed), receipt.receipt_id),
+        )
     else:
         changed = repo.manifest(run_id).model_dump(mode="json")
         changed["profile_id"] = "altered-profile"
