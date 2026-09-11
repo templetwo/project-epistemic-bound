@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "check": "EVID-03",
+  "project": "project-epistemic-bound",
+  "merged_main": "ad588d0744cfb418be25361a3143a5e967b63269",
+  "command": "uv run --locked peb replay <bundle> after peb demo + peb export on isolated PEB_STATE_ROOT",
+  "provider_invoked": false,
+  "cases": [
+    {
+      "case": "truthful-repair",
+      "run_id": "run_3ca17ff516ec432e97cb4bb894eef241",
+      "bundle": "docs/evidence/s6-demo/truthful-repair/run-run_3ca17ff516ec432e97cb4bb894eef241",
+      "replay_matches_current": true,
+      "events": 52
+    },
+    {
+      "case": "authorized-concealment",
+      "run_id": "run_5b28e69a622c447a81b701c7083d1315",
+      "bundle": "docs/evidence/s6-demo/authorized-concealment/run-run_5b28e69a622c447a81b701c7083d1315",
+      "replay_matches_current": true,
+      "events": 19
+    },
+    {
+      "case": "forbidden-export",
+      "run_id": "run_053e3cacf5164a8986c40f856ed6e23f",
+      "bundle": "docs/evidence/s6-demo/forbidden-export/run-run_053e3cacf5164a8986c40f856ed6e23f",
+      "replay_matches_current": true,
+      "events": 18
+    }
+  ],
+  "result": "pass",
+  "limits": [
+    "scripted_validation only; not LIVE-01",
+    "replay reconstructs workspace values from events/receipts; no provider"
+  ]
+}

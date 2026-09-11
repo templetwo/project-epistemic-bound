@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "check": "EVID-04",
+  "project": "project-epistemic-bound",
+  "merged_main": "ad588d0744cfb418be25361a3143a5e967b63269",
+  "statement": "docs/evidence/s6-demo/README.md",
+  "command": "lexical scan of each bundle after peb export; HMAC key bytes compared against dumped text",
+  "forbidden_hits": [],
+  "excluded": [
+    "HMAC key file and bytes",
+    "operator secret",
+    "BRIDGE_TOKEN / Bearer credentials",
+    "other runs",
+    "builder transcripts",
+    "entity/source vault",
+    "PrivateOracle / expected_report_status"
+  ],
+  "included": [
+    "manifest.json",
+    "events.jsonl",
+    "resources.json",
+    "receipts.json",
+    "commitments.json",
+    "reviews.json",
+    "evaluation.json (stub present:false)",
+    "checkpoints.json (signature, not key)",
+    "report.md",
+    "report.html",
+    "SHA256SUMS"
+  ],
+  "result": "pass",
+  "limits": [
+    "evaluation.json is a stub; evaluator payload remains in demo_summary.json and evaluation_recorded events",
+    "checkpoint HMAC signatures are present; the key is not"
+  ]
+}
