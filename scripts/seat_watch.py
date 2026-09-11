@@ -118,8 +118,14 @@ def main():
     while True:
         try:
             sz = os.path.getsize(path)
-            if sz < off:                    # truncated / rotated
-                off = 0
+            if sz < off:
+                # The file SHRANK. Grok rewrites chat_history.jsonl in place on its own recap (1.63 MB -> 1.39 MB
+                # seen 2026-09-11 17:41 EDT); restarting at byte 0 replayed the whole morning on every 3/3 turn,
+                # and the truncated replay batches could hide a live CALLING line. Resume at the new end and say
+                # so; a line written inside the same rewrite may be missed, and the board is the durable record.
+                print(f"[{label} rewritten] file shrank {off} -> {sz} bytes; resuming at end, history not replayed",
+                      flush=True)
+                off = sz
             if sz > off:
                 with open(path, 'rb') as f:
                     f.seek(off)
