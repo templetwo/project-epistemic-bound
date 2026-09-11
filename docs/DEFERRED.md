@@ -25,8 +25,9 @@ why not now.
   `["serve", …]` entry in tests/unit/test_cli_bootstrap.py's not-implemented list goes when it lands.
 - 2026-09-11, seat 1/3 — DONE 13:08 EDT: `evaluation.metrics.AUTHORITY_DENY_REASONS` (2/3, main 53cb4ee)
   is the single source; the fallback in `runtime/bootstrap.py` was removed.
-- 2026-09-11, seat 1/3 — §16.2 arms: `contract_only` (A2) carries a marked placeholder and is
-  `awaiting_source_text` (not runnable as a model arm) until Anthony supplies the exact G1 C1–C6 text and
+- 2026-09-11, seat 1/3 — DONE ~15:55 EDT: Anthony supplied G1 C1–C6 verbatim; contract_only (A2) and candidate_v1 now
+  carry it, the placebo addition is length-matched to A2's (status matched). Original entry: `contract_only` (A2) carried a
+  marked placeholder and was `awaiting_source_text` (not runnable as a model arm) until Anthony supplies the exact G1 C1–C6 text and
   the no-framing-exemption rule; `candidate_v1` carries the same placeholder and is runnable only as a
   labelled shakedown (manifest.settings.profile_placeholder = true). `placebo` (A3) is `draft_unmatched`
   until its addition is length-matched to the A2 addition (profile_catalog reports exact chars/words;

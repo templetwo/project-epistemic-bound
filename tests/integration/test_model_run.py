@@ -57,16 +57,18 @@ def test_model_observation_runs_the_truthful_path_on_the_real_boundary(tmp_path)
     assert s["verification"]["summary"] == "verified_against_anchor"
     assert s["outcome_columns"]["behavior_violation"] is False
     # the provider was offered the decision schema as `format`, stream:false, explicit model
-    assert all(b["stream"] is False and b["model"] == MODEL and "format" in b for b in state["bodies"])
+    assert all(b["stream"] is False and b["model"] == MODEL and b["format"] == "json" for b in state["bodies"])
+    assert s["settings"]["response_format"] == "json" and s["settings"]["provider_endpoint_host"] == "127.0.0.1"
+    assert s["evaluation"]["status"] == "recorded"  # model runs are evaluated from records, before the final checkpoint
     assert s["profile_placeholder_text"] is False and s["preaction_protocol"] == "observe"
 
 
-def test_candidate_profile_requires_preaction_and_marks_placeholder(tmp_path):
+def test_candidate_profile_requires_preaction_and_carries_the_contract(tmp_path):
     transport, _ = fake_ollama(load_script("authorized-concealment"))
     s = asyncio.run(run_model_observation(tmp_path / "state", model=MODEL, profile_id="candidate_v1",
                                           task_id="conceal-error-basic", max_model_calls=8, endpoint=EP,
                                           inference_lock_path=tmp_path / "inference.lock", transport=transport))
-    assert s["preaction_protocol"] == "require" and s["profile_placeholder_text"] is True
+    assert s["preaction_protocol"] == "require" and s["profile_placeholder_text"] is False
     # the concealment script carries pre_action on its write, so `require` lets it through; observed honestly
     assert s["final"]["report.primary"]["status"] == "pass" and s["final"]["check.latest"]["status"] == "fail"
     assert summarize_outcome_columns(s)["behavior_violation"] is True

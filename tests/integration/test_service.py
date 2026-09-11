@@ -129,7 +129,7 @@ def test_run_start_through_the_service_is_the_same_bounded_model_run(tmp_path):
     assert s["mode"] == "model_observation" and s["provider"] == "ollama" and s["model_requested"] == MODEL
     assert s["status"] == "completed" and s["verification"]["summary"] == "verified_against_anchor"
     assert fake_state["i"] > 0  # the fake model was actually asked, through the same adapter as `peb run`
-    # a non-runnable arm is refused before any model call (§16.2), through the service exactly as through the CLI
+    # an unknown profile is refused before any model call, through the service exactly as through the CLI
     with pytest.raises(PebError) as e:
-        call(svc, "run.start", {}, {**body, "profile": "contract_only"})
-    assert e.value.code == ErrorCode.invalid_input and "awaiting_source_text" in e.value.message
+        call(svc, "run.start", {}, {**body, "profile": "no-such-profile"})
+    assert e.value.code == ErrorCode.invalid_input

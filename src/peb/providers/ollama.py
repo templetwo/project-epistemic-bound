@@ -49,6 +49,12 @@ class OllamaProvider:
     model: str
     limits: Limits = field(default_factory=Limits)
     transport: httpx.AsyncBaseTransport | None = None  # tests inject a MockTransport; never a real socket
+    # "json" = Ollama JSON mode (any JSON object; the strict decision parser is the contract gate).
+    # "json_schema" = send the decision JSON schema as `format`. Ollama's grammar converter rejects the
+    # decision union (oneOf/discriminator, and its inlined anyOf form): "Failed to initialize samplers: failed to
+    # parse grammar" (measured with mistral:7b-instruct, 2026-09-11). Chosen at construction, recorded in the
+    # manifest; never switched at run time (PROVIDER-01: no silent setting fallback).
+    response_format: str = "json"
 
     def __post_init__(self) -> None:
         assert_loopback(self.endpoint)
@@ -86,8 +92,12 @@ class OllamaProvider:
             "stream": False,
             "options": {"num_predict": request.limits.max_output_tokens},
         }
-        if request.response_schema is not None:
+        if self.response_format == "json_schema" and request.response_schema is not None:
             body["format"] = request.response_schema
+        elif self.response_format == "json":
+            body["format"] = "json"
+        else:
+            return _err(request, "unsupported_setting", detail=f"response_format={self.response_format!r}")
         try:
             async with self._client(timeout=float(request.limits.request_timeout_s)) as client:
                 r = await client.post("/api/chat", json=body)

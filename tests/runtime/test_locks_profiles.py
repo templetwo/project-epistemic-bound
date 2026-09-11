@@ -33,21 +33,21 @@ def test_inference_lock_is_machine_wide_across_state_roots(tmp_path):
 
 def test_profiles_load_with_honest_placeholder_marking():
     cand = load_profile("candidate_v1")
-    assert str(cand.preaction_protocol) == "require" and cand.placeholder is True
+    assert str(cand.preaction_protocol) == "require" and cand.placeholder is False  # G1 C1–C6 supplied 2026-09-11
     base = load_profile("baseline")
     assert str(base.preaction_protocol) == "observe" and base.placeholder is False
     assert cand.hash != base.hash and len(cand.hash) == 64
     with pytest.raises(PebError) as ei:
         load_profile("not-a-profile")
     assert ei.value.code == ErrorCode.invalid_input
-    placebo = load_profile("placebo")  # written in S5 as a draft; unmatched until the contract text exists
-    assert placebo.status == "draft_unmatched" and placebo.placeholder is False
+    placebo = load_profile("placebo")  # length-matched to the A2 addition once the contract text arrived
+    assert placebo.status == "matched" and placebo.placeholder is False
     with pytest.raises(PebError) as ei2:
         load_profile("baseline", root=pytest.importorskip("pathlib").Path("/nonexistent-profile-root"))
     assert ei2.value.code == ErrorCode.not_implemented  # a missing file is still not_implemented, never a default
     cat = {p["profile_id"]: p for p in profile_catalog()}
     assert set(cat) == set(PROFILE_IDS) and cat["tone_only"]["status"] == "control"
-    assert cat["candidate_v1"]["placeholder_text"] is True
+    assert cat["candidate_v1"]["placeholder_text"] is False
 
 
 # ----------------------------------------------------------------------------- §16.2 arms (S5, seat 1/3)
@@ -68,16 +68,21 @@ def test_all_five_profiles_load_with_their_declared_arms_and_statuses():
     for pid in ("tone_only", "contract_only", "placebo"):
         assert cat[pid]["preaction_protocol"] == "observe" and cat[pid]["addition_chars"] > 0
     assert cat["baseline"]["addition_chars"] == 0 and cat["candidate_v1"]["addition_chars"] is None
-    # what may run as a model arm, and what may not
-    assert cat["contract_only"]["status"] == "awaiting_source_text" and cat["contract_only"]["runnable"] is False
-    assert cat["contract_only"]["placeholder_text"] is True
-    assert cat["placebo"]["status"] == "draft_unmatched" and cat["placebo"]["runnable"] is True
-    assert cat["tone_only"]["runnable"] is True and cat["baseline"]["runnable"] is True
-    assert cat["candidate_v1"]["runnable"] is True and cat["candidate_v1"]["placeholder_text"] is True
+    # every arm is now a real arm: the G1 C1–C6 text is in; the placebo addition is length-matched to A2's
+    for pid in ("baseline", "tone_only", "contract_only", "placebo", "candidate_v1"):
+        assert cat[pid]["runnable"] is True and cat[pid]["placeholder_text"] is False, pid
+    assert cat["contract_only"]["status"] == "control" and cat["placebo"]["status"] == "matched"
+    assert abs(cat["placebo"]["addition_chars"] - cat["contract_only"]["addition_chars"]) <= 0.02 * cat["contract_only"]["addition_chars"]
+    assert "C1. Non-playful scope." in load_profile("contract_only").text and "C6. Correction before self-defense" in load_profile("candidate_v1").text
+    assert require_runnable(load_profile("contract_only")).arm == "A2"
+    # a not-runnable status is still refused (the guard stays for any future placeholder arm)
+    from peb.contracts import PreactionProtocol
+    from peb.runtime.profiles import Profile
+    stub = Profile(profile_id="contract_only", status="awaiting_source_text", text="x", preaction_protocol=PreactionProtocol.observe,
+                   source="s", placeholder=True, arm="A2")
     with pytest.raises(PebError) as e:
-        require_runnable(load_profile("contract_only"))
+        require_runnable(stub)
     assert e.value.code == ErrorCode.invalid_input and "awaiting_source_text" in e.value.message
-    assert require_runnable(load_profile("tone_only")).arm == "A1"
     # EVAL-03: the arms differ exactly as declared
     assert check_arm_hygiene() == []
 

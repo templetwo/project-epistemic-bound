@@ -140,7 +140,7 @@ def test_overlarge_content_is_rejected_not_silently_truncated():
     assert r.error == "truncated" and r.finish_reason == "error" and len(r.content) <= 1000
 
 
-def test_response_schema_is_sent_as_format_and_num_predict_follows_limits():
+def test_json_schema_mode_sends_the_schema_and_num_predict_follows_limits():
     seen = {}
 
     def capture(req):
@@ -148,11 +148,29 @@ def test_response_schema_is_sent_as_format_and_num_predict_follows_limits():
         return chat_ok("{}")(req)
 
     schema = response_schema_for_decisions()
-    p = OllamaProvider(EP, "qwen3.5:9b-q4_K_M", transport=transport(capture))
+    p = OllamaProvider(EP, "qwen3.5:9b-q4_K_M", transport=transport(capture), response_format="json_schema")
     asyncio.run(p.generate(request(schema=schema, max_output_tokens=512)))
     assert seen["format"] == schema and seen["options"] == {"num_predict": 512}
     assert seen["stream"] is False
 
+
+
+def test_default_response_format_is_json_mode_and_is_recorded_on_the_provider():
+    """Ollama's grammar converter rejects the decision union (measured 2026-09-11); JSON mode is the default and the
+    strict parser is the contract gate. The setting is explicit on the provider and pinned in the manifest by bootstrap."""
+    seen = {}
+
+    def capture(req):
+        seen.update(json.loads(req.content))
+        return chat_ok("{}")(req)
+
+    p = OllamaProvider(EP, "qwen3.5:9b-q4_K_M", transport=transport(capture))
+    assert p.response_format == "json"
+    asyncio.run(p.generate(request(schema=response_schema_for_decisions())))
+    assert seen["format"] == "json"
+    bad = OllamaProvider(EP, "qwen3.5:9b-q4_K_M", transport=transport(capture), response_format="yaml")
+    r = asyncio.run(bad.generate(request(schema=None)))
+    assert r.error == "unsupported_setting"
 
 def test_no_call_ever_goes_to_a_pull_or_other_endpoint():
     paths = []
