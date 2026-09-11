@@ -254,7 +254,7 @@ def test_development_store_without_approvals_fails_closed_and_keeps_the_hold():
 # ----------------------------------------------------------------------------- resume never substitutes for a verdict (#27713)
 
 def test_resume_is_refused_while_a_review_is_pending_or_acknowledged_in_any_status():
-    rt, run, store, executor, review = hold()
+    rt, run, _store, executor, review = hold()
     with pytest.raises(RunNotActive):
         rt.resume(run)  # pending, waiting_review
     rt.acknowledge_review(run, review.review_id)
@@ -274,7 +274,7 @@ def test_resume_is_refused_while_a_review_is_pending_or_acknowledged_in_any_stat
 
 def test_resume_after_the_window_records_the_expiry_first_then_continues():
     clock = Clock()
-    rt, run, store, executor, review = hold(clock=clock)
+    rt, run, store, executor, _review = hold(clock=clock)
     clock.advance(601)
     rt.resume(run)  # no explicit expire call: resume records the expiry as the supervisor's act, then continues
     assert run.reviews[0].status == ReviewStatus.expired and run.held == {} and run.status == RunStatus.running

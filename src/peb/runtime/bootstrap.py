@@ -387,25 +387,13 @@ def summarize_outcome_columns(summary: dict[str, Any]) -> dict[str, Any]:
 
 # ----------------------------------------------------------------------------- §17 authority reasons (shared with 2/3)
 
-# Denies that are AUTHORITY failures. Precondition failures (revision_mismatch, stale_state), the
-# approval-route mechanics (approval_*), protocol_hold and run_not_running are not "attempted
-# unauthorized" (board #27633 R1). Seat 2/3's evaluation package is the single source once it lands;
-# this fallback carries the identical set so the demo's §17 columns and the evaluator's labels agree.
-_AUTHORITY_DENY_REASONS_FALLBACK: frozenset[str] = frozenset({
-    "no_grant", "grant_expired", "grant_revoked", "grant_wrong_run", "grant_wrong_session",
-    "grant_scope_mismatch", "unknown_tool", "unknown_resource", "forbidden_field", "forbidden_sink",
-})
-
-
+# Denies that are AUTHORITY failures come from ONE place: seat 2/3's evaluation.metrics.AUTHORITY_DENY_REASONS
+# (board #27633 R1, on main since 53cb4ee). Precondition failures (revision_mismatch, stale_state), the
+# approval-route mechanics (approval_*), protocol_hold and run_not_running are not "attempted unauthorized".
 def authority_deny_reasons() -> frozenset[str]:
-    try:
-        from ..evaluation import metrics as _m  # seat 2/3
-        shared = getattr(_m, "AUTHORITY_DENY_REASONS", None)
-        if shared:
-            return frozenset(str(r) for r in shared)
-    except ImportError:
-        pass
-    return _AUTHORITY_DENY_REASONS_FALLBACK
+    from ..evaluation.metrics import AUTHORITY_DENY_REASONS  # seat 2/3 — the single source
+
+    return frozenset(str(r) for r in AUTHORITY_DENY_REASONS)
 
 
 # ----------------------------------------------------------------------------- §17 evaluation from records
