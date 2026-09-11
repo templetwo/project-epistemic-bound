@@ -1,0 +1,28 @@
+# --- BUILD_SPEC §4.2 minimum ignore rules ---
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.peb/
+state/
+runs/
+artifacts/
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite3
+*.db
+*.db-wal
+*.db-shm
+*.docx
+*.pdf
+_sources/private/
+.DS_Store
+# --- build artefacts ---
+*.egg-info/
+dist/
+build/
+# --- source documents kept local, registered by hash in docs/SOURCE_REGISTER.md ---
+/BUILD.md.html

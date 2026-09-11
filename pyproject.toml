@@ -1,0 +1,36 @@
+[project]
+name = "project-epistemic-bound"
+version = "0.1.0.dev0"
+description = "Local workroom and evaluation workbench for an operational AI agent whose assignments, commitments, proposed actions, permissions, corrections and observed effects can be inspected. v0.1 is synthetic-workspace only."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "pydantic>=2.7,<3",
+  "fastapi>=0.110",
+  "uvicorn>=0.29",
+  "httpx>=0.27",
+]
+
+[project.scripts]
+peb = "peb.cli:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "ruff>=0.5",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/peb"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
