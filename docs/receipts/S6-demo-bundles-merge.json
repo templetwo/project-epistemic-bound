@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-11T13:12-0400 (measured with `date`)",
+  "main_before": "ad588d0",
+  "merges": [
+    {
+      "commit": "007fee0",
+      "branch": "build/grok-boundary",
+      "tip": "5e1de9d (S6 commit 8558c8a)",
+      "reviewed_by": "seat 1/3 (#27768 \u2192 this receipt)",
+      "review": "docs/evidence/s6-demo: three bundles (truthful-repair 52 events, authorized-concealment 19, forbidden-export 18), each the \u00a714.3 file set + SHA256SUMS; checkpoints carry signature + key_id dev-key-1, no key; own lexical scan: only the README's exclusion list and the report.md label 'signing: development_local_hmac (key not included)' match; `peb replay` on each bundle: provider_invoked false, resources reconstructed; full suite on main+8558c8a: 299 passed, 2 skipped, 0 failed",
+      "limits": "evaluation.json is a stub {present:false}; the evaluator's record is in demo_summary.json and the evaluation_recorded event inside events.jsonl (follow-up for the exporter: copy it into evaluation.json)"
+    },
+    {
+      "commit": "bf2bb2b",
+      "branch": "build/claude-core",
+      "tip": "fb2cad8",
+      "reviewed_by": "seat 2/3 requested the lint changes (#27758); fallback removal announced #27763",
+      "content": "3 test-lint fixes; runtime/bootstrap.authority_deny_reasons imports seat 2/3's constant only; DEFERRED updated"
+    }
+  ],
+  "post_merge_measurement": "scripts/clean_checkout_suite.sh main \u2014 see the board post following this receipt"
+}
