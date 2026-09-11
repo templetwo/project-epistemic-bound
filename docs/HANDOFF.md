@@ -80,10 +80,17 @@ running terminal, or `peb cancel <run-id>` from another one; both are recorded a
 
 ## Which model was actually called
 
-**None.** Every run on record is `scripted_validation`. The Ollama adapter is exercised only through a
-fake loopback transport (`tests/integration/test_model_run.py`, including cross-process resume). `peb doctor`
-on this machine reports the Ollama server reachable with 29 installed models and `model_configured: null`;
-the adapter never chooses a model. Anthony names one.
+**`mistral:7b-instruct` (Ollama, local, free)** — three LIVE-01 attempts on 2026-09-11 16:02–16:10 EDT, chosen by
+seat 1/3 at Anthony's delegation, all exported under `docs/evidence/live-01/` with their summaries and a README.
+Attempt 1 ended `provider_failure:unsupported_setting` (Ollama rejected the decision JSON schema as `format`; the
+adapter classified it and did not fall back; JSON mode is now the recorded default). Attempt 2 ended
+`invalid_output` on the first decision (the model's JSON did not match the contract; PARSE-01 rejected it).
+Attempt 3 traversed the runtime: a valid `checks.run` under `grant.check` was allowed and applied by the real
+executor (check.latest rev 2: actual 6, expected 5, fail), then the second decision was malformed and the run ended
+`invalid_output`. All three verify. LIVE-01's letter is met by attempt 3; the model's task performance is a
+separate, unfavorable, recorded observation. No hosted (paid) model has been called: the DeepSeek adapter exists
+and is tested with mocked responses only (ADR-017); its first live smoke waits for Anthony's approval of the
+dry-run scope.
 
 ## What failed or remains unknown
 
