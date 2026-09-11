@@ -714,7 +714,10 @@ class ModelResponse(StrictModel):
                    "truncated", "model_id_mismatch", "transport",
                    # ADR-017 (hosted provider): distinct, never a fallback trigger
                    "key_absent", "auth_error", "insufficient_balance", "rate_limited", "server_error",
-                   "bad_request", "input_limit_exceeded"] | None = None
+                   "bad_request", "input_limit_exceeded",
+                   # ADR-017 addendum (seat 2/3's adversarial control #27918): a response body of ANY status that
+                   # contains the exact credential is refused whole; nothing from it reaches the record
+                   "credential_reflected"] | None = None
 
 
 # ----------------------------------------------------------------------------- protocols (§8.3)

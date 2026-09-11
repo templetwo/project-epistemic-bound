@@ -10,7 +10,8 @@
   word "json" in the prompt; the adapter REFUSES (`unsupported_setting`) rather than editing the prompt.
 - Distinct outcomes, no fallback of any kind: key_absent, auth_error, insufficient_balance, rate_limited,
   unknown_model, timeout, server_unreachable, server_error, bad_request, truncated (finish_reason length: content
-  kept, never parsed), model_id_mismatch, transport.
+  kept, never parsed), model_id_mismatch, transport, credential_reflected (a response body of ANY status that contains
+  the exact key is refused whole: nothing from it reaches the record; `usage_report()` counts it — 2/3's #27918).
 - Usage: prompt/completion tokens and prompt-cache hit/miss tokens when the server returns them; None when it does
   not (never 0). `usage_report()` exposes the totals for the run summary (ModelResponse is frozen).
 The returned content is untrusted data: it goes to `parse_decision`, nowhere else.
@@ -74,7 +75,7 @@ class DeepSeekProvider:
                                        "prompt_tokens": None, "completion_tokens": None,
                                        "prompt_cache_hit_tokens": None, "prompt_cache_miss_tokens": None,
                                        "thinking_requested": self.thinking, "thinking_effective": None,
-                                       "refused_before_send": 0}
+                                       "refused_before_send": 0, "credential_reflected": 0}
 
     def __repr__(self) -> str:  # the key is never shown, only whether one is present
         return (f"DeepSeekProvider(endpoint={self.endpoint!r}, model={self.model!r}, "
@@ -83,6 +84,15 @@ class DeepSeekProvider:
     @property
     def key_present(self) -> bool:
         return bool(self._key)
+
+    def _reflects_key(self, r: httpx.Response) -> bool:
+        """True when the raw response body (whatever its status) contains the exact credential. Such a body is
+        evidence of an echoing or hostile upstream: the adapter keeps NOTHING from it — not the content, not the
+        model id, not the error text — and the refusal is counted so it is visible in the run summary (#27918)."""
+        if self._key and self._key in r.content.decode("utf-8", errors="replace"):
+            self._usage["credential_reflected"] += 1
+            return True
+        return False
 
     def usage_report(self) -> dict[str, Any]:
         return dict(self._usage)
@@ -108,13 +118,20 @@ class DeepSeekProvider:
             return {**base, "status": "timeout"}
         except httpx.HTTPError as e:
             return {**base, "status": "server_unreachable", "detail": type(e).__name__}
+        if self._reflects_key(r):
+            return {**base, "status": "credential_reflected"}
         code = _status_code(r.status_code)
         if code is not None:
             return {**base, "status": code}
         try:
-            ids = sorted(str(m.get("id")) for m in r.json().get("data", []) if isinstance(m, dict))
-        except (ValueError, AttributeError):
+            body = r.json()
+        except ValueError:
             return {**base, "status": "transport", "detail": "non-JSON /models body"}
+        data = body.get("data") if isinstance(body, dict) else None
+        if not isinstance(data, list):
+            # An object with a list `data` is the only shape the catalog may take; anything else is a typed failure.
+            return {**base, "status": "transport", "detail": "malformed /models body"}
+        ids = sorted(str(m.get("id")) for m in data if isinstance(m, dict))
         if self.model not in ids:
             return {**base, "status": "unknown_model", "available_models": ids[:50]}
         return {**base, "status": "ok", "available_models": ids[:50]}
@@ -153,6 +170,8 @@ class DeepSeekProvider:
             return _err(request, "timeout")
         except httpx.HTTPError as e:
             return _err(request, "server_unreachable", type(e).__name__)
+        if self._reflects_key(r):
+            return _err(request, "credential_reflected")
         if 300 <= r.status_code < 400:
             return _err(request, "transport", "redirect refused")
         code = _status_code(r.status_code)
@@ -164,15 +183,17 @@ class DeepSeekProvider:
         try:
             data = r.json()
             choice = data["choices"][0]
+            if not isinstance(choice, dict) or not isinstance(choice.get("message"), dict):
+                return _err(request, "transport", "malformed completion body")
             content = choice["message"]["content"]
             finish = choice.get("finish_reason")
-        except (ValueError, KeyError, IndexError, TypeError):
+        except (ValueError, KeyError, IndexError, TypeError, AttributeError):
             return _err(request, "transport", "malformed completion body")
         resolved = data.get("model")
         usage = data.get("usage") if isinstance(data.get("usage"), dict) else None
         self._bump(usage)
         # Effective thinking: DeepSeek returns reasoning_content when thinking ran. Record what actually happened.
-        effective = "enabled" if choice.get("message", {}).get("reasoning_content") else "disabled"
+        effective = "enabled" if choice["message"].get("reasoning_content") else "disabled"
         self._usage["thinking_effective"] = effective if self._usage["thinking_effective"] in (None, effective) else "mixed"
         if not isinstance(content, str):
             return _err(request, "transport", "content is not a string")
@@ -221,12 +242,15 @@ def _status_code(status: int) -> str | None:
 
 
 def _error_message(r: httpx.Response) -> str:
+    """Classification only (never persisted): the message of an OpenAI-style error object, else `http <status>`.
+    Every body shape — a list, null, a number, an object without `error` — yields a string, never an exception."""
     try:
-        err = r.json().get("error")
-        msg = err.get("message") if isinstance(err, dict) else err
-        return str(msg)[:200] if msg else f"http {r.status_code}"
+        body = r.json()
     except ValueError:
         return f"http {r.status_code}"
+    err = body.get("error") if isinstance(body, dict) else None
+    msg = err.get("message") if isinstance(err, dict) else err
+    return str(msg)[:200] if isinstance(msg, (str, int, float)) and not isinstance(msg, bool) and msg else f"http {r.status_code}"
 
 
 def _err(request: ModelRequest, code: str, detail: str | None = None) -> ModelResponse:

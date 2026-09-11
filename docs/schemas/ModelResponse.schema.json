@@ -44,7 +44,8 @@
             "rate_limited",
             "server_error",
             "bad_request",
-            "input_limit_exceeded"
+            "input_limit_exceeded",
+            "credential_reflected"
           ],
           "type": "string"
         },

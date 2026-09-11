@@ -197,3 +197,49 @@ def test_usage_fields_stay_none_when_the_server_omits_them(monkeypatch):
     assert u["requests_attempted"] == 1 and u["responses_received"] == 1
     assert u["responses_with_usage"] == 0 and u["responses_without_usage"] == 1  # missing usage is visible, never zero
     assert u["prompt_tokens"] is None and u["completion_tokens"] is None
+
+
+# ----------------------------------------------------------------------------- seat 2/3's adversarial findings (#27918)
+
+@pytest.mark.parametrize("finish", ["stop", "length"])
+def test_a_completion_that_echoes_the_key_is_refused_whole(monkeypatch, finish):
+    p = provider(completion('{"kind": "finish", "statement": "' + KEY + '"}', finish=finish), monkeypatch)
+    r = asyncio.run(p.generate(request()))
+    assert r.error == "credential_reflected" and r.content == "" and r.model_resolved is None
+    assert KEY not in json.dumps(r.model_dump(mode="json"))
+    report = p.usage_report()
+    assert report["credential_reflected"] == 1 and report["responses_received"] == 0 and report["requests_attempted"] == 1
+
+
+def test_an_error_body_that_echoes_the_key_is_refused_whole_before_status_mapping(monkeypatch):
+    p = provider(error(401, "bad key " + KEY), monkeypatch)
+    r = asyncio.run(p.generate(request()))
+    assert r.error == "credential_reflected" and r.content == ""
+
+
+def test_a_model_catalog_that_echoes_the_key_is_refused_whole(monkeypatch):
+    p = provider(lambda req: httpx.Response(200, json={"data": [{"id": MODEL}, {"id": KEY}]}), monkeypatch)
+    out = asyncio.run(p.probe())
+    assert out["status"] == "credential_reflected" and "available_models" not in out
+    assert KEY not in json.dumps(out) and p.usage_report()["credential_reflected"] == 1
+
+
+@pytest.mark.parametrize("body", [[], None, 42, "x", {"data": None}, {"data": 42}, {"data": "deepseek-flash"}, {"object": "list"}])
+def test_malformed_model_catalog_shapes_are_typed_failures_never_exceptions(monkeypatch, body):
+    p = provider(lambda req: httpx.Response(200, json=body), monkeypatch)
+    assert asyncio.run(p.probe())["status"] == "transport"
+
+
+@pytest.mark.parametrize("body", [[], None, 42, "x", {"error": None}, {"error": []}, {"error": {"message": None}}, {"error": {"message": True}}])
+def test_nonobject_error_bodies_still_map_by_status(monkeypatch, body):
+    p = provider(lambda req: httpx.Response(400, json=body), monkeypatch)
+    r = asyncio.run(p.generate(request()))
+    assert r.error == "bad_request" and r.content == ""
+
+
+@pytest.mark.parametrize("payload", [{"choices": [None]}, {"choices": ["x"]}, {"choices": [{"message": "x"}]},
+                                     {"choices": [{"message": None}]}, {"choices": {}}, [], None, "x", 7])
+def test_malformed_completion_shapes_are_typed_failures_never_exceptions(monkeypatch, payload):
+    p = provider(lambda req: httpx.Response(200, json=payload), monkeypatch)
+    r = asyncio.run(p.generate(request()))
+    assert r.error == "transport" and r.content == ""

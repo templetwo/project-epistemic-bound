@@ -61,3 +61,19 @@ runs only after Anthony has seen this report and said so.
 - The service seam's `run.start` accepts `provider: "ollama"|"deepseek"` and `max_output_tokens`; the web layer
   must show the dry-run scope before offering a paid start (UI rule for seat 2/3).
 - `docs/HANDOFF.md` "Which model was actually called" changes as smokes are run; see `docs/evidence/live-01/`.
+
+## Addendum 2026-09-11 — after seat 2/3's adversarial controls (#27918) and its preview seam request (#27923)
+
+- `ModelResponse.error` gains `credential_reflected` (additive, the same class as the codes above; schemas
+  regenerated). A response body of ANY status that contains the exact credential is refused whole: the adapter keeps
+  nothing from it (content `""`, model unresolved, no catalog ids), the runtime never parses it, and
+  `usage_report()["credential_reflected"]` counts it. By design the key never enters a prompt, so a reflection can
+  only come from the provider side; the adapter still refuses to let it out. The check is an exact-string scan of
+  the raw body before any parsing; partial reflections are out of its scope and are stated as such.
+- Malformed shapes are typed failures, never exceptions: a `/models` body that is not an object carrying a list
+  `data` is `transport`; an error body of any non-object shape still maps by HTTP status; a completion whose choice
+  or message is not an object is `transport`.
+- `WorkroomService` gains `run.preview` (§15 table): exactly `peb run … --dry-run` for the SAME endpoint
+  `run.start` would use, with optional operator rates; it returns the scope and the normalized `run.start`
+  payload so the web layer can bind a one-use preview token to it and refuse a hosted start without a matching
+  preview (2/3's UI rule). No network, no store, no state-root change.
