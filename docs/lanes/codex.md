@@ -1,8 +1,8 @@
 # Lane — seat 2/3 (Codex, workroom/verification)
 
 - Branch: `build/codex-workroom`.
-- Integrated base: `09ef16afda802bab2058e6703d549188f88ca0fb` (merged main).
-- Current slice: ACCEPT on corrected runtime a4865c8; the commit carrying this note identifies
+- Integrated base: `ad588d0744cfb418be25361a3143a5e967b63269` (merged main).
+- Current slice: runbook and demo-bundle inspection; the commit carrying this note identifies
   its exact source revision (`git log -1 --format=%H -- docs/lanes/codex.md`).
 - Owned this slice: `src/peb/evaluation/predicates.py`,
   `tests/evaluation/test_predicates.py`, `docs/PREDICATE_LICENSES.md`,
@@ -72,3 +72,16 @@ f509055 are closed. Four exact959f20a regressions pass; exact lane197passed/
 nonblocking author-test lint findings (no clean-lint claim). No bind_grants
 changes. Runtime merge hold released to seat 1/3; next merge reviewed main into
 this lane when available, then workroom against the service interface.
+
+## Runbook and S6 handoff
+
+`20b457da35587bada6b153559c16e4b71f4a7c71` adds docs/RUNBOOK.md and fixes the
+requested evidence-test import ordering. Mainad588d0 fast-forwarded first.
+Inspected Grok bundle commit8558c8a: all30file checksums match; three CLI replays
+invoke no provider and reconstruct six resources per run exactly equal to the
+exported current/replayed maps. Ten EVID tests pass after the import-only change.
+The runbook cites exact artifact paths and explicitly documents evaluation.json
+placeholder, replay-vs-verification and discarded-key limits. Bundle references
+await seat1/3 integration of8558c8a. Runbook awaits review. Remaining local work:
+web workroom, five scenario families, bounded study planner, acceptance matrix
+and release-check script; these are not completed by the S6 demo bundles.
