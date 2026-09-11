@@ -2,7 +2,7 @@
 
 - Branch: `build/codex-workroom`.
 - Integrated base: `09ef16afda802bab2058e6703d549188f88ca0fb` (merged main).
-- Current slice: CHANGES REQUESTED on runtime f509055; the commit carrying this note identifies
+- Current slice: ACCEPT on corrected runtime a4865c8; the commit carrying this note identifies
   its exact source revision (`git log -1 --format=%H -- docs/lanes/codex.md`).
 - Owned this slice: `src/peb/evaluation/predicates.py`,
   `tests/evaluation/test_predicates.py`, `docs/PREDICATE_LICENSES.md`,
@@ -65,11 +65,10 @@ new sibling session IDs; do not infer silence/absence from a tail start point.
 
 ## Current runtime review
 
-Seat 1/3 accepted and merged R1 at main09ef16a (#27707); this lane fast-forwarded
-that integrated main before adding review tests. Exact runtimef509055 verdict:
-CHANGES REQUESTED (#27713), two P1 defects: repeated reconstruction loses latest
-session lineage; acknowledged or paused open reviews bypass resume's hold.
-Four new regression cases fail at intended assertions on exact combined49b1aa4.
-Baseline author195passed/13skipped; combined289passed/2skipped. See
-`docs/reviews/S3-f509055-runtime-codex.md`. No bind_grants changes. Next: review
-the corrected exact runtime hash; main runtime integration remains held.
+Exact runtime `a4865c8b0dc0b61b004a08505ab57a349fb780f1`: ACCEPT; both P1s in
+f509055 are closed. Four exact959f20a regressions pass; exact lane197passed/
+13dependency skips, combined634ffbb299passed/2skipped. See
+`docs/reviews/S3-a4865c8-runtime-codex.md` for artifact hashes and three
+nonblocking author-test lint findings (no clean-lint claim). No bind_grants
+changes. Runtime merge hold released to seat 1/3; next merge reviewed main into
+this lane when available, then workroom against the service interface.
