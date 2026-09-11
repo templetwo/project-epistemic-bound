@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-import importlib.util
 
 import pytest
 
@@ -14,7 +13,8 @@ REV = "rev_" + "b" * 32
 
 
 def test_operation_set_matches_interfaces_section_15():
-    assert {o.value for o in Operation} == {"health.get", "demo.run", "run.start", "run.preview", "profiles.list", "runs.list",
+    assert {o.value for o in Operation} == {"health.get", "demo.run", "run.start", "run.preview", "run.create", "run.step",
+                                            "run.begin", "commitment.accept", "commitment.revise", "profiles.list", "runs.list",
                                             "run.get", "run.pause", "run.cancel", "run.resume", "review.list",
                                             "review.resolve", "evidence.verify", "evidence.export"}
 
@@ -33,6 +33,9 @@ def test_operation_set_matches_interfaces_section_15():
     ("run.preview", {"provider": "deepseek", "model": "m", "profile": "baseline", "input_rate": 0, "output_rate": 1}),
     ("run.preview", {"provider": "deepseek", "model": "m", "profile": "baseline", "rates_provenance": "x"}),
     ("run.preview", {"provider": "scripted", "model": "m", "profile": "baseline"}),
+    ("run.create", {"provider": "ollama", "model": "m", "profile": "baseline", "confirm": True}),  # create never confirms
+    ("run.create", {"provider": "ollama", "profile": "baseline"}),                                   # no model, ever
+    ("run.create", {"provider": "ollama", "model": "m", "profile": "baseline", "input_rate": 1.0}),   # rates are preview-only
 ])
 def test_launch_payloads_are_strict(op, payload):
     with pytest.raises(PebError) as e:
@@ -101,14 +104,23 @@ def test_valid_requests_parse_without_touching_any_store():
     assert body.checkpoint is None
 
 
-@pytest.mark.skipif(importlib.util.find_spec("peb.storage.repository") is not None,
-                    reason="boundary lane present: the real path is covered in tests/integration/test_service.py")
-def test_without_the_boundary_lane_every_store_operation_is_not_implemented(tmp_path):
+def test_without_the_boundary_lane_every_store_operation_is_not_implemented(tmp_path, monkeypatch):
+    """Absent-boundary coverage through an isolated seam (the lane is integrated on main, so the condition is
+    simulated, never skipped — seat 2/3's #28017): the lane loader raises the same not_implemented the real
+    loader raises when `peb.storage`/`peb.workspace` cannot be imported. The real path is covered in
+    tests/integration/test_service.py."""
+    from peb.runtime import bootstrap
+
+    def absent_lanes():
+        raise PebError(ErrorCode.not_implemented, "boundary lane absent (simulated)", {"missing": "peb.storage.repository"})
+
+    monkeypatch.setattr(bootstrap, "_lanes", absent_lanes)
     svc = WorkroomService(tmp_path / "state")
     for op, ids, payload in (("runs.list", {}, {}), ("run.get", {"run_id": RUN}, {}), ("review.list", {"run_id": RUN}, {})):
         with pytest.raises(PebError) as e:
             asyncio.run(svc.request(op, ids, payload))
         assert e.value.code == ErrorCode.not_implemented
+    assert not (tmp_path / "state").exists()  # nothing was created on the way to the honest failure
 
 
 def test_run_preview_is_the_same_endpoint_dry_run_and_touches_nothing(tmp_path, monkeypatch):
@@ -135,3 +147,25 @@ def test_run_preview_is_the_same_endpoint_dry_run_and_touches_nothing(tmp_path, 
         asyncio.run(svc.request("run.preview", {}, {**sel, "profile": "no-such-profile"}))
     assert e.value.code == ErrorCode.invalid_input
     assert not root.exists()
+
+
+@pytest.mark.parametrize("op,ids,payload", [
+    ("run.step", {"run_id": RUN}, {}), ("run.begin", {"run_id": RUN}, {"confirm": False}),
+    ("run.step", {}, {"confirm": True}), ("commitment.accept", {"run_id": RUN}, {}),
+    ("commitment.revise", {"run_id": RUN, "commitment_id": "cmt_" + "a" * 32}, {"text": ""}),
+    ("commitment.revise", {"run_id": RUN, "commitment_id": "cmt_" + "a" * 32}, {"text": "x", "grant": "please"}),
+    ("commitment.accept", {"run_id": RUN, "commitment_id": "not an id"}, {}),
+])
+def test_lifecycle_and_commitment_requests_are_strict(op, ids, payload):
+    with pytest.raises(PebError) as e:
+        parse_request(op, ids, payload)
+    assert e.value.code == ErrorCode.invalid_input
+
+
+def test_lifecycle_and_commitment_requests_parse_without_touching_any_store():
+    op, ids, body = parse_request("run.create", {}, {"provider": "deepseek", "model": "deepseek-flash", "profile": "baseline"})
+    assert op is Operation.run_create and body.max_model_calls == 16 and not hasattr(body, "confirm")
+    op, ids, body = parse_request("run.step", {"run_id": RUN}, {"confirm": True})
+    assert op is Operation.run_step and ids == {"run_id": RUN} and body.confirm is True
+    op, ids, body = parse_request("commitment.revise", {"run_id": RUN, "commitment_id": "cmt_" + "a" * 32}, {"text": "new"})
+    assert op is Operation.commitment_revise and body.text == "new" and body.note == ""

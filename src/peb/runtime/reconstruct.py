@@ -77,20 +77,7 @@ def reconstruct_run(repo: Any, run_id: str, task: TaskSpec) -> tuple[RunRecord, 
             comp = p.get("completion")
             if isinstance(comp, dict):
                 run.completion = dict(comp)
-        elif ev.event_type == EventType.commitment_proposed:
-            c = Commitment(commitment_id=p["commitment_id"], kind=CommitmentKind(p.get("kind", "undertaking")),
-                           origin=Actor(p.get("origin", "subject")), run_id=run_id, task_id=task.task_id,
-                           text=str(p.get("text") or ""), status=CommitmentStatus.proposed,
-                           predecessor_id=p.get("predecessor_id"),
-                           revision_authorized_by=Actor(ev.actor) if p.get("revision") else None, created_at=ev.ts)
-            ledger._by_run[run_id].append(c)
-            if p.get("predecessor_id"):
-                ledger._by_run[run_id] = [x.model_copy(update={"status": CommitmentStatus.superseded})
-                                          if x.commitment_id == p["predecessor_id"] else x for x in ledger._by_run[run_id]]
-        elif ev.event_type == EventType.commitment_accepted:
-            cid = p.get("commitment_id")
-            ledger._by_run[run_id] = [x.model_copy(update={"status": CommitmentStatus.accepted}) if x.commitment_id == cid else x
-                                      for x in ledger._by_run[run_id]]
+        # commitments: rebuilt below from the same events (commitments_from_events), never from memory
 
     # History recorded with the LAST model_request is what the subject saw before its last decision;
     # results of that last step live in the events after it. Replay them onto the history the same way
@@ -101,6 +88,7 @@ def reconstruct_run(repo: Any, run_id: str, task: TaskSpec) -> tuple[RunRecord, 
     run.step = steps_started
     run.model_calls = steps_started
     run.reviews = reviews_from_events(run_id, events)
+    ledger._by_run[run_id] = commitments_from_events(run_id, task.task_id, events)
     ledger._corrections[run_id] = corrections_from_events(events)
     run.held = held_proposals_from_events(run_id, events, run.reviews, policy_version=run.policy_version,
                                           initial_session=manifest.subject_session_id)
@@ -111,6 +99,37 @@ def reconstruct_run(repo: Any, run_id: str, task: TaskSpec) -> tuple[RunRecord, 
     # Report claims (for reversal-vs-update) come from applied report writes in the chain.
     _rebuild_report_claims(run, events)
     return run, ledger
+
+
+def commitments_from_events(run_id: str, task_id: str, events: list[StoredEvent]) -> list[Commitment]:
+    """The commitment ledger as the EVENT CHAIN records it: subject proposals (mirrored by the runtime when the
+    executor persists them), operator undertakings, revisions (a new id whose predecessor becomes superseded)
+    and acceptances. Status comes from events, never from the executor's insert-only table, so an operator's
+    cross-process accept/revise (WorkroomService commitment.accept/revise) is visible everywhere a run is read."""
+    ledger: list[Commitment] = []
+    for ev in events:
+        p = ev.payload
+        if ev.event_type == EventType.commitment_proposed:
+            c = Commitment(commitment_id=p["commitment_id"], kind=CommitmentKind(p.get("kind", "undertaking")),
+                           origin=Actor(p.get("origin", "subject")), run_id=run_id, task_id=task_id,
+                           text=str(p.get("text") or ""), status=CommitmentStatus.proposed,
+                           predecessor_id=p.get("predecessor_id"),
+                           revision_authorized_by=Actor(ev.actor) if p.get("revision") else None, created_at=ev.ts)
+            if p.get("predecessor_id"):
+                # A revision inherits its predecessor's status (the ledger records it on the event; an older
+                # event without it inherits from the rebuilt predecessor), then the predecessor is superseded.
+                prior = next((x for x in ledger if x.commitment_id == p["predecessor_id"]), None)
+                inherited = p.get("status") or (str(prior.status) if prior is not None else None)
+                if inherited in (CommitmentStatus.accepted.value, CommitmentStatus.proposed.value):
+                    c = c.model_copy(update={"status": CommitmentStatus(inherited)})
+                ledger = [x.model_copy(update={"status": CommitmentStatus.superseded})
+                          if x.commitment_id == p["predecessor_id"] else x for x in ledger]
+            ledger.append(c)
+        elif ev.event_type == EventType.commitment_accepted:
+            cid = p.get("commitment_id")
+            ledger = [x.model_copy(update={"status": CommitmentStatus.accepted}) if x.commitment_id == cid else x
+                      for x in ledger]
+    return ledger
 
 
 def active_manifest(genesis: Any, events: list[StoredEvent]) -> Any:

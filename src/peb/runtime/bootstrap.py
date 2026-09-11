@@ -23,6 +23,7 @@ from ..contracts import (
     ProviderKind,
     RunManifest,
     RunMode,
+    RunStatus,
     SnapshotHashes,
     new_id,
     utcnow,
@@ -168,8 +169,11 @@ def _provider_settings(provider: Any, endpoint: str, limits: Limits) -> dict[str
 async def compose_model_run(state_root: str | os.PathLike[str], *, model: str, profile_id: str, task_id: str,
                             max_model_calls: int, endpoint: str, frame: str = "ordinary",
                             transport: Any = None, provider_kind: str = "ollama",
-                            max_output_tokens: int | None = None, max_input_chars: int | None = None) -> ComposedRun:
-    """§20 `peb run --provider ollama|deepseek`: explicit model, explicit profile, real probe first, no fallback."""
+                            max_output_tokens: int | None = None, max_input_chars: int | None = None,
+                            probe: bool = True) -> ComposedRun:
+    """§20 `peb run --provider ollama|deepseek`: explicit model, explicit profile, real probe first, no fallback.
+    `probe=False` (service `run.create`, ADR-018): validate config and record the run with NO network at all;
+    the first `run.step`/`run.begin` probes before any model call."""
     from ..providers.ollama import response_schema_for_decisions
     from .profiles import load_profile, require_runnable
 
@@ -179,9 +183,10 @@ async def compose_model_run(state_root: str | os.PathLike[str], *, model: str, p
     limits = Limits(max_model_calls=max_model_calls, **({"max_output_tokens": max_output_tokens} if max_output_tokens else {}))
     provider = _build_provider(provider_kind, endpoint=endpoint, model=model, limits=limits, transport=transport,
                                max_input_chars=max_input_chars)
-    probe = await provider.probe()
-    if probe["status"] != "ok":
-        raise PebError(ErrorCode.provider_unavailable, f"{provider_kind} provider not ready: {probe['status']}", probe)
+    if probe:
+        readiness = await provider.probe()
+        if readiness["status"] != "ok":
+            raise PebError(ErrorCode.provider_unavailable, f"{provider_kind} provider not ready: {readiness['status']}", readiness)
     settings = _provider_settings(provider, endpoint, limits)
     return compose_run(state_root, provider=provider, provider_kind=ProviderKind(provider_kind), mode=RunMode.model_observation,
                        model_requested=model, model_resolved=None,  # resolved id is recorded per response
@@ -302,10 +307,12 @@ async def run_model_observation(state_root: str | os.PathLike[str], *, model: st
 
 
 def _summary(rt: SubjectRuntime, run: RunRecord, repo: Any, *, label: str, model: str | None, profile_id: str,
-             extra: dict[str, Any] | None = None) -> dict[str, Any]:
+             extra: dict[str, Any] | None = None, evaluate: bool = True) -> dict[str, Any]:
     run_id = run.manifest.run_id
+    # A run that is still active (stepped one decision at a time) is not evaluated mid-flight: the evaluation is
+    # recorded once, at a boundary, exactly as `peb run` records it.
     evaluation = _maybe_evaluate(repo, run_id, fixture_id=str(run.manifest.settings.get("fixture_id", "conceal-error-basic")),
-                                 frame=str(run.manifest.settings.get("frame", "ordinary")))
+                                 frame=str(run.manifest.settings.get("frame", "ordinary"))) if evaluate else None
     events = repo.events(run_id)
     checkpoint = repo.make_checkpoint(run_id)
     verification = repo.verify(run_id, checkpoint)
@@ -401,6 +408,181 @@ async def resume_run(state_root: str | os.PathLike[str], run_id: str, *, endpoin
                                    "state_root": str(state_root)})
         finally:
             repo.close()
+
+
+CREATED_LABEL = ("CREATED MODEL OBSERVATION — recorded, not started: no probe, no model call, nothing left this "
+                 "machine. run.step / run.begin probe the configured provider before any model call. mode=model_observation.")
+STEP_LABEL = ("STEPPED MODEL OBSERVATION — at most one subject decision and its permitted effect, under the same "
+              "gate, executor and recorder as the bounded loop; the run stays where the record says it is. mode=model_observation.")
+BEGIN_LABEL = ("MODEL OBSERVATION — begun on a recorded run and run to a boundary by the same bounded loop `peb run` "
+               "runs after creating. mode=model_observation.")
+
+
+async def create_model_run(state_root: str | os.PathLike[str], *, model: str, profile_id: str, task_id: str,
+                           max_model_calls: int, endpoint: str, transport: Any = None, provider_kind: str = "ollama",
+                           max_output_tokens: int | None = None, max_input_chars: int | None = None) -> dict[str, Any]:
+    """§15 `POST /api/runs` as its own operation (ADR-018): validate config (task, runnable profile, limits,
+    endpoint policy, explicit model id) and RECORD the run. No probe, no model call, no inference lock: nothing
+    leaves this machine. The first `run.step`/`run.begin` probes and then infers. The store's initial status is
+    `running` (seat 3/3's S2 store inserts it so); what distinguishes a created run is `started: False` — zero
+    model calls and a chain that holds only the genesis event."""
+    from .locks import SupervisorLock
+
+    with SupervisorLock(state_root):
+        composed = await compose_model_run(state_root, model=model, profile_id=profile_id, task_id=task_id,
+                                           provider_kind=provider_kind, max_output_tokens=max_output_tokens,
+                                           max_input_chars=max_input_chars, max_model_calls=max_model_calls,
+                                           endpoint=endpoint, transport=transport, probe=False)
+        run, repo = composed.run, composed.repo
+        try:
+            run_id = run.manifest.run_id
+            return {"label": CREATED_LABEL, "run_id": run_id, "mode": str(run.manifest.mode),
+                    "provider": str(run.manifest.provider_kind), "model_requested": model, "model_resolved": [],
+                    "profile_id": profile_id, "subject_session_id": run.manifest.subject_session_id,
+                    "settings": dict(run.manifest.settings), "status": str(repo.run_status(run_id)),
+                    "events": len(repo.events(run_id)), "model_calls": 0, "started": False, "network": "none",
+                    "state_root": str(state_root)}
+        finally:
+            repo.close()
+
+
+async def _reopen_model_run(repo: Any, run_id: str, *, ollama_endpoint: str, deepseek_endpoint: str,
+                            transport: Any) -> tuple[SubjectRuntime, RunRecord, Any, Any]:
+    """Rebuild a recorded model run for another decision: records → RunRecord + ledger, the provider from the
+    manifest (same kind, model, limits and settings; never a different model), a real probe, the same gate,
+    executor and recorder. Scripted runs are not stepped across processes (the script position is not a record)."""
+    from ..providers.ollama import response_schema_for_decisions
+    from .profiles import load_profile
+    from .reconstruct import reconstruct_run
+
+    Monitor, _ResourceSnapshot, _Repository, Executor, load_fixture, _ = _lanes()
+    manifest = repo.manifest(run_id)
+    if manifest.provider_kind not in (ProviderKind.ollama, ProviderKind.deepseek):
+        raise PebError(ErrorCode.not_implemented,
+                       "scripted runs are not stepped across processes: the script position is not a record",
+                       {"provider_kind": str(manifest.provider_kind)})
+    fixture = load_fixture(str(manifest.settings.get("fixture_id", "conceal-error-basic")))
+    frame_case = fixture.frame_case(str(manifest.settings.get("frame", "ordinary")))
+    run, ledger = reconstruct_run(repo, run_id, fixture.task)
+    profile = load_profile(manifest.profile_id)
+    endpoint = ollama_endpoint if manifest.provider_kind == ProviderKind.ollama else deepseek_endpoint
+    max_in = manifest.settings.get("max_input_chars")
+    provider = _build_provider(str(manifest.provider_kind), endpoint=endpoint, model=str(manifest.model_requested),
+                               limits=manifest.limits, transport=transport,
+                               max_input_chars=max_in if isinstance(max_in, int) and not isinstance(max_in, bool) else None)
+    readiness = await provider.probe()
+    if readiness["status"] != "ok":
+        raise PebError(ErrorCode.provider_unavailable, f"{manifest.provider_kind} provider not ready: {readiness['status']}", readiness)
+    monitor = Monitor(repo.signing_key())
+    executor = Executor(repo, monitor)
+    context = AllowlistContextBuilder(profile_text=profile.text, tool_catalog_text=render_tool_catalog(),
+                                      presentation=frame_case["presentation_wrapper"], ledger=ledger)
+    rt = SubjectRuntime(provider=provider, monitor=monitor, executor=executor, store=repo, reader=repo,
+                        context_builder=context, ledger=ledger, response_schema=response_schema_for_decisions())
+    return rt, run, provider, profile
+
+
+async def step_run(state_root: str | os.PathLike[str], run_id: str, *, ollama_endpoint: str, deepseek_endpoint: str,
+                   inference_lock_path: str | None = None, transport: Any = None, max_steps: int | None = 1) -> dict[str, Any]:
+    """§15 `POST /api/runs/{id}/step` (max_steps=1) and `/start` (max_steps=None, ADR-018): continue a run that
+    the record says is `created` or `running`. Paused / waiting_review runs go through `resume_run` (explicit
+    resume issues a new subject session and re-reads grants); terminal runs are never stepped. Holds the
+    state-root supervisor lock and the MacBook-wide inference lock, like `peb run`."""
+    from .locks import InferenceLock, SupervisorLock
+
+    _, _, Repository, _, _, _ = _lanes()
+    with SupervisorLock(state_root), InferenceLock(inference_lock_path):
+        repo = Repository.open(state_root)
+        try:
+            if not repo.run_exists(run_id):
+                raise PebError(ErrorCode.invalid_input, "unknown run_id", {"run_id": run_id})
+            status = repo.run_status(run_id)
+            if status in (RunStatus.paused, RunStatus.waiting_review):
+                raise PebError(ErrorCode.conflict, f"run is {status}; use run.resume (an explicit resume issues a new "
+                               "subject session and re-reads grants)", {"status": str(status)})
+            if status not in (RunStatus.created, RunStatus.running):
+                raise PebError(ErrorCode.conflict, f"run is {status}; a terminal run is not stepped", {"status": str(status)})
+            rt, run, provider, profile = await _reopen_model_run(repo, run_id, ollama_endpoint=ollama_endpoint,
+                                                                 deepseek_endpoint=deepseek_endpoint, transport=transport)
+            before = run.model_calls  # each step makes at most one model call; the terminal decision does not advance run.step
+            if max_steps is None:
+                await rt.run_bounded(run)
+            else:
+                for _ in range(max_steps):
+                    if not run.active:
+                        break
+                    await rt.step(run)
+            manifest = repo.manifest(run_id)
+            return _summary(rt, run, repo, label=BEGIN_LABEL if max_steps is None else STEP_LABEL,
+                            model=manifest.model_requested, profile_id=manifest.profile_id, evaluate=not run.active,
+                            extra={"steps_taken": run.model_calls - before, "settings": dict(run.manifest.settings),
+                                   "provider_usage": provider.usage_report() if hasattr(provider, "usage_report") else None,
+                                   "profile_placeholder_text": profile.placeholder,
+                                   "evaluation_note": None if not run.active else "not evaluated: the run is still active",
+                                   "state_root": str(state_root)})
+        finally:
+            repo.close()
+
+
+def _commitment_error(e: Exception) -> PebError:
+    msg = str(e)
+    code = ErrorCode.invalid_input if msg.startswith("unknown commitment") else ErrorCode.conflict
+    return PebError(code, msg, {"commitment_error": msg})
+
+
+def _commitment_op(state_root: str | os.PathLike[str], run_id: str, commitment_id: str, note: str, act):
+    """Shared shape of the two operator commitment operations: single writer (supervisor lock), the ledger
+    rebuilt from RECORDS, task-scope check, the act, the event appended to the store, the result read back."""
+    from .commitments import CommitmentError
+    from .locks import SupervisorLock
+    from .reconstruct import reconstruct_run
+
+    _, _, Repository, _, load_fixture, _ = _lanes()
+    with SupervisorLock(state_root):
+        repo = Repository.open(state_root)
+        try:
+            if not repo.run_exists(run_id):
+                raise PebError(ErrorCode.invalid_input, "unknown run_id", {"run_id": run_id})
+            manifest = repo.manifest(run_id)
+            fixture = load_fixture(str(manifest.settings.get("fixture_id", "conceal-error-basic")))
+            run, ledger = reconstruct_run(repo, run_id, fixture.task)
+            try:
+                existing = ledger.get(run_id, commitment_id)
+            except CommitmentError as e:
+                raise _commitment_error(e) from e
+            if existing.task_id != run.task.task_id:
+                raise PebError(ErrorCode.invalid_input, "commitment is not scoped to this run's task",
+                               {"commitment_task": existing.task_id, "run_task": run.task.task_id})
+
+            def append(event_type: EventType, actor: Actor, payload: dict[str, Any]):
+                return _append_event(repo, run_id, event_type, actor, {**payload, **({"note": note} if note else {})})
+
+            grants_before = [g.grant_id for g in repo.grants(run_id)]
+            try:
+                changed = act(ledger, append)
+            except CommitmentError as e:
+                raise _commitment_error(e) from e
+            ev = repo.events(run_id)[-1]
+            return {"commitment": changed.model_dump(mode="json"),
+                    "event": {"seq": ev.seq, "event_type": str(ev.event_type), "event_id": ev.event_id},
+                    "status": str(repo.run_status(run_id)),
+                    "authority": {"grants_unchanged": [g.grant_id for g in repo.grants(run_id)] == grants_before,
+                                  "note": "a commitment confers no permission; acceptance and revision change no grant or policy (§9.3)"}}
+        finally:
+            repo.close()
+
+
+def accept_commitment(state_root: str | os.PathLike[str], run_id: str, commitment_id: str, *, note: str = "") -> dict[str, Any]:
+    """§15 `POST /api/runs/{id}/commitments/{cid}/accept`: only the operator accepts a PROPOSED undertaking."""
+    return _commitment_op(state_root, run_id, commitment_id, note,
+                          lambda ledger, append: ledger.accept(run_id, commitment_id, by=Actor.operator, append=append))
+
+
+def revise_commitment(state_root: str | os.PathLike[str], run_id: str, commitment_id: str, text: str, *, note: str = "") -> dict[str, Any]:
+    """§15 `POST /api/runs/{id}/commitments/{cid}/revise`: operator-authorized, version-checked supersession
+    (the path names the exact current version; a superseded/withdrawn id conflicts); prior text preserved."""
+    return _commitment_op(state_root, run_id, commitment_id, note,
+                          lambda ledger, append: ledger.revise(run_id, commitment_id, text, authorized_by=Actor.operator, append=append))
 
 
 def _sum_or_none(values) -> int | None:

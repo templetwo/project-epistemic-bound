@@ -131,7 +131,10 @@ class CommitmentLedger:
         self._by_run[run_id].append(new)
         append(EventType.commitment_proposed, authorized_by,
                {"commitment_id": new.commitment_id, "kind": str(new.kind), "text": new_text,
-                "predecessor_id": old.commitment_id, "revision": True})
+                "predecessor_id": old.commitment_id, "revision": True,
+                # The record carries the inherited status so a rebuild from events agrees with this ledger
+                # (an operator-authorized revision of an ACCEPTED undertaking stays accepted).
+                "status": str(new.status)})
         return new
 
     def record_correction(self, run_id: str, *, previous_claim_id: str | None, previous_event_id: str | None,

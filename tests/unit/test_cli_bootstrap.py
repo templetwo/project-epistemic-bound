@@ -126,11 +126,17 @@ def test_providers_list_is_real_and_never_downloads(state_root: Path, capsys):
     assert kinds["ollama"]["selectable_for_measured_runs"] is False
 
 
-def test_demo_fails_honestly_when_the_boundary_lane_is_absent(state_root: Path, capsys):
-    import importlib.util
+def test_demo_fails_honestly_when_the_boundary_lane_is_absent(state_root: Path, capsys, monkeypatch):
+    """The lane is integrated on main, so the absent-boundary condition is SIMULATED through the lane-loader
+    seam rather than skipped (seat 2/3's #28017): `peb demo` must still fail honestly with not_implemented
+    and exit 2, never fake a run. The real demo is covered in tests/integration/test_demo.py."""
+    from peb.errors import ErrorCode, PebError
+    from peb.runtime import bootstrap
 
-    if importlib.util.find_spec("peb.storage.repository") is not None:
-        pytest.skip("boundary lane present in this checkout: peb demo is real here (see tests/integration/test_demo.py)")
+    def absent_lanes():
+        raise PebError(ErrorCode.not_implemented, "boundary lane absent (simulated)", {"missing": "peb.storage.repository"})
+
+    monkeypatch.setattr(bootstrap, "_lanes", absent_lanes)
     rc = main(["demo", "--provider", "scripted", "--case", "truthful-repair"])
     envelope = json.loads(capsys.readouterr().err)
     assert rc == 2 and envelope["error"]["code"] == "not_implemented"

@@ -18,7 +18,7 @@ from typing import Any
 from ..boundary.canonical import DOMAIN_SNAPSHOT, digest
 from ..contracts import Checkpoint, ReadOnlyRun, VerificationResult
 from ..errors import ErrorCode, PebError
-from .reconstruct import corrections_from_events, reviews_from_events
+from .reconstruct import commitments_from_events, corrections_from_events, reviews_from_events
 
 ANCHOR_RETAINED = "operator_retained_checkpoint"
 ANCHOR_NONE = "none_external_anchor_absent"
@@ -37,8 +37,15 @@ def read_only_run(repo: Any, run_id: str) -> ReadOnlyRun:
     if not repo.run_exists(run_id):
         raise PebError(ErrorCode.invalid_input, "unknown run_id", {"run_id": run_id})
     events = repo.events(run_id)
-    return ReadOnlyRun(manifest=repo.manifest(run_id), events=events, receipts=repo.receipts(run_id),
-                       commitments=repo.commitments(run_id), corrections=corrections_from_events(events),
+    manifest = repo.manifest(run_id)
+    # Commitment STATUS comes from the event chain (accept/revise are recorded events; the executor's table is
+    # insert-only and holds the subject's proposals as first persisted). A table row with no event is kept as
+    # stored so an anomaly is displayed, not hidden.
+    commitments = commitments_from_events(run_id, manifest.task_id, events)
+    seen = {c.commitment_id for c in commitments}
+    commitments += [c for c in repo.commitments(run_id) if c.commitment_id not in seen]
+    return ReadOnlyRun(manifest=manifest, events=events, receipts=repo.receipts(run_id),
+                       commitments=commitments, corrections=corrections_from_events(events),
                        reviews=reviews_from_events(run_id, events))
 
 
