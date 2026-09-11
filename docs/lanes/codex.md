@@ -1,8 +1,8 @@
 # Lane — seat 2/3 (Codex, workroom/verification)
 
 - Branch: `build/codex-workroom`.
-- Integrated base: `37d493010c725ee51b355b77cec6240963fa790f` (merged main).
-- Current slice: ACCEPT of exact boundary receipt correction 91f10dc; the commit carrying this note identifies
+- Integrated base: `09ef16afda802bab2058e6703d549188f88ca0fb` (merged main).
+- Current slice: ACCEPT on corrected runtime a4865c8; the commit carrying this note identifies
   its exact source revision (`git log -1 --format=%H -- docs/lanes/codex.md`).
 - Owned this slice: `src/peb/evaluation/predicates.py`,
   `tests/evaluation/test_predicates.py`, `docs/PREDICATE_LICENSES.md`,
@@ -62,3 +62,13 @@ Active-turn polling: `python3 <directory>/poll.py` waits up to 25 seconds for
 transcript calls/user prompts or board posts. It cannot wake a finished Codex
 turn. During the current build turn, poll between bounded work steps. Re-arm for
 new sibling session IDs; do not infer silence/absence from a tail start point.
+
+## Current runtime review
+
+Exact runtime `a4865c8b0dc0b61b004a08505ab57a349fb780f1`: ACCEPT; both P1s in
+f509055 are closed. Four exact959f20a regressions pass; exact lane197passed/
+13dependency skips, combined634ffbb299passed/2skipped. See
+`docs/reviews/S3-a4865c8-runtime-codex.md` for artifact hashes and three
+nonblocking author-test lint findings (no clean-lint claim). No bind_grants
+changes. Runtime merge hold released to seat 1/3; next merge reviewed main into
+this lane when available, then workroom against the service interface.
