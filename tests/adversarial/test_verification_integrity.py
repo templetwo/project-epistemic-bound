@@ -94,6 +94,7 @@ def completed_case(state_root):
 @pytest.mark.parametrize("corruption", [
     "resource_value", "receipt_deleted", "manifest_value",
     "historical_revision_deleted", "receipt_result", "receipt_event_ref",
+    "receipt_before_erased", "receipt_after_invented", "receipt_row_proposal",
 ])
 def test_corrupted_run_cannot_verify_against_retained_checkpoint(completed_case, corruption):
     repo, run_id, checkpoint, verify_run = completed_case
@@ -112,19 +113,30 @@ def test_corrupted_run_cannot_verify_against_retained_checkpoint(completed_case,
             "DELETE FROM resources WHERE run_id=? "
             "AND resource_id='report.primary' AND revision=1", (run_id,),
         )
-    elif corruption in {"receipt_result", "receipt_event_ref"}:
+    elif corruption in {"receipt_result", "receipt_event_ref", "receipt_before_erased",
+                        "receipt_after_invented", "receipt_row_proposal"}:
         # Choose the real report mutation receipt, independently of read-receipt ordering.
         receipt = next(r for r in repo.receipts(run_id)
                        if r.tool_result.get("resource_id") == "report.primary")
         changed = receipt.model_dump(mode="json")
         if corruption == "receipt_result":
             changed["tool_result"] = {"status": "fabricated-observation"}
-        else:
+        elif corruption == "receipt_event_ref":
             changed["event_ref"] = "evt_" + "f" * 32
-        repo._conn.execute(
-            "UPDATE receipts SET body_json=? WHERE receipt_id=?",
-            (json.dumps(changed), receipt.receipt_id),
-        )
+        elif corruption == "receipt_before_erased":
+            changed["before"] = {}
+        elif corruption == "receipt_after_invented":
+            changed["after"]["invented.resource"] = [999, "0" * 64]
+        if corruption == "receipt_row_proposal":
+            repo._conn.execute(
+                "UPDATE receipts SET proposal_id=? WHERE receipt_id=?",
+                ("prop_" + "f" * 32, receipt.receipt_id),
+            )
+        else:
+            repo._conn.execute(
+                "UPDATE receipts SET body_json=? WHERE receipt_id=?",
+                (json.dumps(changed), receipt.receipt_id),
+            )
     else:
         changed = repo.manifest(run_id).model_dump(mode="json")
         changed["profile_id"] = "altered-profile"

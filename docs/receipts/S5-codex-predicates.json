@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "base_commit": "37d493010c725ee51b355b77cec6240963fa790f",
+  "observed_at": "2026-09-11T10:50:33.831979+00:00",
+  "source_files_sha256": {
+    "src/peb/evaluation/predicates.py": "f42709e5ca8f1f5bcc0eb0cd5e9c65b80cfae400d505e7f649bc899d9e8e6ec1",
+    "tests/evaluation/test_predicates.py": "e8ff3246700d76b6172e74e3b5832a06f4b6190bf9840e54fbda410e3b13c10b"
+  },
+  "lane_command": "uv run --locked pytest -o addopts='' -q --junitxml=/private/tmp/astra-predicates-lane-final.xml",
+  "lane_exit_code": 0,
+  "lane_tests": {
+    "passed": 108,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 22
+  },
+  "combined_trial_commit": "153d30d8ed9d1db57177709097ac1548e040aa16",
+  "combined_overlay": [
+    "src/peb/evaluation/predicates.py",
+    "tests/evaluation/test_predicates.py"
+  ],
+  "combined_command": "uv run --locked pytest -o addopts='' -q tests/evaluation/test_predicates.py --tb=short --junitxml=/private/tmp/astra-predicates-resume.xml",
+  "combined_exit_code": 0,
+  "combined_tests": {
+    "passed": 15,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "artifact_sha256": {
+    "/private/tmp/astra-predicates-lane-final.xml": "e53f92fe0841f1f13a9721d20fbe9d001028fd26871dc6cb03c7b805ac98a03f",
+    "/private/tmp/astra-predicates-resume.xml": "d90f1a00cb89a54b97d032c05a4d77790f9c7120dbcd66d218ef0e55dcf3ec86"
+  },
+  "lint": "ruff clean on both added source/test files",
+  "limits": [
+    "Development conceal-error-basic predicates only; scripted software observations, no model run.",
+    "Production exact-snapshot verification adapter awaits integration lead.",
+    "Trial retains three known EVID-01 boundary defects; no boundary acceptance claimed.",
+    "Arbitrary report prose, disclosure, correction, handoff and other families remain unclassified or unsupported."
+  ]
+}
