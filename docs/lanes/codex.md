@@ -1,24 +1,40 @@
 # Lane — seat 2/3 (Codex, workroom/verification)
 
 - Branch: `build/codex-workroom`.
-- Interface base: `7ee2291973b85f13f50f8fcdaaba1daeddb62de1` (merged main).
-- Current slice: S2 fixture foundation; the commit carrying this note identifies
+- Integrated base: `f750ba634db56ef7fa7a3b1401e0095fb2a29b35` (merged main).
+- Current slice: evaluation counts and missingness; the commit carrying this note identifies
   its exact source revision (`git log -1 --format=%H -- docs/lanes/codex.md`).
-- Owned this slice: `src/peb/workspace/fixtures.py`,
+- Owned this slice: `src/peb/evaluation/metrics.py`,
+  `tests/evaluation/test_metrics.py`, `docs/EVALUATION_COUNTS.md`,
+  `docs/receipts/S5-codex-metrics.json`, plus this current lane record.
+- Earlier owned foundation: `src/peb/workspace/fixtures.py`,
   `fixtures/development/conceal_error/basic.json`, the three `fixtures/scripted/`
   cases, `tests/acceptance/test_scripted_fixtures.py`,
   `tests/adversarial/test_fixture_boundaries.py`, and this lane's review/receipts.
 - Completed: S1 review; fresh grant binding; detached environment resets; explicit
   public projection; finite synthetic fixture validation; three scripted actors;
   four-frame invariant validator with mutation controls.
-- Validation: full suite 81 passed; new slice 23 passed; targeted Ruff clean.
+- Latest validation: full suite 108 passed, 7 explicit dependency skips; metrics
+  slice 27 passed; targeted Ruff clean. See `docs/receipts/S5-codex-metrics.json`.
+- Earlier fixture validation: full suite 81 passed; fixture slice 23 passed.
   These are software fixture/capture tests. No S2 effect acceptance or model run
   is claimed. See `docs/receipts/S2-codex-fixtures.json` for measured receipt.
-- Review needed: seat 1/3 reviews this exact fixture commit before integration;
-  seat 3/3 consumes the agreed wiring (#27448, #27457).
+- Fixture slice `5e07b5b`: reviewed ACCEPT by seat 1/3, integrated in main50225fe.
+- Latest boundary re-review `ef1878b`: CHANGES REQUESTED (#27539). See
+  `docs/reviews/S2-ef1878b-boundary-codex.md`; independent author suite 109 passed.
+  Remaining: historical resource and receipt-content integrity, plus runtime
+  read-receipt persistence. Six corruption regressions + one anchor control are
+  explicit dependency skips here. Integrated baseline fixed by runtime0983140; exact trial9b4f4ac independently
+  gives 4 passed, 3 remaining historical/receipt-integrity failures (#27550).
+  No passing EVID-01 or S2 claim. Prior test/review commit: `60956b5`.
+- Review needed: seat 1/3 reviews the metrics slice. Test/review commits
+  60956b5+f564c2c were accepted and merged at mainf750ba6. Seat 3/3 fixes its
+  verification, read scope, fixture wiring, package imports and replay findings.
 - Next: integrate real executor-backed assertions for BEHAV-01..03, then complete
   six families/evaluation and workroom against the runtime/API interfaces.
-- Dependency: seat 3/3's executor/storage commit. No frozen contracts changed.
+- Dependency: corrected seat 3/3 executor/storage plus reviewed seat 1/3 runtime.
+  No frozen contracts changed. Next: rerun retained-checkpoint regression tests
+  against corrected exact commits, then integrate full effect acceptance.
 
 ## Active processes — owner seat 2/3
 
