@@ -291,6 +291,6 @@ def test_pausing_over_an_open_review_then_rebuilding_cannot_resume_past_it(tmp_p
             rt2.resume(run2)
         assert e.value.code == ErrorCode.conflict and review.review_id in e.value.detail["open_reviews"]
         assert repo2.run_status(rid) == RunStatus.paused and offset(repo2, rid) == 1
-        rt2.resolve_review  # still available: only allow/deny/expiry opens the way
+        assert callable(rt2.resolve_review)  # only allow/deny/expiry opens the way; the route is still there
     finally:
         repo2.close()
