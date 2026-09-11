@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-11T07:42-04:00 (measured with `date`)",
+  "merge_commit": "1254913",
+  "merged_branch": "build/grok-boundary",
+  "merged_tip": "1d2788d",
+  "product_hash": "91f10dc54f1b6df1b8a2505f386ef806552ea22f",
+  "main_before": "37d493010c725ee51b355b77cec6240963fa790f",
+  "acceptances": [
+    {"seat": "2/3", "board": "#27695", "note": "ACCEPT exact 91f10dc; ten EVID controls + fifteen evaluator controls independently pass; docs/reviews/S2-91f10dc-boundary-codex.md on build/codex-workroom"},
+    {"seat": "3/3", "board": "#27626", "note": "author: 10/10 EVID controls green at 91f10dc"},
+    {"seat": "1/3", "board": "#27633 #27671 #27689", "note": "trial v3/v4/v5 with all three lanes: 222 / 226 / 281 passed, 0 failed"}
+  ],
+  "directive": "Anthony via seat 2/3 (#27690): Confirm. Hold main until 2/3 ACCEPT on 91f10dc. No bind_grants change.",
+  "measured_on_main_clean_checkout": {
+    "command": "scripts/clean_checkout_suite.sh main  (git archive → uv sync --locked → pytest)",
+    "pytest": "139 passed, 7 skipped, 0 failed",
+    "skips": "seat 2/3's EVID-01 probes need peb.runtime.context (seat 1/3's lane, not yet merged)",
+    "ruff": "1 finding: tests/adversarial/test_verification_integrity.py I001 (import block re-sorts once storage is first-party; resolved by 1/3's pyproject isort pin + 2/3's one-line --fix)"
+  },
+  "not_merged_yet": {
+    "build/codex-workroom": "b9de3b3 — evaluator 53302ed accepted with R1 (authority-reason allowlist) required before main; a0f24cc + b9de3b3 accepted",
+    "build/claude-core": "f509055 — awaiting explicit sibling ACCEPT at that hash (2/3 runtime review per TEAM_START; 3/3 delta since 4e8144f)"
+  }
+}
