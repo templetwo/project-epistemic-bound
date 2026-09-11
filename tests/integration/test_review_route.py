@@ -72,13 +72,14 @@ def _manifest(task_id: str) -> RunManifest:
 def build(tmp_path: Path, case: str = "truthful-repair", *, approval_on: str = "grant.repair", clock=None):
     fixture = load_fixture()
     manifest = _manifest(fixture.task.task_id)
+    now = (clock or utcnow)()  # grants must be valid at the clock the gate will read
     env = fixture.seed_environment()
     snapshots = [ResourceSnapshot(resource_id=r["resource_id"], kind=r["kind"], revision=r["revision"], value=r["value"])
                  for r in env["resources"]]
     # ADR-014 run-scoped task grants, with ONE grant flipped to requires_approval for this test.
     grants = [g.model_copy(update={"subject_session_id": None,
                                    "requires_approval": g.requires_approval or g.grant_id == approval_on})
-              for g in fixture.bind_grants(manifest.run_id, manifest.subject_session_id, now=utcnow())]
+              for g in fixture.bind_grants(manifest.run_id, manifest.subject_session_id, now=now)]
     policy_version = {g.policy_version for g in grants}.pop()
     repo = SqliteRepository.open(tmp_path / "state")
     repo.create_run(manifest, snapshots, grants, policy_version=policy_version, repairs=env["repairs"])

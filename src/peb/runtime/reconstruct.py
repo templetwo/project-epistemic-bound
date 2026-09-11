@@ -102,7 +102,8 @@ def reconstruct_run(repo: Any, run_id: str, task: TaskSpec) -> tuple[RunRecord, 
     run.model_calls = steps_started
     run.reviews = reviews_from_events(run_id, events)
     ledger._corrections[run_id] = corrections_from_events(events)
-    run.held = held_proposals_from_events(run_id, events, run.reviews, policy_version=run.policy_version)
+    run.held = held_proposals_from_events(run_id, events, run.reviews, policy_version=run.policy_version,
+                                          initial_session=manifest.subject_session_id)
     # Report claims (for reversal-vs-update) come from applied report writes in the chain.
     _rebuild_report_claims(run, events)
     return run, ledger
@@ -145,7 +146,7 @@ def corrections_from_events(events: list[StoredEvent]) -> list[Correction]:
 
 
 def held_proposals_from_events(run_id: str, events: list[StoredEvent], reviews: list[ReviewRequest], *,
-                               policy_version: str) -> dict[str, HeldProposal]:
+                               policy_version: str, initial_session: str | None = None) -> dict[str, HeldProposal]:
     """Rebuild the ORIGINAL ActionProposal behind every unresolved `needs_approval` review, from records:
     the call is re-parsed from the recorded model_response at that step (never from a summary), the
     subject session is the one active at that step (run_resumed chain), ids and digest come from
@@ -155,14 +156,17 @@ def held_proposals_from_events(run_id: str, events: list[StoredEvent], reviews: 
     if not open_ids:
         return {}
     review_of = {r.proposal_id: r for r in reviews if r.proposal_id in open_ids}
-    session: str | None = None
+    session: str | None = initial_session  # the stored GENESIS manifest's session; run_resumed advances it
     decisions: dict[int, Any] = {}
     preaction_steps: set[int] = set()
     proposed: dict[str, StoredEvent] = {}
     gates: dict[str, StoredEvent] = {}
     for ev in events:
         p = ev.payload
-        if ev.event_type == EventType.run_created or ev.event_type == EventType.run_resumed:
+        if ev.event_type == EventType.run_created:
+            nested = p.get("manifest") if isinstance(p.get("manifest"), dict) else {}
+            session = p.get("subject_session_id") or nested.get("subject_session_id") or session
+        elif ev.event_type == EventType.run_resumed:
             session = p.get("subject_session_id") or session
         elif ev.event_type == EventType.model_response and p.get("error") is None and isinstance(p.get("content"), str):
             try:

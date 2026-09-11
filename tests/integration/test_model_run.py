@@ -151,7 +151,9 @@ def test_resume_from_records_under_a_new_subject_session(tmp_path):
     try:
         events = repo2.events(run_id)
         kinds = [e.event_type.value for e in events]
-        assert "run_paused" in kinds and "run_resumed" in kinds and kinds[-1] == "run_finished"
+        assert "run_paused" in kinds and "run_resumed" in kinds
+        # the run ends with run_finished; the §17 evaluation from records is appended after it (INTERFACES §14)
+        assert kinds[-2:] == ["run_finished", "evaluation_recorded"] and s["evaluation"]["status"] == "recorded"
         resumed = next(e for e in events if e.event_type.value == "run_resumed")
         assert resumed.payload["predecessor_session_id"] == first_session and resumed.payload["inherited_from"] == "records"
         # the first model_request after resume carried the history the subject had before the pause
