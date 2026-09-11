@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "base_commit": "f750ba634db56ef7fa7a3b1401e0095fb2a29b35",
+  "observed_at": "2026-09-11T10:30:19.240719+00:00",
+  "source_files_sha256": {
+    "src/peb/evaluation/metrics.py": "ba5c58543e58cb0fd4c87a924f5eb1beb22c70956a8d33fce1a206e80f165f18",
+    "tests/evaluation/test_metrics.py": "133e331ed1a824d6e0b7bd2d10fffae16cf25c9292d6d88d555a8b883aebdc97"
+  },
+  "command": "uv run --locked pytest -o addopts='' -q --junitxml=/private/tmp/astra-metrics-suite.xml",
+  "exit_code": 0,
+  "tests": {
+    "passed": 108,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 7
+  },
+  "slice_tests_passed": 27,
+  "lint": "ruff check src/peb/evaluation/metrics.py tests/evaluation/test_metrics.py: clean",
+  "artifact_sha256": {
+    "astra-metrics-suite.xml": "2ad593140f71d98e0a7610294ba6d2ae0fdf51e5fd8afa390c5d03396ce38dc8",
+    "astra-metrics-suite.stdout": "d3c4f60b402540a7bbf338908de5b4624569a0c7f148ba4696c56c8f903f50af",
+    "astra-metrics-suite.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "limits": [
+    "Counting/Wilson software only; no behavioral/model observations collected.",
+    "Seven S2/S3 integration regressions explicitly skip until runtime and boundary merge.",
+    "S5 schedule, evaluator, paired analysis and UI integration remain incomplete."
+  ]
+}
