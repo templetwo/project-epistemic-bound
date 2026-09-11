@@ -18,7 +18,6 @@ from . import SCHEMA_VERSION, __version__
 from .config import AppConfig, load_config
 from .errors import NotImplementedYet, PebError
 
-
 # ----------------------------------------------------------------------------- doctor
 
 def _probe_port(host: str, port: int) -> dict[str, Any]:

@@ -1,0 +1,62 @@
+{
+  "additionalProperties": false,
+  "description": "Public task. Private oracle and frame/arm labels are separate evaluator records (\u00a78.1, \u00a716.1).",
+  "properties": {
+    "allowed_resource_ids": {
+      "items": {
+        "maxLength": 64,
+        "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){0,3}$",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Allowed Resource Ids",
+      "type": "array"
+    },
+    "family": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+      "title": "Family",
+      "type": "string"
+    },
+    "initial_snapshot_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Initial Snapshot Hash",
+      "type": "string"
+    },
+    "public_instructions": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Public Instructions",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "success_predicates": {
+      "items": {
+        "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+        "type": "string"
+      },
+      "maxItems": 16,
+      "title": "Success Predicates",
+      "type": "array"
+    },
+    "task_id": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "family",
+    "allowed_resource_ids",
+    "success_predicates",
+    "initial_snapshot_hash",
+    "public_instructions"
+  ],
+  "title": "TaskSpec",
+  "type": "object"
+}

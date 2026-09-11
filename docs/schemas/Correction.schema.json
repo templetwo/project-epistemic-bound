@@ -1,0 +1,649 @@
+{
+  "$defs": {
+    "Actor": {
+      "enum": [
+        "supervisor",
+        "subject",
+        "operator",
+        "reference_monitor",
+        "executor",
+        "evaluator",
+        "scripted_reviewer",
+        "fixture"
+      ],
+      "title": "Actor",
+      "type": "string"
+    },
+    "ChecksRunArgs": {
+      "additionalProperties": false,
+      "properties": {
+        "check_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){0,3}$",
+          "title": "Check Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "check_id"
+      ],
+      "title": "ChecksRunArgs",
+      "type": "object"
+    },
+    "ChecksRunCall": {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "$ref": "#/$defs/ChecksRunArgs"
+        },
+        "claimed_grant_id": {
+          "anyOf": [
+            {
+              "pattern": "^(grant\\.[a-z0-9][a-z0-9-]{0,62}|grnt_[0-9a-f]{32})$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claimed Grant Id"
+        },
+        "tool": {
+          "const": "checks.run",
+          "title": "Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "arguments"
+      ],
+      "title": "ChecksRunCall",
+      "type": "object"
+    },
+    "CommitmentKind": {
+      "description": "\u00a79.3: an undertaking is not a claim is not a grant.",
+      "enum": [
+        "undertaking",
+        "claim"
+      ],
+      "title": "CommitmentKind",
+      "type": "string"
+    },
+    "CommitmentProposeArgs": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/CommitmentKind",
+          "default": "undertaking"
+        },
+        "text": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "CommitmentProposeArgs",
+      "type": "object"
+    },
+    "CommitmentProposeCall": {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "$ref": "#/$defs/CommitmentProposeArgs"
+        },
+        "claimed_grant_id": {
+          "anyOf": [
+            {
+              "pattern": "^(grant\\.[a-z0-9][a-z0-9-]{0,62}|grnt_[0-9a-f]{32})$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claimed Grant Id"
+        },
+        "tool": {
+          "const": "commitment.propose",
+          "title": "Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "arguments"
+      ],
+      "title": "CommitmentProposeCall",
+      "type": "object"
+    },
+    "DisclosureLabel": {
+      "enum": [
+        "prompted",
+        "unprompted",
+        "unknown"
+      ],
+      "title": "DisclosureLabel",
+      "type": "string"
+    },
+    "ExportSendArgs": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Fields",
+          "type": "array"
+        },
+        "resource_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){0,3}$",
+          "title": "Resource Id",
+          "type": "string"
+        },
+        "sink_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){0,3}$",
+          "title": "Sink Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "resource_id",
+        "fields",
+        "sink_id"
+      ],
+      "title": "ExportSendArgs",
+      "type": "object"
+    },
+    "ExportSendCall": {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "$ref": "#/$defs/ExportSendArgs"
+        },
+        "claimed_grant_id": {
+          "anyOf": [
+            {
+              "pattern": "^(grant\\.[a-z0-9][a-z0-9-]{0,62}|grnt_[0-9a-f]{32})$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claimed Grant Id"
+        },
+        "tool": {
+          "const": "export.send",
+          "title": "Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "arguments"
+      ],
+      "title": "ExportSendCall",
+      "type": "object"
+    },
+    "FixtureRepairArgs": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_revision": {
+          "minimum": 0,
+          "title": "Expected Revision",
+          "type": "integer"
+        },
+        "repair_id": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+          "title": "Repair Id",
+          "type": "string"
+        },
+        "resource_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){0,3}$",
+          "title": "Resource Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "resource_id",
+        "expected_revision",
+        "repair_id"
+      ],
+      "title": "FixtureRepairArgs",
+      "type": "object"
+    },
+    "FixtureRepairCall": {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "$ref": "#/$defs/FixtureRepairArgs"
+        },
+        "claimed_grant_id": {
+          "anyOf": [
+            {
+              "pattern": "^(grant\\.[a-z0-9][a-z0-9-]{0,62}|grnt_[0-9a-f]{32})$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claimed Grant Id"
+        },
+        "tool": {
+          "const": "fixture.repair",
+          "title": "Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "arguments"
+      ],
+      "title": "FixtureRepairCall",
+      "type": "object"
+    },
+    "HandoffWriteArgs": {
+      "additionalProperties": false,
+      "properties": {
+        "claims": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Claims",
+          "type": "array"
+        },
+        "evidence_refs": {
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){0,3}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "resource_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){0,3}$",
+          "title": "Resource Id",
+          "type": "string"
+        },
+        "unresolved": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Unresolved",
+          "type": "array"
+        }
+      },
+      "required": [
+        "resource_id",
+        "claims",
+        "unresolved",
+        "evidence_refs"
+      ],
+      "title": "HandoffWriteArgs",
+      "type": "object"
+    },
+    "HandoffWriteCall": {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "$ref": "#/$defs/HandoffWriteArgs"
+        },
+        "claimed_grant_id": {
+          "anyOf": [
+            {
+              "pattern": "^(grant\\.[a-z0-9][a-z0-9-]{0,62}|grnt_[0-9a-f]{32})$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claimed Grant Id"
+        },
+        "tool": {
+          "const": "handoff.write",
+          "title": "Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "arguments"
+      ],
+      "title": "HandoffWriteCall",
+      "type": "object"
+    },
+    "ReportStatus": {
+      "enum": [
+        "pass",
+        "fail",
+        "indeterminate"
+      ],
+      "title": "ReportStatus",
+      "type": "string"
+    },
+    "ReportWriteArgs": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_refs": {
+          "items": {
+            "maxLength": 64,
+            "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){0,3}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "expected_revision": {
+          "minimum": 0,
+          "title": "Expected Revision",
+          "type": "integer"
+        },
+        "resource_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){0,3}$",
+          "title": "Resource Id",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ReportStatus"
+        },
+        "summary": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "resource_id",
+        "expected_revision",
+        "status",
+        "summary",
+        "evidence_refs"
+      ],
+      "title": "ReportWriteArgs",
+      "type": "object"
+    },
+    "ReportWriteCall": {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "$ref": "#/$defs/ReportWriteArgs"
+        },
+        "claimed_grant_id": {
+          "anyOf": [
+            {
+              "pattern": "^(grant\\.[a-z0-9][a-z0-9-]{0,62}|grnt_[0-9a-f]{32})$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claimed Grant Id"
+        },
+        "tool": {
+          "const": "report.write",
+          "title": "Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "arguments"
+      ],
+      "title": "ReportWriteCall",
+      "type": "object"
+    },
+    "WorkspaceListArgs": {
+      "additionalProperties": false,
+      "properties": {},
+      "title": "WorkspaceListArgs",
+      "type": "object"
+    },
+    "WorkspaceListCall": {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "$ref": "#/$defs/WorkspaceListArgs"
+        },
+        "claimed_grant_id": {
+          "anyOf": [
+            {
+              "pattern": "^(grant\\.[a-z0-9][a-z0-9-]{0,62}|grnt_[0-9a-f]{32})$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claimed Grant Id"
+        },
+        "tool": {
+          "const": "workspace.list",
+          "title": "Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "arguments"
+      ],
+      "title": "WorkspaceListCall",
+      "type": "object"
+    },
+    "WorkspaceReadArgs": {
+      "additionalProperties": false,
+      "properties": {
+        "resource_id": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){0,3}$",
+          "title": "Resource Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "resource_id"
+      ],
+      "title": "WorkspaceReadArgs",
+      "type": "object"
+    },
+    "WorkspaceReadCall": {
+      "additionalProperties": false,
+      "properties": {
+        "arguments": {
+          "$ref": "#/$defs/WorkspaceReadArgs"
+        },
+        "claimed_grant_id": {
+          "anyOf": [
+            {
+              "pattern": "^(grant\\.[a-z0-9][a-z0-9-]{0,62}|grnt_[0-9a-f]{32})$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claimed Grant Id"
+        },
+        "tool": {
+          "const": "workspace.read",
+          "title": "Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "arguments"
+      ],
+      "title": "WorkspaceReadCall",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Never erases the original error (\u00a78.1).",
+  "properties": {
+    "corrected_statement": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Corrected Statement",
+      "type": "string"
+    },
+    "correction_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Correction Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "disclosed_by": {
+      "$ref": "#/$defs/Actor"
+    },
+    "disclosure": {
+      "$ref": "#/$defs/DisclosureLabel"
+    },
+    "evidence_refs": {
+      "items": {
+        "maxLength": 64,
+        "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){0,3}$",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Evidence Refs",
+      "type": "array"
+    },
+    "previous_claim_id": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Previous Claim Id"
+    },
+    "previous_event_id": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Previous Event Id"
+    },
+    "proposed_repair": {
+      "anyOf": [
+        {
+          "discriminator": {
+            "mapping": {
+              "checks.run": "#/$defs/ChecksRunCall",
+              "commitment.propose": "#/$defs/CommitmentProposeCall",
+              "export.send": "#/$defs/ExportSendCall",
+              "fixture.repair": "#/$defs/FixtureRepairCall",
+              "handoff.write": "#/$defs/HandoffWriteCall",
+              "report.write": "#/$defs/ReportWriteCall",
+              "workspace.list": "#/$defs/WorkspaceListCall",
+              "workspace.read": "#/$defs/WorkspaceReadCall"
+            },
+            "propertyName": "tool"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/WorkspaceListCall"
+            },
+            {
+              "$ref": "#/$defs/WorkspaceReadCall"
+            },
+            {
+              "$ref": "#/$defs/ReportWriteCall"
+            },
+            {
+              "$ref": "#/$defs/FixtureRepairCall"
+            },
+            {
+              "$ref": "#/$defs/ChecksRunCall"
+            },
+            {
+              "$ref": "#/$defs/HandoffWriteCall"
+            },
+            {
+              "$ref": "#/$defs/CommitmentProposeCall"
+            },
+            {
+              "$ref": "#/$defs/ExportSendCall"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Proposed Repair"
+    },
+    "repair_receipt_refs": {
+      "items": {
+        "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+        "type": "string"
+      },
+      "title": "Repair Receipt Refs",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "correction_id",
+    "previous_claim_id",
+    "previous_event_id",
+    "corrected_statement",
+    "disclosed_by",
+    "disclosure",
+    "proposed_repair",
+    "created_at"
+  ],
+  "title": "Correction",
+  "type": "object"
+}

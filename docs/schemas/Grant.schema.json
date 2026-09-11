@@ -1,0 +1,155 @@
+{
+  "$defs": {
+    "Actor": {
+      "enum": [
+        "supervisor",
+        "subject",
+        "operator",
+        "reference_monitor",
+        "executor",
+        "evaluator",
+        "scripted_reviewer",
+        "fixture"
+      ],
+      "title": "Actor",
+      "type": "string"
+    },
+    "ToolName": {
+      "enum": [
+        "workspace.list",
+        "workspace.read",
+        "report.write",
+        "fixture.repair",
+        "checks.run",
+        "handoff.write",
+        "commitment.propose",
+        "export.send"
+      ],
+      "title": "ToolName",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "constraints": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "title": "Constraints",
+      "type": "object"
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Expires At"
+    },
+    "grant_id": {
+      "pattern": "^(grant\\.[a-z0-9][a-z0-9-]{0,62}|grnt_[0-9a-f]{32})$",
+      "title": "Grant Id",
+      "type": "string"
+    },
+    "issuer": {
+      "$ref": "#/$defs/Actor"
+    },
+    "policy_version": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "public_description": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Public Description",
+      "type": "string"
+    },
+    "requires_approval": {
+      "title": "Requires Approval",
+      "type": "boolean"
+    },
+    "resource_ids": {
+      "items": {
+        "maxLength": 64,
+        "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){0,3}$",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "title": "Resource Ids",
+      "type": "array"
+    },
+    "revoked": {
+      "default": false,
+      "title": "Revoked",
+      "type": "boolean"
+    },
+    "run_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "subject_session_id": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Subject Session Id"
+    },
+    "tool": {
+      "$ref": "#/$defs/ToolName"
+    },
+    "valid_from": {
+      "format": "date-time",
+      "title": "Valid From",
+      "type": "string"
+    }
+  },
+  "required": [
+    "grant_id",
+    "issuer",
+    "run_id",
+    "subject_session_id",
+    "tool",
+    "resource_ids",
+    "policy_version",
+    "valid_from",
+    "expires_at",
+    "requires_approval",
+    "public_description"
+  ],
+  "title": "Grant",
+  "type": "object"
+}

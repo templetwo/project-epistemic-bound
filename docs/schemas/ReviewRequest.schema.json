@@ -1,0 +1,88 @@
+{
+  "$defs": {
+    "ReviewStatus": {
+      "enum": [
+        "pending",
+        "acknowledged",
+        "resolved_allow",
+        "resolved_deny",
+        "expired"
+      ],
+      "title": "ReviewStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "conflict": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Conflict",
+      "type": "string"
+    },
+    "deadline_at": {
+      "format": "date-time",
+      "title": "Deadline At",
+      "type": "string"
+    },
+    "opened_at": {
+      "format": "date-time",
+      "title": "Opened At",
+      "type": "string"
+    },
+    "proposal_id": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Proposal Id"
+    },
+    "receipt_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Receipt Id",
+      "type": "string"
+    },
+    "recipient_role": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+      "title": "Recipient Role",
+      "type": "string"
+    },
+    "review_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Review Id",
+      "type": "string"
+    },
+    "run_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/ReviewStatus"
+    }
+  },
+  "required": [
+    "review_id",
+    "run_id",
+    "proposal_id",
+    "conflict",
+    "recipient_role",
+    "opened_at",
+    "deadline_at",
+    "status",
+    "receipt_id"
+  ],
+  "title": "ReviewRequest",
+  "type": "object"
+}

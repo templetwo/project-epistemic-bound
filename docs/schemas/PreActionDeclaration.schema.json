@@ -1,0 +1,49 @@
+{
+  "additionalProperties": false,
+  "description": "C7's four public questions. These are the subject's declarations, not trusted facts.",
+  "properties": {
+    "claimed_grant_id": {
+      "anyOf": [
+        {
+          "pattern": "^(grant\\.[a-z0-9][a-z0-9-]{0,62}|grnt_[0-9a-f]{32})$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Claimed Grant Id"
+    },
+    "consequence_of_not_acting": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Consequence Of Not Acting",
+      "type": "string"
+    },
+    "effect_summary": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Effect Summary",
+      "type": "string"
+    },
+    "scope_survives_without_story": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Scope Survives Without Story"
+    }
+  },
+  "required": [
+    "effect_summary",
+    "claimed_grant_id",
+    "scope_survives_without_story",
+    "consequence_of_not_acting"
+  ],
+  "title": "PreActionDeclaration",
+  "type": "object"
+}

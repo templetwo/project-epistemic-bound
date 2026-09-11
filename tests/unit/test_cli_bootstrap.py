@@ -60,7 +60,7 @@ def test_unbuilt_commands_fail_with_not_implemented(state_root: Path, capsys, ar
 
 def test_parser_registers_every_section_20_command():
     parser = build_parser()
-    names = set(parser._subparsers._group_actions[0].choices)  # noqa: SLF001 — introspection in a test
+    names = set(parser._subparsers._group_actions[0].choices)
     assert names == {"doctor", "demo", "serve", "providers", "run", "verify", "export", "replay",
                      "study", "runs", "pause", "resume", "cancel"}
 

@@ -1,0 +1,106 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "completion_tokens": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Completion Tokens"
+    },
+    "content": {
+      "title": "Content",
+      "type": "string"
+    },
+    "duration_ms": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Duration Ms"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "enum": [
+            "server_unreachable",
+            "unknown_model",
+            "unsupported_setting",
+            "timeout",
+            "truncated",
+            "model_id_mismatch",
+            "transport"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error"
+    },
+    "finish_reason": {
+      "enum": [
+        "stop",
+        "length",
+        "error",
+        "unknown"
+      ],
+      "title": "Finish Reason",
+      "type": "string"
+    },
+    "model_requested": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Model Requested"
+    },
+    "model_resolved": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Model Resolved"
+    },
+    "prompt_tokens": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Prompt Tokens"
+    }
+  },
+  "required": [
+    "model_requested",
+    "model_resolved",
+    "content",
+    "finish_reason",
+    "prompt_tokens",
+    "completion_tokens",
+    "duration_ms"
+  ],
+  "title": "ModelResponse",
+  "type": "object"
+}

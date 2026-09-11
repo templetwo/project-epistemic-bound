@@ -1,0 +1,129 @@
+{
+  "$defs": {
+    "EffectStatus": {
+      "enum": [
+        "applied",
+        "not_applied",
+        "indeterminate"
+      ],
+      "title": "EffectStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A model's statement is never the executor receipt (\u00a78.1).",
+  "properties": {
+    "after": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){0,3}$": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "integer"
+            },
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "propertyNames": {
+        "maxLength": 64
+      },
+      "title": "After",
+      "type": "object"
+    },
+    "before": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){0,3}$": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "integer"
+            },
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          ],
+          "type": "array"
+        }
+      },
+      "propertyNames": {
+        "maxLength": 64
+      },
+      "title": "Before",
+      "type": "object"
+    },
+    "event_ref": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Event Ref"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "proposal_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Proposal Id",
+      "type": "string"
+    },
+    "receipt_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Receipt Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/EffectStatus"
+    },
+    "tool_result": {
+      "additionalProperties": true,
+      "title": "Tool Result",
+      "type": "object"
+    },
+    "transaction_ref": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Transaction Ref"
+    }
+  },
+  "required": [
+    "receipt_id",
+    "proposal_id",
+    "status",
+    "tool_result",
+    "before",
+    "after",
+    "transaction_ref",
+    "event_ref",
+    "observed_at"
+  ],
+  "title": "EffectReceipt",
+  "type": "object"
+}

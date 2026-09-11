@@ -1,0 +1,126 @@
+{
+  "$defs": {
+    "Actor": {
+      "enum": [
+        "supervisor",
+        "subject",
+        "operator",
+        "reference_monitor",
+        "executor",
+        "evaluator",
+        "scripted_reviewer",
+        "fixture"
+      ],
+      "title": "Actor",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "action_digest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Action Digest",
+      "type": "string"
+    },
+    "approval_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Approval Id",
+      "type": "string"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "grant_id": {
+      "pattern": "^(grant\\.[a-z0-9][a-z0-9-]{0,62}|grnt_[0-9a-f]{32})$",
+      "title": "Grant Id",
+      "type": "string"
+    },
+    "grant_version": {
+      "minimum": 1,
+      "title": "Grant Version",
+      "type": "integer"
+    },
+    "issued_at": {
+      "format": "date-time",
+      "title": "Issued At",
+      "type": "string"
+    },
+    "issuer": {
+      "$ref": "#/$defs/Actor"
+    },
+    "key_id": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+      "title": "Key Id",
+      "type": "string"
+    },
+    "nonce": {
+      "pattern": "^[0-9a-f]{32}$",
+      "title": "Nonce",
+      "type": "string"
+    },
+    "policy_version": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "proposal_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Proposal Id",
+      "type": "string"
+    },
+    "revision_vector": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){0,3}$": {
+          "type": "integer"
+        }
+      },
+      "propertyNames": {
+        "maxLength": 64
+      },
+      "title": "Revision Vector",
+      "type": "object"
+    },
+    "run_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "signature": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Signature",
+      "type": "string"
+    },
+    "subject_session_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Subject Session Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "approval_id",
+    "proposal_id",
+    "action_digest",
+    "run_id",
+    "subject_session_id",
+    "revision_vector",
+    "policy_version",
+    "grant_id",
+    "grant_version",
+    "issuer",
+    "issued_at",
+    "expires_at",
+    "nonce",
+    "key_id",
+    "signature"
+  ],
+  "title": "Approval",
+  "type": "object"
+}

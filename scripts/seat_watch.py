@@ -21,7 +21,11 @@ Usage:
 The call-regex is applied with re.MULTILINE to assistant text, e.g.
   '^\\s*\\**CALLING\\s+(1/3|seat\\s*1/3|fable|claude)\\b'
 """
-import json, os, re, sys, time
+import json
+import os
+import re
+import sys
+import time
 
 HEARTBEAT_S = 1800
 POLL_S = 2
@@ -73,14 +77,14 @@ def main():
     if len(args) < 3:
         sys.exit(__doc__)
     path, label, pat = args[0], args[1], args[2]
-    rx = re.compile(pat, re.M)
+    rx = re.compile(pat, re.MULTILINE)
     emit_users = '--no-users' not in flags
     once = '--once' in flags
 
     def handle(line):
         try:
             m = json.loads(line)
-        except Exception:
+        except Exception:  # noqa: BLE001 — a bad record must never kill the watch
             return
         role, txt = classify(m)
         if not role or not txt or not txt.strip():
@@ -128,7 +132,7 @@ def main():
                     off += cut + 1          # only through the last complete newline
         except FileNotFoundError:
             print(f"[{label} gone] {path} missing", flush=True)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — report and keep watching
             print(f"[{label} error] {e}", flush=True)
         if time.time() - last_hb >= HEARTBEAT_S:
             print(f"[watching] {label} alive, consumed {off} bytes", flush=True)

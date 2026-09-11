@@ -1,0 +1,112 @@
+{
+  "$defs": {
+    "GateOutcome": {
+      "enum": [
+        "allow",
+        "deny",
+        "needs_approval"
+      ],
+      "title": "GateOutcome",
+      "type": "string"
+    },
+    "GateReason": {
+      "description": "Stable reason codes (\u00a78.1 GateDecision, \u00a711.1).",
+      "enum": [
+        "ok_scoped_grant",
+        "ok_approved",
+        "needs_operator_approval",
+        "no_grant",
+        "grant_expired",
+        "grant_revoked",
+        "grant_wrong_run",
+        "grant_wrong_session",
+        "grant_scope_mismatch",
+        "unknown_tool",
+        "unknown_resource",
+        "revision_mismatch",
+        "policy_version_mismatch",
+        "approval_digest_mismatch",
+        "approval_expired",
+        "approval_replayed",
+        "forbidden_field",
+        "forbidden_sink",
+        "run_not_running",
+        "protocol_hold",
+        "stale_state"
+      ],
+      "title": "GateReason",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "checked_digest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Checked Digest",
+      "type": "string"
+    },
+    "checked_revision_vector": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){0,3}$": {
+          "type": "integer"
+        }
+      },
+      "propertyNames": {
+        "maxLength": 64
+      },
+      "title": "Checked Revision Vector",
+      "type": "object"
+    },
+    "decided_at": {
+      "format": "date-time",
+      "title": "Decided At",
+      "type": "string"
+    },
+    "outcome": {
+      "$ref": "#/$defs/GateOutcome"
+    },
+    "policy_version": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "proposal_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Proposal Id",
+      "type": "string"
+    },
+    "reason": {
+      "$ref": "#/$defs/GateReason"
+    },
+    "resolved_grant_id": {
+      "anyOf": [
+        {
+          "pattern": "^(grant\\.[a-z0-9][a-z0-9-]{0,62}|grnt_[0-9a-f]{32})$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Resolved Grant Id"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "proposal_id",
+    "outcome",
+    "reason",
+    "resolved_grant_id",
+    "checked_digest",
+    "checked_revision_vector",
+    "policy_version",
+    "decided_at"
+  ],
+  "title": "GateDecision",
+  "type": "object"
+}

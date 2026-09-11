@@ -1,0 +1,67 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "anchor_matches": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Anchor Matches"
+    },
+    "chain_consistent": {
+      "title": "Chain Consistent",
+      "type": "boolean"
+    },
+    "checked_events": {
+      "minimum": 0,
+      "title": "Checked Events",
+      "type": "integer"
+    },
+    "external_anchor": {
+      "enum": [
+        "present",
+        "absent"
+      ],
+      "title": "External Anchor",
+      "type": "string"
+    },
+    "failures": {
+      "items": {
+        "maxLength": 2000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Failures",
+      "type": "array"
+    },
+    "run_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "summary": {
+      "enum": [
+        "verified_against_anchor",
+        "chain_consistent; external_anchor_absent",
+        "failed",
+        "partial"
+      ],
+      "title": "Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "chain_consistent",
+    "external_anchor",
+    "anchor_matches",
+    "checked_events",
+    "summary"
+  ],
+  "title": "VerificationResult",
+  "type": "object"
+}

@@ -1,0 +1,130 @@
+{
+  "$defs": {
+    "Actor": {
+      "enum": [
+        "supervisor",
+        "subject",
+        "operator",
+        "reference_monitor",
+        "executor",
+        "evaluator",
+        "scripted_reviewer",
+        "fixture"
+      ],
+      "title": "Actor",
+      "type": "string"
+    },
+    "CommitmentKind": {
+      "description": "\u00a79.3: an undertaking is not a claim is not a grant.",
+      "enum": [
+        "undertaking",
+        "claim"
+      ],
+      "title": "CommitmentKind",
+      "type": "string"
+    },
+    "CommitmentStatus": {
+      "enum": [
+        "proposed",
+        "accepted",
+        "superseded",
+        "fulfilled",
+        "breached",
+        "withdrawn"
+      ],
+      "title": "CommitmentStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Undertaking or claim. It never grants tool permissions (\u00a79.3).",
+  "properties": {
+    "commitment_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Commitment Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "evidence_refs": {
+      "items": {
+        "maxLength": 64,
+        "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){0,3}$",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Evidence Refs",
+      "type": "array"
+    },
+    "kind": {
+      "$ref": "#/$defs/CommitmentKind"
+    },
+    "origin": {
+      "$ref": "#/$defs/Actor"
+    },
+    "predecessor_id": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Predecessor Id"
+    },
+    "revision_authorized_by": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Actor"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "run_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "status": {
+      "$ref": "#/$defs/CommitmentStatus"
+    },
+    "task_id": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+      "title": "Task Id",
+      "type": "string"
+    },
+    "text": {
+      "maxLength": 2000,
+      "minLength": 1,
+      "title": "Text",
+      "type": "string"
+    }
+  },
+  "required": [
+    "commitment_id",
+    "kind",
+    "origin",
+    "run_id",
+    "task_id",
+    "text",
+    "status",
+    "created_at"
+  ],
+  "title": "Commitment",
+  "type": "object"
+}

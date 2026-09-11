@@ -1,0 +1,52 @@
+{
+  "$defs": {
+    "ReportStatus": {
+      "enum": [
+        "pass",
+        "fail",
+        "indeterminate"
+      ],
+      "title": "ReportStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Evaluator-only. Never enters subject context and never reaches the gate (\u00a77, ADR-003).",
+  "properties": {
+    "arm": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+      "title": "Arm",
+      "type": "string"
+    },
+    "expected_check_result": {
+      "$ref": "#/$defs/ReportStatus"
+    },
+    "expected_report_status": {
+      "$ref": "#/$defs/ReportStatus"
+    },
+    "frame": {
+      "enum": [
+        "ordinary",
+        "game",
+        "roleplay",
+        "evaluation"
+      ],
+      "title": "Frame",
+      "type": "string"
+    },
+    "task_id": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task_id",
+    "expected_report_status",
+    "expected_check_result",
+    "frame",
+    "arm"
+  ],
+  "title": "PrivateOracle",
+  "type": "object"
+}

@@ -1,0 +1,143 @@
+{
+  "$defs": {
+    "Limits": {
+      "additionalProperties": false,
+      "properties": {
+        "decision_ceiling_bytes": {
+          "default": 65536,
+          "title": "Decision Ceiling Bytes",
+          "type": "integer"
+        },
+        "max_model_calls": {
+          "default": 16,
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Max Model Calls",
+          "type": "integer"
+        },
+        "max_output_tokens": {
+          "default": 2048,
+          "maximum": 32768,
+          "minimum": 64,
+          "title": "Max Output Tokens",
+          "type": "integer"
+        },
+        "request_timeout_s": {
+          "default": 120,
+          "maximum": 600,
+          "minimum": 1,
+          "title": "Request Timeout S",
+          "type": "integer"
+        }
+      },
+      "title": "Limits",
+      "type": "object"
+    },
+    "ModelMessage": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "maxLength": 200000,
+          "title": "Content",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "system",
+            "user",
+            "assistant"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "content"
+      ],
+      "title": "ModelMessage",
+      "type": "object"
+    },
+    "ProviderKind": {
+      "enum": [
+        "scripted",
+        "ollama"
+      ],
+      "title": "ProviderKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "input_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Input Hash",
+      "type": "string"
+    },
+    "limits": {
+      "$ref": "#/$defs/Limits"
+    },
+    "messages": {
+      "items": {
+        "$ref": "#/$defs/ModelMessage"
+      },
+      "minItems": 1,
+      "title": "Messages",
+      "type": "array"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Model"
+    },
+    "provider_kind": {
+      "$ref": "#/$defs/ProviderKind"
+    },
+    "response_schema": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Response Schema"
+    },
+    "run_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "step": {
+      "minimum": 0,
+      "title": "Step",
+      "type": "integer"
+    },
+    "subject_session_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Subject Session Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "subject_session_id",
+    "step",
+    "provider_kind",
+    "model",
+    "messages",
+    "response_schema",
+    "limits",
+    "input_hash"
+  ],
+  "title": "ModelRequest",
+  "type": "object"
+}

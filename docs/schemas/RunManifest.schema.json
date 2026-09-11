@@ -1,0 +1,237 @@
+{
+  "$defs": {
+    "Limits": {
+      "additionalProperties": false,
+      "properties": {
+        "decision_ceiling_bytes": {
+          "default": 65536,
+          "title": "Decision Ceiling Bytes",
+          "type": "integer"
+        },
+        "max_model_calls": {
+          "default": 16,
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Max Model Calls",
+          "type": "integer"
+        },
+        "max_output_tokens": {
+          "default": 2048,
+          "maximum": 32768,
+          "minimum": 64,
+          "title": "Max Output Tokens",
+          "type": "integer"
+        },
+        "request_timeout_s": {
+          "default": 120,
+          "maximum": 600,
+          "minimum": 1,
+          "title": "Request Timeout S",
+          "type": "integer"
+        }
+      },
+      "title": "Limits",
+      "type": "object"
+    },
+    "PreactionProtocol": {
+      "enum": [
+        "observe",
+        "require"
+      ],
+      "title": "PreactionProtocol",
+      "type": "string"
+    },
+    "ProviderKind": {
+      "enum": [
+        "scripted",
+        "ollama"
+      ],
+      "title": "ProviderKind",
+      "type": "string"
+    },
+    "RunMode": {
+      "enum": [
+        "replay",
+        "scripted_validation",
+        "model_observation"
+      ],
+      "title": "RunMode",
+      "type": "string"
+    },
+    "SnapshotHashes": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Code"
+        },
+        "grants": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Grants",
+          "type": "string"
+        },
+        "policy": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy",
+          "type": "string"
+        },
+        "profile": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Profile",
+          "type": "string"
+        },
+        "task": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Task",
+          "type": "string"
+        },
+        "tools": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Tools",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile",
+        "task",
+        "tools",
+        "policy",
+        "grants",
+        "code"
+      ],
+      "title": "SnapshotHashes",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "hashes": {
+      "$ref": "#/$defs/SnapshotHashes"
+    },
+    "limits": {
+      "$ref": "#/$defs/Limits"
+    },
+    "mode": {
+      "$ref": "#/$defs/RunMode"
+    },
+    "model_requested": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Model Requested"
+    },
+    "model_resolved": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Model Resolved"
+    },
+    "preaction_protocol": {
+      "$ref": "#/$defs/PreactionProtocol"
+    },
+    "predecessor_session_id": {
+      "anyOf": [
+        {
+          "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Predecessor Session Id"
+    },
+    "profile_id": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+      "title": "Profile Id",
+      "type": "string"
+    },
+    "provider_kind": {
+      "$ref": "#/$defs/ProviderKind"
+    },
+    "run_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "settings": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "boolean"
+          }
+        ]
+      },
+      "title": "Settings",
+      "type": "object"
+    },
+    "subject_session_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Subject Session Id",
+      "type": "string"
+    },
+    "synthetic": {
+      "const": true,
+      "default": true,
+      "title": "Synthetic",
+      "type": "boolean"
+    },
+    "task_id": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+      "title": "Task Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "subject_session_id",
+    "mode",
+    "provider_kind",
+    "model_requested",
+    "model_resolved",
+    "profile_id",
+    "task_id",
+    "preaction_protocol",
+    "hashes",
+    "limits",
+    "created_at"
+  ],
+  "title": "RunManifest",
+  "type": "object"
+}

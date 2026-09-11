@@ -1,0 +1,183 @@
+{
+  "$defs": {
+    "DisclosureLabel": {
+      "enum": [
+        "prompted",
+        "unprompted",
+        "unknown"
+      ],
+      "title": "DisclosureLabel",
+      "type": "string"
+    },
+    "EffectStatus": {
+      "enum": [
+        "applied",
+        "not_applied",
+        "indeterminate"
+      ],
+      "title": "EffectStatus",
+      "type": "string"
+    },
+    "EvaluatorKind": {
+      "enum": [
+        "deterministic",
+        "model_grader",
+        "human_adjudication"
+      ],
+      "title": "EvaluatorKind",
+      "type": "string"
+    },
+    "GateOutcome": {
+      "enum": [
+        "allow",
+        "deny",
+        "needs_approval"
+      ],
+      "title": "GateOutcome",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "behavior_labels": {
+      "patternProperties": {
+        "^[a-z0-9][a-z0-9_.-]{0,63}$": {
+          "enum": [
+            "yes",
+            "no",
+            "indeterminate",
+            "not_estimated"
+          ],
+          "type": "string"
+        }
+      },
+      "title": "Behavior Labels",
+      "type": "object"
+    },
+    "disclosure": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DisclosureLabel"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "effects": {
+      "patternProperties": {
+        "^[a-z]{2,8}_[0-9a-f]{32}$": {
+          "$ref": "#/$defs/EffectStatus"
+        }
+      },
+      "title": "Effects",
+      "type": "object"
+    },
+    "evaluated_at": {
+      "format": "date-time",
+      "title": "Evaluated At",
+      "type": "string"
+    },
+    "evaluation_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Evaluation Id",
+      "type": "string"
+    },
+    "evaluator_kind": {
+      "$ref": "#/$defs/EvaluatorKind"
+    },
+    "evidence_refs": {
+      "items": {
+        "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+        "type": "string"
+      },
+      "title": "Evidence Refs",
+      "type": "array"
+    },
+    "gate_outcomes": {
+      "patternProperties": {
+        "^[a-z]{2,8}_[0-9a-f]{32}$": {
+          "$ref": "#/$defs/GateOutcome"
+        }
+      },
+      "title": "Gate Outcomes",
+      "type": "object"
+    },
+    "indeterminate_reasons": {
+      "items": {
+        "maxLength": 2000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Indeterminate Reasons",
+      "type": "array"
+    },
+    "manifest_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Manifest Hash",
+      "type": "string"
+    },
+    "missingness": {
+      "items": {
+        "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+        "type": "string"
+      },
+      "title": "Missingness",
+      "type": "array"
+    },
+    "predicate_version": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+      "title": "Predicate Version",
+      "type": "string"
+    },
+    "run_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "supported_correction": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Supported Correction"
+    },
+    "useful_completion": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Useful Completion"
+    }
+  },
+  "required": [
+    "evaluation_id",
+    "run_id",
+    "manifest_hash",
+    "predicate_version",
+    "behavior_labels",
+    "gate_outcomes",
+    "effects",
+    "disclosure",
+    "supported_correction",
+    "useful_completion",
+    "evaluator_kind",
+    "evaluated_at"
+  ],
+  "title": "EvaluationRecord",
+  "type": "object"
+}

@@ -1,0 +1,57 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "event_count": {
+      "minimum": 0,
+      "title": "Event Count",
+      "type": "integer"
+    },
+    "exported_at": {
+      "format": "date-time",
+      "title": "Exported At",
+      "type": "string"
+    },
+    "head_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Head Hash",
+      "type": "string"
+    },
+    "key_id": {
+      "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$",
+      "title": "Key Id",
+      "type": "string"
+    },
+    "manifest_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Manifest Hash",
+      "type": "string"
+    },
+    "run_id": {
+      "pattern": "^[a-z]{2,8}_[0-9a-f]{32}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "signature": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Signature",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "event_count",
+    "head_hash",
+    "manifest_hash",
+    "key_id",
+    "signature",
+    "exported_at"
+  ],
+  "title": "Checkpoint",
+  "type": "object"
+}
