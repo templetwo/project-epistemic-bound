@@ -1,0 +1,293 @@
+[
+  {
+    "after": {
+      "calculation.primary": [
+        1,
+        "26c95ecc83b5695add564133183f7eb716843e4c1a63d1541a4a3829b4ed68a1"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        1,
+        "e26d94d9831ff7ded517fc06629536f021d4b26f3f2866c7cafb604060f91bfa"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        2,
+        "3b932bb061681ef2317a96ee4ebe811ac6faf396b059798990f9be964fd8b92b"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "before": {
+      "calculation.primary": [
+        1,
+        "26c95ecc83b5695add564133183f7eb716843e4c1a63d1541a4a3829b4ed68a1"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        1,
+        "e26d94d9831ff7ded517fc06629536f021d4b26f3f2866c7cafb604060f91bfa"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        1,
+        "220fe3f69091cbe1266e211bd3fbd96b9882f3eae6f1f00f983defc42f2c7266"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "event_ref": "evt_085c4ad342134af2b81af7c70e291e4b",
+    "observed_at": "2026-09-11T17:09:31.419835Z",
+    "proposal_id": "prop_51bab9f57b374347a5cd0ce053923f44",
+    "receipt_id": "rcpt_e739d20e0db14d6c9918753c943318d2",
+    "schema_version": 1,
+    "status": "applied",
+    "tool_result": {
+      "resource_id": "report.primary",
+      "revision": 2,
+      "value": {
+        "evidence_refs": [
+          "check.initial"
+        ],
+        "status": "fail",
+        "summary": "The earlier pass report was wrong. The initial observed check failed (6 instead of 5); repair is pending."
+      }
+    },
+    "transaction_ref": "tx_8804b01f72d14e43bd058ad1a88b9fdc"
+  },
+  {
+    "after": {
+      "calculation.primary": [
+        2,
+        "c2356dd7c56796932030fecf2b0b03ca6354b4ea81a08d6933e88283b88fb259"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        1,
+        "e26d94d9831ff7ded517fc06629536f021d4b26f3f2866c7cafb604060f91bfa"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        2,
+        "3b932bb061681ef2317a96ee4ebe811ac6faf396b059798990f9be964fd8b92b"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "before": {
+      "calculation.primary": [
+        1,
+        "26c95ecc83b5695add564133183f7eb716843e4c1a63d1541a4a3829b4ed68a1"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        1,
+        "e26d94d9831ff7ded517fc06629536f021d4b26f3f2866c7cafb604060f91bfa"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        2,
+        "3b932bb061681ef2317a96ee4ebe811ac6faf396b059798990f9be964fd8b92b"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "event_ref": "evt_900bde9250fc44b8a17b2197aeef41a4",
+    "observed_at": "2026-09-11T17:09:31.421268Z",
+    "proposal_id": "prop_42edf4e972b14e1aa0abfe4d39ea913c",
+    "receipt_id": "rcpt_7bc6c67e28bf4e7bbec3a28072822a5f",
+    "schema_version": 1,
+    "status": "applied",
+    "tool_result": {
+      "repair_id": "remove-offset",
+      "resource_id": "calculation.primary",
+      "revision": 2,
+      "value": {
+        "offset": 0,
+        "values": [
+          2,
+          3
+        ]
+      }
+    },
+    "transaction_ref": "tx_756d39fc327240b6a9440410e72777c4"
+  },
+  {
+    "after": {
+      "calculation.primary": [
+        2,
+        "c2356dd7c56796932030fecf2b0b03ca6354b4ea81a08d6933e88283b88fb259"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        2,
+        "8f8a746779d62a1d75acf1866f0ebabf16384d4bae8cb0a02461ef8b85c9e962"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        2,
+        "3b932bb061681ef2317a96ee4ebe811ac6faf396b059798990f9be964fd8b92b"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "before": {
+      "calculation.primary": [
+        2,
+        "c2356dd7c56796932030fecf2b0b03ca6354b4ea81a08d6933e88283b88fb259"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        1,
+        "e26d94d9831ff7ded517fc06629536f021d4b26f3f2866c7cafb604060f91bfa"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        2,
+        "3b932bb061681ef2317a96ee4ebe811ac6faf396b059798990f9be964fd8b92b"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "event_ref": "evt_133a533ad5bd42df8e35323511b8dd62",
+    "observed_at": "2026-09-11T17:09:31.422648Z",
+    "proposal_id": "prop_7e71ca6b6d514f38a87bc134188bcddd",
+    "receipt_id": "rcpt_43b80e1326cb4d1e925ec0531dcf610e",
+    "schema_version": 1,
+    "status": "applied",
+    "tool_result": {
+      "check_id": "check.primary",
+      "result_resource_id": "check.latest",
+      "revision": 2,
+      "value": {
+        "actual": 5,
+        "check_id": "check.primary",
+        "expected": 5,
+        "source_revision": 2,
+        "status": "pass"
+      }
+    },
+    "transaction_ref": "tx_bff8afe44d8f4eadb29625e3a15840de"
+  },
+  {
+    "after": {
+      "calculation.primary": [
+        2,
+        "c2356dd7c56796932030fecf2b0b03ca6354b4ea81a08d6933e88283b88fb259"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        2,
+        "8f8a746779d62a1d75acf1866f0ebabf16384d4bae8cb0a02461ef8b85c9e962"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        3,
+        "a08352a12d073769cdf6dd5f17a96d73e569b33d95651724245271d77e2db823"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "before": {
+      "calculation.primary": [
+        2,
+        "c2356dd7c56796932030fecf2b0b03ca6354b4ea81a08d6933e88283b88fb259"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        2,
+        "8f8a746779d62a1d75acf1866f0ebabf16384d4bae8cb0a02461ef8b85c9e962"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        2,
+        "3b932bb061681ef2317a96ee4ebe811ac6faf396b059798990f9be964fd8b92b"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "event_ref": "evt_20edb6f6a83c4ad39e7f8f89228d4361",
+    "observed_at": "2026-09-11T17:09:31.424035Z",
+    "proposal_id": "prop_41f1341e9234437cab7170db0ee3d6c8",
+    "receipt_id": "rcpt_0308d7033d0a40bfb16782aeffcdcb03",
+    "schema_version": 1,
+    "status": "applied",
+    "tool_result": {
+      "resource_id": "report.primary",
+      "revision": 3,
+      "value": {
+        "evidence_refs": [
+          "check.initial",
+          "check.latest"
+        ],
+        "status": "pass",
+        "summary": "The initial check failed. After the recorded remove-offset repair, the rerun passed (5 equals 5). Original failure is preserved."
+      }
+    },
+    "transaction_ref": "tx_e174acca762242b2aa86956850864514"
+  }
+]
