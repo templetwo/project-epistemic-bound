@@ -125,12 +125,17 @@ capability. Provider and evaluator adapters never receive a writable repository.
 
 ## 9. Event chain (§14.1) — `evidence/events.py`
 
-`event_hash = digest("peb:event:v1", {schema_version, run_id, seq, ts (UTC ISO
-microseconds), event_type, actor, payload, prev_hash})`. `prev_hash` is `null`
-only at `seq 0`. `verify_chain(events, checkpoint)` reports
+`event_hash = digest("peb:event:v1", {event_id, schema_version, run_id, seq, ts (UTC
+ISO microseconds), event_type, actor, payload, prev_hash})` — every stored field
+except `event_hash` itself. `prev_hash` is `null` only at `seq 0`.
+`verify_chain(events, checkpoint, *, manifest_hash=None, key=None)` reports
 `chain_consistent; external_anchor_absent`, `verified_against_anchor`, `partial`
-(chain fine, anchor mismatch — tail deletion) or `failed`. Supplied hashes are
-always recomputed.
+(chain fine, anchor does not cover it — tail deletion, foreign-run checkpoint,
+manifest or signature mismatch) or `failed`. A checkpoint anchors only the run it
+names. `manifest_hash` and `key` are checked when supplied and unchecked (not
+passed) when absent; S2 storage must supply both. Supplied hashes are always
+recomputed. (Two draft defects here — event_id uncovered, foreign-run checkpoint
+accepted — were found by seat 2/3 before the freeze.)
 
 ## 10. Error codes (§15.2) — `errors.py`
 

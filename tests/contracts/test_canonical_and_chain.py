@@ -5,6 +5,7 @@ import pytest
 
 from peb.boundary.canonical import (
     DOMAIN_APPROVAL,
+    DOMAIN_CHECKPOINT,
     DOMAIN_EVENT,
     CanonicalizationError,
     canonical_json,
@@ -14,7 +15,7 @@ from peb.boundary.canonical import (
     proposal_digest,
 )
 from peb.contracts import Actor, Checkpoint, EventType, PendingEvent, StoredEvent, new_id, utcnow
-from peb.evidence.events import ChainError, MemoryEvidenceStore, verify_chain
+from peb.evidence.events import ChainError, MemoryEvidenceStore, checkpoint_body, verify_chain
 
 
 def test_canonical_json_is_sorted_compact_and_deterministic():
@@ -113,3 +114,45 @@ def test_stored_event_hash_is_recomputed_not_trusted():
     e0 = store.append(_pending(run_id, 0, {}))
     forged = StoredEvent(**e0.model_dump(exclude={"event_hash"}), event_hash="f" * 64)
     assert not verify_chain([forged], None).chain_consistent
+
+
+# --- regressions for the two defects seat 2/3 found in the draft (2026-09-11) ---
+
+def test_edited_event_id_fails_verification():
+    store = MemoryEvidenceStore()
+    run_id = new_id("run")
+    store.append(_pending(run_id, 0, {}))
+    ev = store.events(run_id)[0]
+    renamed = ev.model_copy(update={"event_id": new_id("evt")})
+    assert not verify_chain([renamed], None).chain_consistent
+
+
+def test_checkpoint_for_a_different_run_is_not_an_anchor():
+    store = MemoryEvidenceStore()
+    run_a, run_b = new_id("run"), new_id("run")
+    for i in range(2):
+        store.append(_pending(run_a, i, {"n": i}))
+        store.append(_pending(run_b, i, {"n": i}))
+    a = store.events(run_a)
+    foreign = Checkpoint(run_id=run_b, event_count=2, head_hash=a[-1].event_hash, manifest_hash="0" * 64,
+                         key_id="dev-key-1", signature="0" * 64, exported_at=utcnow())
+    result = verify_chain(a, foreign)
+    assert result.chain_consistent and result.anchor_matches is False and result.summary == "partial"
+    assert any("different run" in f for f in result.failures)
+
+
+def test_checkpoint_manifest_and_signature_checked_when_supplied():
+    store = MemoryEvidenceStore()
+    run_id = new_id("run")
+    store.append(_pending(run_id, 0, {}))
+    ev = store.events(run_id)
+    key = b"dev" * 11
+    manifest_hash = "a" * 64
+    body = checkpoint_body(run_id, 1, ev[-1].event_hash, manifest_hash, "dev-key-1")
+    good = Checkpoint(run_id=run_id, event_count=1, head_hash=ev[-1].event_hash, manifest_hash=manifest_hash,
+                      key_id="dev-key-1", signature=hmac_sign(key, DOMAIN_CHECKPOINT, body), exported_at=utcnow())
+    assert verify_chain(ev, good, manifest_hash=manifest_hash, key=key).summary == "verified_against_anchor"
+    assert verify_chain(ev, good, manifest_hash="b" * 64, key=key).summary == "partial"
+    assert verify_chain(ev, good, manifest_hash=manifest_hash, key=b"wrong" * 8).summary == "partial"
+    # unchecked is unchecked, not passed: with no key/manifest supplied the result still says anchored
+    assert verify_chain(ev, good).summary == "verified_against_anchor"
