@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "project": "project-epistemic-bound",
+  "commit": "b4b1cfb4944887550e052f624cb8fa0e6b6bc6fa",
+  "working_tree": "clean git archive of committed tree",
+  "command": [
+    "uv",
+    "run",
+    "--locked",
+    "pytest",
+    "-o",
+    "addopts=",
+    "-q",
+    "-p",
+    "no:cacheprovider",
+    "--junitxml=/private/tmp/astra-release-cockpit-check-v1/junit.xml"
+  ],
+  "started_at": "2026-09-11T21:52:46.798372+00:00",
+  "finished_at": "2026-09-11T21:52:54.902157+00:00",
+  "exit_code": 0,
+  "release_exit_code": 1,
+  "release_status": "blocked",
+  "tests": {
+    "collected": 463,
+    "passed": 461,
+    "failed": 0,
+    "skipped": 2
+  },
+  "environment": {
+    "python": "Python 3.13.5",
+    "uv": "uv 0.9.18 (0cee76417 2025-12-16)",
+    "packages": [
+      {
+        "name": "annotated-doc",
+        "version": "0.0.5"
+      },
+      {
+        "name": "annotated-types",
+        "version": "0.8.0"
+      },
+      {
+        "name": "anyio",
+        "version": "4.15.1"
+      },
+      {
+        "name": "certifi",
+        "version": "2026.7.22"
+      },
+      {
+        "name": "click",
+        "version": "8.5.0"
+      },
+      {
+        "name": "fastapi",
+        "version": "0.141.1"
+      },
+      {
+        "name": "h11",
+        "version": "0.16.0"
+      },
+      {
+        "name": "httpcore",
+        "version": "1.0.9"
+      },
+      {
+        "name": "httpx",
+        "version": "0.28.1"
+      },
+      {
+        "name": "idna",
+        "version": "3.19"
+      },
+      {
+        "name": "iniconfig",
+        "version": "2.3.0"
+      },
+      {
+        "name": "packaging",
+        "version": "26.3"
+      },
+      {
+        "name": "pluggy",
+        "version": "1.6.0"
+      },
+      {
+        "name": "project-epistemic-bound",
+        "version": "0.1.0.dev0",
+        "editable_project_location": "/Users/vaquez/Desktop/project-epistemic-bound-worktrees/codex"
+      },
+      {
+        "name": "pydantic",
+        "version": "2.13.5"
+      },
+      {
+        "name": "pydantic-core",
+        "version": "2.46.5"
+      },
+      {
+        "name": "pygments",
+        "version": "2.21.0"
+      },
+      {
+        "name": "pytest",
+        "version": "9.1.1"
+      },
+      {
+        "name": "ruff",
+        "version": "0.16.7"
+      },
+      {
+        "name": "starlette",
+        "version": "1.6.0"
+      },
+      {
+        "name": "typing-extensions",
+        "version": "4.16.0"
+      },
+      {
+        "name": "typing-inspection",
+        "version": "0.4.4"
+      },
+      {
+        "name": "uvicorn",
+        "version": "0.52.4"
+      }
+    ]
+  },
+  "stdout_sha256": "353ad140969dc09821333a2824be1297d281eb153a2b1ecfa0dea717900ffd38",
+  "stderr_sha256": "09996c8c0e294cc85888fcca818bff864287c8ff169716372130539870c209ad",
+  "junit_sha256": "444ea2d2809bc420cb07fc11699d675bfbda1101404ba45b71574c6bd654aaec",
+  "source_receipt_sha256": "30e7e560e8305d1ac2246692a6c793a4c5d3344583e4a14d63a6a207e9d54904",
+  "skips": [
+    {
+      "test": "tests.runtime.test_service::test_without_the_boundary_lane_every_store_operation_is_not_implemented",
+      "reason": "boundary lane present: the real path is covered in tests/integration/test_service.py"
+    },
+    {
+      "test": "tests.unit.test_cli_bootstrap::test_demo_fails_honestly_when_the_boundary_lane_is_absent",
+      "reason": "boundary lane present in this checkout: peb demo is real here (see tests/integration/test_demo.py)"
+    }
+  ],
+  "limits": [
+    "BOOT-01: needs_review",
+    "BOOT-02: needs_review",
+    "ISO-01: needs_review",
+    "ISO-02: needs_review",
+    "ISO-03: needs_review",
+    "PARSE-01: needs_review",
+    "PARSE-02: needs_review",
+    "AUTH-01: needs_review",
+    "AUTH-02: needs_review",
+    "AUTH-03: needs_review",
+    "AUTH-04: needs_review",
+    "AUTH-05: needs_review",
+    "AUTH-06: needs_review",
+    "AUTH-07: needs_review",
+    "TX-01: needs_review",
+    "TX-02: needs_review",
+    "TX-03: needs_review",
+    "STOP-01: needs_review",
+    "STOP-02: needs_review",
+    "STOP-03: needs_review",
+    "DATA-01: needs_review",
+    "DATA-02: needs_review",
+    "BEHAV-01: needs_review",
+    "BEHAV-02: needs_review",
+    "BEHAV-03: needs_review",
+    "BEHAV-04: needs_review",
+    "BEHAV-05: needs_review",
+    "BEHAV-06: partial",
+    "COMMIT-01: needs_review",
+    "COMMIT-02: needs_review",
+    "PRE-01: needs_review",
+    "PRE-02: needs_review",
+    "REVIEW-01: needs_review",
+    "REVIEW-02: needs_review",
+    "REVIEW-03: needs_review",
+    "EVID-01: needs_review",
+    "EVID-02: needs_review",
+    "EVID-03: needs_review",
+    "EVID-04: needs_review",
+    "EVAL-01: needs_review",
+    "EVAL-02: partial",
+    "EVAL-03: needs_review",
+    "EVAL-04: needs_review",
+    "EVAL-05: needs_review",
+    "PROVIDER-01: needs_review",
+    "PROVIDER-02: needs_review",
+    "UI-01: partial",
+    "UI-02: partial",
+    "UI-03: partial",
+    "LIVE-01: partial",
+    "RELEASE-01: partial",
+    "Required suite contains skipped tests; release remains blocked"
+  ],
+  "note": "Transferred summary of generated receipt. All six commands exited0, including Ruff and pytest. Release checker itself exited1 because matrix review and suite skips remain. Both skips concern absent-boundary behavior rendered obsolete in the integrated tree, not unrun model tests. No model/browser/paid command was invoked."
+}
