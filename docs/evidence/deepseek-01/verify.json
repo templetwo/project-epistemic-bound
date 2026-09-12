@@ -1,0 +1,9 @@
+{
+  "anchor_matches": null,
+  "chain_consistent": true,
+  "checked_events": 63,
+  "external_anchor": "absent",
+  "failures": [],
+  "run_id": "run_0bb455c1f24b4f668f4e7dd717fd8903",
+  "summary": "chain_consistent; external_anchor_absent"
+}

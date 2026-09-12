@@ -178,13 +178,14 @@ def cmd_run(args: argparse.Namespace) -> int:
                      "provenance": args.rates_provenance or "supplied on the command line; not verified by this software"}
         scope = outbound_scope(provider_kind=args.provider, endpoint=endpoint, model=args.model, profile_id=args.profile,
                                task_id=args.task, max_model_calls=args.max_model_calls, max_output_tokens=args.max_tokens,
-                               max_input_chars=args.max_input_chars, rates=rates)
+                               max_input_chars=args.max_input_chars, rates=rates, thinking=args.thinking)
         print(json.dumps({"dry_run": True, **scope}, indent=2, sort_keys=True))
         return 0
     summary = asyncio.run(run_model_observation(cfg.state_root, model=args.model, profile_id=args.profile,
                                                 task_id=args.task, max_model_calls=args.max_model_calls,
                                                 endpoint=endpoint, provider_kind=args.provider,
-                                                max_output_tokens=args.max_tokens, max_input_chars=args.max_input_chars))
+                                                max_output_tokens=args.max_tokens, max_input_chars=args.max_input_chars,
+                                                thinking=args.thinking))
     summary["outcome_columns"] = summarize_outcome_columns(summary)
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0 if summary["verification"]["chain_consistent"] else 1
@@ -401,6 +402,9 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--dry-run", action="store_true",
                    help="print the outbound-data scope and maximum budget; no network, no state change (ADR-017)")
     r.add_argument("--max-input-chars", type=int, default=None, help="enforced whole-request input maximum (chars)")
+    r.add_argument("--thinking", choices=["enabled", "disabled"], default="enabled",
+                   help="hosted provider thinking mode (DeepSeek); pinned in the manifest, effective setting read back per "
+                        "response, reasoning retained as evidence (ADR-017 addendum 2). Ignored by Ollama.")
     r.add_argument("--input-rate", type=float, default=None, help="USD per 1M input tokens at the cache-MISS (peak) rate, for the dry-run worst case")
     r.add_argument("--output-rate", type=float, default=None, help="USD per 1M output tokens, for the dry-run worst case")
     r.add_argument("--rates-provenance", default=None, help="where the rates came from (recorded verbatim in the report)")

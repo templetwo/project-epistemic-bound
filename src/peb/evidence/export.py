@@ -8,6 +8,7 @@ from typing import Any
 
 from ..contracts import utcnow
 from ..errors import ErrorCode, PebError
+from ..runtime.snapshot import projected_commitments
 from ..storage.repository import SqliteRepository
 from .replay import history_as_wiring, replay_run
 from .verify import verify_run
@@ -43,7 +44,9 @@ def export_run(repo: SqliteRepository, run_id: str, out_dir: str | Path) -> Path
             for e in events
         ),
         "resources.json": _dump({"current": current, "history": history, "replayed": replayed}),
-        "commitments.json": _dump([c.model_dump(mode="json") for c in repo.commitments(run_id)]),
+        # The shared projection (runtime/snapshot.projected_commitments): status and origin from the event chain,
+        # unmatched table rows kept. Seat 2/3's #28117: the table alone omitted operator accept/revise records.
+        "commitments.json": _dump([c.model_dump(mode="json") for c in projected_commitments(repo, run_id)]),
         "reviews.json": _dump([]),
         "evaluation.json": _dump({"present": False}),
         "checkpoints.json": _dump([checkpoint.model_dump(mode="json")]),

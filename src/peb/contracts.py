@@ -710,6 +710,10 @@ class ModelResponse(StrictModel):
     prompt_tokens: int | None  # None = not returned; never zero by default
     completion_tokens: int | None
     duration_ms: int | None
+    # ADR-017 addendum 2 (Anthony, 2026-09-11: DeepSeek capability rides on its thinking; cost is not a constraint):
+    # the model's reasoning trace, when the provider returns one, retained as EVIDENCE beside the decision. Never
+    # parsed as a decision; scanned for the credential like every other body field. None when absent/unsupported.
+    reasoning: str | None = None
     error: Literal["server_unreachable", "unknown_model", "unsupported_setting", "timeout",
                    "truncated", "model_id_mismatch", "transport",
                    # ADR-017 (hosted provider): distinct, never a fallback trigger

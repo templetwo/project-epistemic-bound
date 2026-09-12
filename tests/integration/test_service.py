@@ -133,3 +133,141 @@ def test_run_start_through_the_service_is_the_same_bounded_model_run(tmp_path):
     with pytest.raises(PebError) as e:
         call(svc, "run.start", {}, {**body, "profile": "no-such-profile"})
     assert e.value.code == ErrorCode.invalid_input
+
+
+# ----------------------------------------------------------------------------- ADR-018: §15 lifecycle split + commitments
+
+def test_create_step_and_begin_are_the_lifecycle_split_of_run_start(tmp_path):
+    from peb.workspace.fixtures import load_script
+    from tests.integration.test_model_run import EP, MODEL, fake_ollama
+
+    transport, fake_state = fake_ollama(load_script("truthful-repair"))
+    svc = WorkroomService(tmp_path / "state", ollama_endpoint=EP, inference_lock_path=tmp_path / "inference.lock",
+                          ollama_transport=transport)
+    created = call(svc, "run.create", {}, {"provider": "ollama", "model": MODEL, "profile": "baseline", "max_model_calls": 16})
+    rid = created["run_id"]
+    # The store's initial status is `running` (3/3's S2 store); a created run is told apart by the record:
+    # started False, zero model calls, only the genesis event on the chain.
+    assert created["started"] is False and created["network"] == "none" and created["model_calls"] == 0 and created["events"] == 1
+    assert fake_state["i"] == 0 and not fake_state["bodies"]  # no probe, no model call at create
+    got = call(svc, "run.get", {"run_id": rid})
+    assert got["status"] in ("created", "running") and [e["event_type"] for e in got["run"]["events"]] == ["run_created"]
+    # step: exactly one decision and its effect; the run is not evaluated mid-flight
+    s1 = call(svc, "run.step", {"run_id": rid}, {"confirm": True})
+    assert s1["steps_taken"] == 1 and s1["model_calls"] == 1 and fake_state["i"] == 1
+    assert s1["evaluation"] is None and s1["evaluation_note"].startswith("not evaluated") and s1["status"] == "running"
+    assert s1["subject_session_id"] == created["subject_session_id"]  # same session: no resume happened
+    # begin: the same bounded loop `run.start` runs, from where the record left off, to a boundary
+    s2 = call(svc, "run.begin", {"run_id": rid}, {"confirm": True})
+    assert s2["status"] == "completed" and s2["steps_taken"] >= 1 and s2["model_calls"] == s1["model_calls"] + s2["steps_taken"]
+    assert s2["evaluation"] is not None and s2["verification"]["summary"] == "verified_against_anchor"
+    assert s2["subject_session_id"] == created["subject_session_id"]
+    assert s2["model_calls"] == fake_state["i"]  # every recorded call was a real request to the (fake) model
+    # a terminal run is never stepped
+    with pytest.raises(PebError) as e:
+        call(svc, "run.step", {"run_id": rid}, {"confirm": True})
+    assert e.value.code == ErrorCode.conflict
+    # the evaluation was recorded once, at the boundary; the chain is the authority for the call count
+    events = call(svc, "run.get", {"run_id": rid})["run"]["events"]
+    assert sum(ev["event_type"] == "evaluation_recorded" for ev in events) == 1
+    assert sum(ev["event_type"] == "model_request" for ev in events) == s2["model_calls"]
+
+
+def test_a_paused_run_is_not_stepped_it_is_resumed(tmp_path):
+    from tests.integration.test_model_run import EP, MODEL, fake_ollama
+
+    transport, _ = fake_ollama([])
+    svc = WorkroomService(tmp_path / "state", ollama_endpoint=EP, inference_lock_path=tmp_path / "inference.lock",
+                          ollama_transport=transport)
+    rid = call(svc, "run.create", {}, {"provider": "ollama", "model": MODEL, "profile": "baseline"})["run_id"]
+    assert call(svc, "run.pause", {"run_id": rid}, {})["status"] == "paused"
+    with pytest.raises(PebError) as e:
+        call(svc, "run.step", {"run_id": rid}, {"confirm": True})
+    assert e.value.code == ErrorCode.conflict and "run.resume" in str(e.value)
+    with pytest.raises(PebError) as e:
+        call(svc, "run.begin", {"run_id": "run_" + "f" * 32}, {"confirm": True})
+    assert e.value.code == ErrorCode.invalid_input
+
+
+def test_create_validates_config_before_anything_is_recorded(tmp_path):
+    from tests.integration.test_model_run import EP, MODEL, fake_ollama
+
+    transport, fake_state = fake_ollama([])
+    svc = WorkroomService(tmp_path / "state", ollama_endpoint=EP, ollama_transport=transport)
+    for bad in ({"profile": "no-such-profile"}, {"profile": "placebo", "model": ""}):
+        with pytest.raises(PebError) as e:
+            call(svc, "run.create", {}, {"provider": "ollama", "model": MODEL, "profile": "baseline", **bad})
+        assert e.value.code == ErrorCode.invalid_input
+    assert fake_state["i"] == 0 and call(svc, "runs.list", {})["runs"] == []
+
+
+def test_commitment_accept_and_revise_are_operator_records_visible_everywhere(tmp_path):
+    from peb.contracts import Actor, CommitmentKind
+    from peb.runtime.bootstrap import _append_event
+
+    c = compose_scripted_run(tmp_path / "state", "truthful-repair")
+    rid, task_id = c.run.manifest.run_id, c.run.task.task_id
+    # a subject-proposed undertaking, recorded the way the runtime records one (event on the chain)
+    proposed = c.runtime.ledger.propose(rid, task_id, "I will report the check failure.", kind=CommitmentKind.undertaking,
+                                        origin=Actor.subject, append=lambda et, a, p: _append_event(c.repo, rid, et, a, p))
+    grants_before = [g.grant_id for g in c.repo.grants(rid)]
+    c.repo.close()
+    svc = WorkroomService(tmp_path / "state")
+
+    def shown(cid):
+        return next(x for x in call(svc, "run.get", {"run_id": rid})["run"]["commitments"] if x["commitment_id"] == cid)
+
+    assert shown(proposed.commitment_id)["status"] == "proposed"
+    acc = call(svc, "commitment.accept", {"run_id": rid, "commitment_id": proposed.commitment_id}, {"note": "operator ok"})
+    assert acc["commitment"]["status"] == "accepted" and acc["event"]["event_type"] == "commitment_accepted"
+    assert acc["authority"]["grants_unchanged"] is True and shown(proposed.commitment_id)["status"] == "accepted"
+    with pytest.raises(PebError) as e:  # accepting twice: the record already says accepted
+        call(svc, "commitment.accept", {"run_id": rid, "commitment_id": proposed.commitment_id}, {})
+    assert e.value.code == ErrorCode.conflict
+    rev = call(svc, "commitment.revise", {"run_id": rid, "commitment_id": proposed.commitment_id},
+               {"text": "I will report the check failure and its cause."})
+    new_id = rev["commitment"]["commitment_id"]
+    assert rev["commitment"]["predecessor_id"] == proposed.commitment_id and rev["commitment"]["status"] == "accepted"
+    assert rev["commitment"]["revision_authorized_by"] == "operator" and rev["event"]["event_type"] == "commitment_proposed"
+    assert shown(proposed.commitment_id)["status"] == "superseded" and shown(proposed.commitment_id)["text"] == "I will report the check failure."
+    assert shown(new_id)["status"] == "accepted" and shown(new_id)["text"].endswith("its cause.")
+    with pytest.raises(PebError) as e:  # version check: the superseded id is not the current version
+        call(svc, "commitment.revise", {"run_id": rid, "commitment_id": proposed.commitment_id}, {"text": "again"})
+    assert e.value.code == ErrorCode.conflict
+    with pytest.raises(PebError) as e:
+        call(svc, "commitment.accept", {"run_id": rid, "commitment_id": "cmt_" + "0" * 32}, {})
+    assert e.value.code == ErrorCode.invalid_input
+    # nothing about authority moved: same grants, and the chain still verifies
+    repo = __import__("peb.storage.repository", fromlist=["SqliteRepository"]).SqliteRepository.open(tmp_path / "state")
+    try:
+        assert [g.grant_id for g in repo.grants(rid)] == grants_before
+    finally:
+        repo.close()
+    assert call(svc, "evidence.verify", {"run_id": rid}, {})["verification"]["chain_consistent"] is True
+
+
+def test_operator_provenance_and_export_agree_with_run_get(tmp_path):
+    """Seat 2/3's #28117: (1) an operator undertaking revised must still read origin=operator after a reopen;
+    (2) evidence.export's commitments.json must be the same projection run.get shows (event-derived status and
+    origin, unmatched table rows kept), not the executor's insert-only table."""
+    import json as _json
+    from pathlib import Path
+
+    from peb.runtime.bootstrap import _append_event
+
+    c = compose_scripted_run(tmp_path / "state", "truthful-repair")
+    rid, task_id = c.run.manifest.run_id, c.run.task.task_id
+    undertaking = c.runtime.ledger.operator_undertaking(rid, task_id, "Operator: report the check result as it is.",
+                                                        append=lambda et, a, p: _append_event(c.repo, rid, et, a, p))
+    c.repo.close()
+    svc = WorkroomService(tmp_path / "state")
+    rev = call(svc, "commitment.revise", {"run_id": rid, "commitment_id": undertaking.commitment_id},
+               {"text": "Operator: report the check result as it is, with its revision number."})
+    assert rev["commitment"]["origin"] == "operator" and rev["commitment"]["status"] == "accepted"
+    shown = {x["commitment_id"]: x for x in call(svc, "run.get", {"run_id": rid})["run"]["commitments"]}
+    assert shown[rev["commitment"]["commitment_id"]]["origin"] == "operator"  # provenance survives the record
+    assert shown[undertaking.commitment_id]["status"] == "superseded" and shown[undertaking.commitment_id]["origin"] == "operator"
+    exported = call(svc, "evidence.export", {"run_id": rid}, {"out": str(tmp_path / "exports")})
+    records = _json.loads((Path(exported["exported"]) / "commitments.json").read_text())
+    by_id = {r["commitment_id"]: r for r in records}
+    assert set(by_id) == set(shown) and all(by_id[k]["status"] == shown[k]["status"] and by_id[k]["origin"] == shown[k]["origin"] for k in shown)

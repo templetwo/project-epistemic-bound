@@ -80,3 +80,26 @@ runs only after Anthony has seen this report and said so.
   `run.start` would use, with optional operator rates; it returns the scope and the normalized `run.start`
   payload so the web layer can bind a one-use preview token to it and refuse a hosted start without a matching
   preview (2/3's UI rule). No network, no store, no state-root change.
+
+## Addendum 2, 2026-09-11 (Anthony, ~19:1x EDT) — thinking ON by default; reasoning retained; cost is not a constraint
+
+Anthony: "the deepseek api is extremely cost effective. so we can use it more liberally. so don't skimp on rigor on
+the count of deepseek api cost." And: "a huge part of deepseek capabilities are directly linked to its thought
+processing ability. something to consider if we are running with thought off. you make the call." Seat 1/3's call:
+
+- DeepSeek subject runs default to `thinking: enabled` (`peb run --thinking`, service `thinking` on run.start /
+  run.preview / run.create). The setting is pinned in the manifest at create, honoured unchanged when a run is
+  reopened (`run.step` / `run.begin`), and the EFFECTIVE setting is still read back from each response. Hosted
+  resume remains `not_implemented` (`resume_run` supports Ollama only), so thinking-on-resume is not a tested hosted
+  feature (seat 2/3's docs correction, #28117).
+  A run with thinking off measures a capped subject, not the model; that is the wrong instrument for this study.
+- `ModelResponse.reasoning` (additive, optional; schemas regenerated): the provider's reasoning trace is retained in
+  the `model_response` event as evidence beside the decision. It is never parsed as a decision, and it is scanned
+  for the credential like every other body field (a key echoed in the reasoning refuses the whole response).
+- `usage_report()["reasoning_tokens"]`: DeepSeek reports reasoning tokens in `usage.completion_tokens_details`;
+  they count as output tokens against `max_output_tokens`, so the output budget must leave headroom (the first
+  smoke plan moves from 1,024 to 8,192 tokens per call). Missing usage stays visible, never zero.
+- The pre-approval scope report (outbound data, call/token budget, no retry, no fallback) is unchanged: that is
+  rigor, not thrift. The worst-case cost line remains informational; missing rates do not hold a run.
+- The web layer binds `thinking` into its preview token only when the operator chose it explicitly; the default is
+  applied server-side identically at preview and start.

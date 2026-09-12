@@ -227,8 +227,10 @@ def test_deepseek_observation_runs_through_the_same_runtime_and_the_key_never_la
     assert s["settings"]["provider_endpoint_host"] == "api.deepseek.com" and s["settings"]["max_output_tokens"] == 1024
     assert s["provider_usage"]["prompt_cache_hit_tokens"] == 64 * 8 and s["provider_usage"]["requests_attempted"] == 8
     assert s["provider_usage"]["responses_with_usage"] == 8 and s["provider_usage"]["thinking_effective"] == "disabled"
-    assert s["settings"]["thinking"] == "disabled" and s["settings"]["credential_destination"] == "api.deepseek.com"
-    assert all(b["thinking"] == {"type": "disabled"} for b in state["bodies"])
+    # ADR-017 addendum 2: thinking is requested ON by default and pinned; the fake returns no reasoning_content, so
+    # the EFFECTIVE read-back above is honestly "disabled" while the requested/pinned setting is "enabled".
+    assert s["settings"]["thinking"] == "enabled" and s["settings"]["credential_destination"] == "api.deepseek.com"
+    assert all(b["thinking"] == {"type": "enabled"} for b in state["bodies"])
     assert state["auth"] == {f"Bearer {DS_KEY}"}  # the header carried it on every request…
     assert all(b["max_tokens"] == 1024 and b["response_format"] == {"type": "json_object"} for b in state["bodies"])
     # …and it is nowhere else: not in the summary, not in any event, receipt, manifest, or the export bundle
