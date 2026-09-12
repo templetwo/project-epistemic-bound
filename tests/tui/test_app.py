@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from textual.widgets import DataTable
+from textual.coordinate import Coordinate
+from textual.widgets import DataTable, Static
 
 from peb.tui.app import CockpitApp
 from peb.tui.transport import TransportError
@@ -179,5 +180,66 @@ def test_read_failures_back_off_and_quit_closes_the_transport_without_touching_t
             await pilot.press("q"); await pilot.pause()
         assert t.closed and t.mutations() == []
 
+
+    asyncio.run(scenario())
+
+def _plain(widget) -> tuple[str, int]:
+    rendered = widget.render()
+    plain = getattr(rendered, "plain", None)
+    if plain is None:
+        plain = str(rendered)
+    spans = getattr(rendered, "spans", [])
+    return plain, len(spans)
+
+
+def test_markup_in_untrusted_text_is_rendered_literally_on_every_surface():
+    """2/3's #28502: markup survives the sanitizer, so the WIDGETS must be literal — checked on the rendered content,
+    not on the pre-render string."""
+    async def scenario():
+        t = FakeTransport()
+        rid = "run_" + "9" * 32
+        t.add_run(rid, "[b]running[/b]", commitments=[{"commitment_id": "cmt_1", "kind": "undertaking", "status": "accepted", "origin": "subject",
+                                                         "text": "[red]fake verified[/red] [link=http://evil.example]click[/link] [@click=app.quit]x[/]"}])
+        app = _app(t)
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.refresh_all(); await pilot.pause()
+            app.query_one("#runs", DataTable).move_cursor(row=0); await pilot.pause()
+            await app.refresh_all(); await pilot.pause()
+            plain, spans = _plain(app.query_one("#commitments", Static))
+            assert "[red]fake verified[/red]" in plain and "[link=http://evil.example]click[/link]" in plain and "[@click=app.quit]x[/]" in plain
+            assert spans == 0
+            plain, spans = _plain(app.query_one("#overview", Static))
+            assert "[b]running[/b]" in plain and spans == 0
+            cell = app.query_one("#runs", DataTable).get_cell_at(Coordinate(0, 1))
+            assert getattr(cell, "plain", str(cell)) == "[b]running[/b]" and not getattr(cell, "spans", [])
+            app.push_screen(__import__("peb.tui.app", fromlist=["PromptScreen"]).PromptScreen("[red]title[/red]", "[link=http://x]hint[/link]"))
+            await pilot.pause()
+            from textual.widgets import Label
+            plain, spans = _plain(app.screen.query_one("#prompt-title", Label))
+            assert plain == "[red]title[/red]" and spans == 0
+            plain, spans = _plain(app.screen.query_one("#prompt-hint", Label))
+            assert plain == "[link=http://x]hint[/link]" and spans == 0
+
+    asyncio.run(scenario())
+
+
+def test_quit_reads_a_fresh_inventory_and_reports_when_it_cannot():
+    async def scenario():
+        t = FakeTransport()
+        t.add_run("run_" + "7" * 32, "completed")
+        app = _app(t)
+        async with app.run_test(size=(80, 24)) as pilot:
+            await app.refresh_all(); await pilot.pause()
+            t.add_run("run_" + "8" * 32, "running")  # started by another client AFTER the cockpit's last refresh
+            await pilot.press("q"); await pilot.pause()
+        assert app.inventory_confirmed and {r["run_id"] for r in app.last_inventory} == {"run_" + "7" * 32, "run_" + "8" * 32}
+        assert t.mutations() == [] and t.closed
+        t2 = FakeTransport(); t2.add_run("run_" + "6" * 32, "completed")
+        app2 = _app(t2)
+        async with app2.run_test(size=(80, 24)) as pilot:
+            await app2.refresh_all(); await pilot.pause()
+            t2.fail_reads = True
+            await pilot.press("q"); await pilot.pause()
+        assert not app2.inventory_confirmed and any("could not read the inventory" in line for line in app2.state.log)
 
     asyncio.run(scenario())

@@ -61,3 +61,19 @@ The choice alters no workroom semantics; the transport and the state model are l
 Two transport corrections from seat 2/3's review of slice 1 (#28469) are in this slice: any connection loss after a
 mutation was sent is an unknown outcome (not only a timeout), and a 200 with a body that is not a JSON object is a
 typed error for a read and an unknown outcome for a mutation, never an empty success.
+
+## Addendum 2026-09-12 — slice 2 corrections from seat 2/3's review (#28502, #28511; 3/3 concurred #28505)
+
+1. **Child state root.** `--serve` forwards the RESOLVED state root to the child both as `--state-root` and as
+   `PEB_STATE_ROOT`; an explicit CLI root overrides anything inherited (tested with a fake process and socket).
+2. **Quit is detach, never stop.** No inventory read is a shutdown interlock (another client may start a run after any
+   read; the cockpit may quit before its first inventory), so a workroom started by `--serve` is always left running
+   and reported (origin, pid, runs seen in flight or "unconfirmed", re-attach and stop commands). Only a child that
+   fails to start listening is cleaned up, by the spawner that still owns it.
+3. **Literal rendering.** Textual and Rich interpret markup by default; the sanitizer does not strip brackets. Every
+   untrusted surface is a `Content` object on a widget created with `markup=False`, and table cells are `Text` objects;
+   the test reads the widgets' rendered content (plain text equal to the tags, zero spans), not the pre-render string.
+4. **Evidence binding.** A page is appended only as an exact continuation: cursor at the cached end, no shrinking
+   total, contiguous `seq`, every `prev_hash` link inside and across the page boundary, a genesis with no previous hash
+   at cursor 0, the run's own identity. A verification badge binds to the head the verifier reports having covered
+   (`checked_events` equal to the cached count); any other result is UNBOUND on screen and in the alerts.

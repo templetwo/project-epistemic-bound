@@ -13,8 +13,14 @@ uv run --locked peb tui --attach http://127.0.0.1:8787   # join a workroom that 
 ```
 
 The operator secret is read from `operator.secret` in the workroom's state root when it is there; otherwise it
-is prompted for without echo. It is never a command-line option and never printed. `q` leaves the cockpit; the
-run keeps going (and the child workroom is stopped only in `--serve` mode).
+is prompted for without echo. It is never a command-line option and never printed. `--serve` forwards the resolved
+state root to the child (an explicit `--state-root` wins over an inherited `PEB_STATE_ROOT`).
+
+`q` leaves the cockpit and **detaches**: runs keep going, and a workroom started by `--serve` keeps serving. The
+cockpit prints the workroom's origin, pid, the runs it saw in flight at quit (or that it could not read them), how
+to re-attach and how to stop it. Nothing is terminated by the cockpit closing: no inventory read can be a shutdown
+interlock (another client may start a run after any read), so the ownership contract is explicit — you stop the
+workroom when you are done with it. The only automatic clean-up is a child that fails to start listening.
 
 ## What you see
 
@@ -50,11 +56,17 @@ run keeps going (and the child workroom is stopped only in `--serve` mode).
 | `s` / `b` | `run.step` / `run.begin` | local runs; the seam refuses hosted lifecycle without a preview |
 | `x` | `run.cancel` | type the final 6 characters of the run id to confirm |
 | `a` / `l` / `d` | `review.resolve` ack / allow / deny | the first open review of the selected run |
-| `q` | leave the cockpit | the run keeps going |
+| `q` | leave the cockpit | detaches; runs and a started workroom keep going; the stop command is printed |
 
 Every mutation is one attempt. If the answer never comes back (timeout, reset, malformed reply) the log says
 **RESULT UNKNOWN**, nothing is retried, and the cockpit refetches the inventory and the evidence before offering
 the control again. Controls are offered only against a projection refreshed within the last two seconds.
+
+Everything on screen is rendered **literally**: a bracketed tag in model text, a commitment or a review note is shown
+as characters, never as styling or a terminal hyperlink. Events are accepted only as a contiguous, fully linked
+continuation of what the cockpit already holds (every sequence number and every previous-hash link, the run's own
+identity, no shrinking snapshot); anything else resyncs from the start. A verification badge is bound to the head
+the verifier actually covered; a result that covered a different count is shown as UNBOUND until you verify again.
 
 ## What it never does
 

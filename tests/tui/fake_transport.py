@@ -121,7 +121,10 @@ class FakeTransport:
 
     async def verify(self, run_id):
         self._record("verify", run_id)
-        return {"run_id": run_id, "verification": {"chain_consistent": True, "summary": "chain_consistent; external_anchor_absent", "failures": []},
+        self.verify_checked = getattr(self, "verify_checked", None)
+        checked = self.verify_checked if self.verify_checked is not None else len(self.events_by_run[run_id])
+        return {"run_id": run_id, "verification": {"chain_consistent": True, "summary": "chain_consistent; external_anchor_absent", "failures": [],
+                                                  "checked_events": checked},
                 "anchor_provenance": "none_external_anchor_absent"}
 
     async def export(self, run_id, out):

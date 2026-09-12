@@ -12,10 +12,12 @@ import time
 from collections.abc import Callable
 from typing import Any, ClassVar
 
+from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.content import Content
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Input, Label, RichLog, Static, TabbedContent, TabPane
 
@@ -31,6 +33,11 @@ from .transport import (
 
 HEALTH_EVERY_S, RUNS_EVERY_S, REVIEWS_EVERY_S = 15.0, 2.0, 3.0
 EVENT_PAGE = 100
+
+
+def _cells(*values: str) -> list[Text]:
+    """DataTable cells as rich Text objects: literal, never interpreted as markup."""
+    return [Text(v) for v in values]
 
 
 def _short(value: Any, n: int = 12) -> str:
@@ -49,14 +56,14 @@ class PromptScreen(ModalScreen[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="prompt"):
-            yield Label(display(self._title, one_line=True), id="prompt-title")
-            yield Label(display(self._hint), id="prompt-hint")
+            yield Label(Content(display(self._title, one_line=True)), id="prompt-title", markup=False)
+            yield Label(Content(display(self._hint)), id="prompt-hint", markup=False)
             yield Input(placeholder=self._placeholder, id="prompt-input")
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         value = event.value.strip()
         if self._must_equal is not None and value != self._must_equal:
-            self.query_one("#prompt-hint", Label).update("That did not match. Escape to cancel.")
+            self.query_one("#prompt-hint", Label).update(Content("That did not match. Escape to cancel."))
             return
         self.dismiss(value)
 
@@ -79,7 +86,7 @@ class CockpitApp(App[None]):
     RichLog { height: 6; border-top: solid $panel; }
     """
     BINDINGS: ClassVar[list[Binding]] = [
-        Binding("q", "quit", "Quit (the run keeps going)"),
+        Binding("q", "quit", "Quit (detaches; runs and a started workroom keep going)"),
         Binding("g", "refresh_now", "Refresh"),
         Binding("n", "demo", "Scripted control"),
         Binding("v", "verify", "Verify"),
@@ -108,26 +115,28 @@ class CockpitApp(App[None]):
         self._local_time = True
         self._stopping = False
         self.rendered: dict[str, str] = {}  # what each pane last showed (sanitized text); the tests read this
+        self.last_inventory: list[dict[str, Any]] = []  # read fresh at quit; drives the child-workroom decision
+        self.inventory_confirmed = False
 
     # -- layout -------------------------------------------------------------------------------------
     def compose(self) -> ComposeResult:
-        yield Static("connecting…", id="status")
+        yield Static("connecting…", id="status", markup=False)
         with Horizontal():
             yield DataTable(id="runs", cursor_type="row", zebra_stripes=True)
             with Vertical(id="detail"):
-                yield Static("select a run", id="overview")
+                yield Static("select a run", id="overview", markup=False)
                 with TabbedContent(id="tabs"):
                     with TabPane("Events", id="tab-events"):
                         yield DataTable(id="events", cursor_type="row")
                     with TabPane("Permissions", id="tab-permissions"):
-                        yield Static("", id="permissions")
+                        yield Static("", id="permissions", markup=False)
                     with TabPane("Commitments", id="tab-commitments"):
-                        yield Static("", id="commitments")
+                        yield Static("", id="commitments", markup=False)
                     with TabPane("Reviews", id="tab-reviews"):
-                        yield Static("", id="reviews")
+                        yield Static("", id="reviews", markup=False)
                     with TabPane("Evidence", id="tab-evidence"):
-                        yield Static("", id="evidence")
-        yield Static("", id="alerts")
+                        yield Static("", id="evidence", markup=False)
+        yield Static("", id="alerts", markup=False)
         yield RichLog(id="oplog", markup=False, highlight=False, wrap=True)
         yield Footer()
 
@@ -206,8 +215,9 @@ class CockpitApp(App[None]):
 
     # -- rendering ----------------------------------------------------------------------------------
     def _set(self, widget_id: str, text: str) -> None:
+        """Every pane is LITERAL: a Content object (never markup), on a widget created with markup=False (2/3's #28502)."""
         self.rendered[widget_id] = text
-        self.query_one(f"#{widget_id}", Static).update(text)
+        self.query_one(f"#{widget_id}", Static).update(Content(text))
 
     def render_status(self) -> None:
         now = self.clock()
@@ -227,8 +237,8 @@ class CockpitApp(App[None]):
         table.clear()
         for run in reversed(self.state.runs):
             rid = str(run.get("run_id", ""))
-            table.add_row(_short(rid, 16), display(run.get("status", ""), one_line=True), _short(run.get("mode", ""), 18),
-                          _short(str(run.get("created_at", ""))[11:19], 8), key=rid)
+            table.add_row(*_cells(_short(rid, 16), display(run.get("status", ""), one_line=True), _short(run.get("mode", ""), 18),
+                                  _short(str(run.get("created_at", ""))[11:19], 8)), key=rid)
         if keep and any(str(r.get("run_id")) == keep for r in self.state.runs):
             index = [str(r.get("run_id")) for r in reversed(self.state.runs)].index(keep)
             table.move_cursor(row=index)
@@ -256,8 +266,8 @@ class CockpitApp(App[None]):
         table = self.query_one("#events", DataTable)
         for event in view.events[self._rendered_events:]:
             ts = str(event.get("ts", ""))
-            table.add_row(str(event.get("seq", "")), display(ts[11:19], one_line=True), display(event.get("event_type", ""), one_line=True),
-                          display(event.get("actor", ""), one_line=True), _short(event.get("event_hash", ""), 10))
+            table.add_row(*_cells(str(event.get("seq", "")), display(ts[11:19], one_line=True), display(event.get("event_type", ""), one_line=True),
+                                  display(event.get("actor", ""), one_line=True), _short(event.get("event_hash", ""), 10)))
         self._rendered_events = len(view.events)
         grants = run.get("grants") or []
         self._set("permissions", "\n".join(
@@ -453,7 +463,17 @@ class CockpitApp(App[None]):
         await self._review("deny")
 
     async def action_quit(self) -> None:
+        """Leave the cockpit. A FRESH inventory is read right now and handed to the caller as INFORMATION for its quit
+        notice (2/3's #28511: no read is a shutdown interlock; a started workroom is always left running)."""
         self._stopping = True
+        try:
+            fresh = await self.transport.list_runs()
+            self.last_inventory = list(fresh.get("runs", []))
+            self.inventory_confirmed = True
+        except TransportError as e:
+            self.last_inventory = list(self.state.runs)
+            self.inventory_confirmed = False
+            self.log_line(f"quit: could not read the inventory ({e.code}); the notice will say so")
         try:
             await self.transport.close()
         finally:

@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field, replace
-from itertools import pairwise
 from typing import Any
 
 from .transport import EventPage
@@ -49,9 +48,16 @@ class VerificationBadge:
 
     def label(self, current: Head) -> str:
         base = self.summary
+        if self.head.hash is None:
+            covered = "an unknown number of" if self.head.count < 0 else str(self.head.count)
+            return f"{base} — UNBOUND: the verifier covered {covered} events, the view holds {current.count}; verify again"
         if current != self.head:
             return f"{base} — VERIFIED AT head seq {self.head.count - 1}, head now seq {current.count - 1}: STALE, verify again"
         return base
+
+    @property
+    def bound(self) -> bool:
+        return self.head.hash is not None
 
 
 @dataclass(frozen=True)
@@ -170,29 +176,44 @@ class CockpitState:
         return True
 
     def apply_events(self, generation: int, page: EventPage, now: float) -> str:
-        """Append a page if it continues the cached head; otherwise RESYNC. Returns what happened."""
+        """Append a page only if it continues the cached head EXACTLY; otherwise RESYNC (2/3's #28502).
+
+        Checked: the page starts where the cache ends; the snapshot did not shrink; every `seq` is contiguous
+        (first = last known + 1; a page at cursor 0 starts at genesis with prev_hash None); EVERY prev_hash link
+        inside the page and across the boundary; every event names this run when it names one; increasing seq.
+        """
         if not self.current(generation) or self.selected is None:
             return "stale"
         view = self.selected
         known = list(view.events)
-        if page.cursor != len(known):
+
+        def resync(reason: str) -> str:
             self.selected = replace(view, events=(), next_cursor=0, resyncs=view.resyncs + 1, refreshed_at=now)
-            self.log.append(f"resync {view.run_id}: page cursor {page.cursor} != known {len(known)}")
+            self.log.append(f"resync {view.run_id}: {reason}")
             return "resync"
-        if page.events:
-            first_prev = page.events[0].get("prev_hash")
-            expected = known[-1].get("event_hash") if known else None
-            if known and first_prev != expected:
-                self.selected = replace(view, events=(), next_cursor=0, resyncs=view.resyncs + 1, refreshed_at=now)
-                self.log.append(f"resync {view.run_id}: chain discontinuity at seq {page.events[0].get('seq')}")
-                return "resync"
-            seqs = [e.get("seq") for e in page.events]
-            ordered = all(isinstance(s, int) for s in seqs) and all(a < b for a, b in pairwise(seqs))
-            if not ordered:
-                self.selected = replace(view, events=(), next_cursor=0, resyncs=view.resyncs + 1, refreshed_at=now)
-                self.log.append(f"resync {view.run_id}: page not in seq order")
-                return "resync"
-        self.selected = replace(view, events=tuple(known + page.events), next_cursor=page.next_cursor, refreshed_at=now)
+
+        if page.cursor != len(known):
+            return resync(f"page cursor {page.cursor} != known {len(known)}")
+        if page.total < len(known):
+            return resync(f"snapshot shrank to {page.total} events (known {len(known)})")
+        previous = known[-1] if known else None
+        for index, event in enumerate(page.events):
+            seq = event.get("seq")
+            if not isinstance(seq, int) or isinstance(seq, bool):
+                return resync(f"event without an integer seq at page index {index}")
+            run_id = event.get("run_id")
+            if run_id is not None and run_id != view.run_id:
+                return resync(f"event {seq} names another run")
+            if previous is None:
+                if page.cursor != 0 or event.get("prev_hash") is not None:
+                    return resync(f"first event {seq} is not a genesis (cursor {page.cursor}, prev_hash present)")
+            else:
+                if seq != previous.get("seq", -1) + 1:
+                    return resync(f"seq {seq} does not follow {previous.get('seq')}")
+                if event.get("prev_hash") != previous.get("event_hash"):
+                    return resync(f"chain discontinuity at seq {seq}")
+            previous = event
+        self.selected = replace(view, events=tuple(known + list(page.events)), next_cursor=page.next_cursor, refreshed_at=now)
         self.failures = 0
         return "appended" if page.events else "unchanged"
 
@@ -201,7 +222,15 @@ class CockpitState:
             return False
         raw = body.get("verification")
         result: dict[str, Any] = raw if isinstance(raw, dict) else body
-        badge = VerificationBadge(head=self.selected.head, summary=str(result.get("summary", "?")),
+        # Bind the badge to the head the verifier ACTUALLY covered (2/3's #28502): only when its checked_events equals
+        # the cached count is the cached hash the verified head; otherwise the badge is UNBOUND and says so.
+        checked = result.get("checked_events")
+        cached = self.selected.head
+        if isinstance(checked, int) and not isinstance(checked, bool) and checked == cached.count:
+            bound = cached
+        else:
+            bound = Head(checked if isinstance(checked, int) and not isinstance(checked, bool) else -1, None)
+        badge = VerificationBadge(head=bound, summary=str(result.get("summary", "?")),
                                   chain_consistent=bool(result.get("chain_consistent", False)),
                                   anchor=str(body.get("anchor_provenance", result.get("anchor_provenance", "?"))), at=now)
         self.selected = replace(self.selected, verification=badge)
@@ -238,7 +267,8 @@ class CockpitState:
             if row.get("open"):
                 alerts.append(Alert("action", f"review waiting: {row.get('conflict', '?')}", row.get("run_id")))
         if self.selected and self.selected.verification and self.selected.verification.head != self.selected.head:
-            alerts.append(Alert("warning", "head moved since the last verification; verify again", self.selected.run_id))
+            what = "verification is not bound to this head" if not self.selected.verification.bound else "head moved since the last verification"
+            alerts.append(Alert("warning", f"{what}; verify again", self.selected.run_id))
         if self.selected and self.freshness(self.selected.refreshed_at, now) == "STALE":
             alerts.append(Alert("warning", "selected run view is STALE; controls disabled until a fresh read", self.selected.run_id))
         if self.health and str(self.health.get("provider", {}).get("status", "")) not in ("", "ok"):
