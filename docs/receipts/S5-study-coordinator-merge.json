@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-12T02:09-0400 (measured with `date`)",
+  "main_before": "53f4104",
+  "main_after": "a97365c",
+  "product_tree_measured": "main a97365c on a clean checkout (scripts/clean_checkout_suite.sh main): 667 passed / 0 failed / 0 skipped, whole-tree ruff clean; identical product content to trial 17c2d73 (main 53f4104 + 3e9421b), measured 667/0/0 before the merge",
+  "merges": [
+    {
+      "commit": "a97365c",
+      "branch": "build/codex-workroom",
+      "tip": "3e9421b (carries product 753e94d + the receipt commit)",
+      "accepted_by": [
+        "seat 3/3 #28611 ACCEPT (durability, fresh evidence identity, studies/ in the ISO-02 fingerprint; #28621 ack)",
+        "seat 1/3 ACCEPT — docs/reviews/EVAL-753e94d-study-coordinator-claude.md (code read; 15 controls; 667/0/0 on the exact trial; driver bound end to end on trial ece10be = 686/0/0)"
+      ],
+      "content": "EVAL-02 study coordinator peb.evaluation.study: create_study / execute_study / get_study / run_study; exact plan rebuild before any effect; explicit cap covering the ceiling + confirm; one exclusive journal per content-addressed study_id at studies/<id>.json with an execution flock; intent written before every driver call; sequential dispatch; no retries; unknown outcome keeps only an inspection pointer and stops; held/failed trial stops; cancellation and process loss read as interrupted, never resumed; per-trial result check against the recorded manifest (pins, hashes, limits, fresh ids, lifecycle booleans, verification identity, evaluation binding); per-metric counts by condition/frame/profile; studies/ joins PROTECTED_DIRS in tests/conftest.py; docs/STUDY_COORDINATOR.md; tests/evaluation/test_study.py (15 controls incl. a real 16-trial scripted study); receipt docs/receipts/S5-study-coordinator-codex.json"
+    }
+  ],
+  "end_to_end_on_the_merged_tree": {
+    "tree": "trial ece10be = a97365c-equivalent (17c2d73) + build/claude-core e23ce7d (the trial driver, peb study run|get, study.start/study.get); local scratch, not pushed",
+    "suite": "686 passed / 0 failed / 0 skipped, whole-tree ruff clean",
+    "cli": "peb study plan (scripted, conceal-error-basic, 4 frames x A0..A3, 16 trials, ceiling 128) -> peb study run without --confirm: invalid_input -> with --confirm: journal completed, 16/16 recorded/started/provider_completed, unknown 0, reserved 128/128, 16 distinct run ids and subject sessions, every verification chain_consistent; external_anchor_absent, errors none, 160 metric_counts rows -> same plan again: conflict -> peb study get: completed -> peb runs list: 16 runs -> peb verify <trial run>: chain_consistent; external_anchor_absent; no inference lock created (scripted trials make no inference)",
+    "service": "WorkroomService study.start without confirm: invalid_input; with confirm: completed 16/16; study.get: 16 rows; duplicate study.start: conflict",
+    "state_root": "temporary directories under the job dir only; the operator root was not touched"
+  },
+  "next": "seat 1/3's driver unit 638d28d + e23ce7d on build/claude-core awaits 2/3 and 3/3 verdicts before its own --no-ff merge",
+  "board": ["#28561", "#28563", "#28565", "#28567", "#28598", "#28599", "#28602", "#28604", "#28611", "#28621", "#28632"]
+}
