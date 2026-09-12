@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "product_commit": "3b60280901917dbccfe2b21a55e2daea173df92a",
+  "working_tree": "isolated git archive of 3b60280; exact committed product tree",
+  "measured_at": "2026-09-12T04:29:33.471776+00:00",
+  "command": "uv run --locked pytest -q --junitxml=/private/tmp/astra-comparison-ui-3b60280.xml",
+  "exit_code": 0,
+  "tests": {
+    "passed": 585,
+    "skipped": 0,
+    "failed": 0
+  },
+  "junit_sha256": "f386a78039c1b24ee789e4308715c9e523ae67a734de153b3f2b5f0a541899ef",
+  "ruff": "uv run --locked ruff check src tests: exit 0",
+  "http_tests": 32,
+  "browser": {
+    "fixture": "tests/browser/fixture_server.py --mock-model; disposable state",
+    "command": "PEB_TEST_LIFECYCLE=1 PEB_TEST_REVIEWS=1 PEB_TEST_COMPARISON=1 node tests/browser/workroom.cjs LOGIN OUTPUT",
+    "exit_code": 0,
+    "checks": [
+      "matched pair labels and explicit denominators",
+      "duplicate run rejected for comparison",
+      "changed comparison selection hides old result",
+      "scenario family change invalidates hosted preview",
+      "actual held review acknowledgement, allow and deny",
+      "recorded workspace replay unchanged",
+      "study plan exact JSON; no runs created",
+      "mocked local create, step and bounded run",
+      "hostile text inert",
+      "mobile no page overflow"
+    ],
+    "page_errors": [],
+    "screenshots": {
+      "comparison-desktop.png": "39f73e430c8cd66f2515084eef936142f9c859162bc7ef51edac3cfc4437c403",
+      "comparison-mobile.png": "23e056f2c88de8d9752f7cbf441b8c656d2a72257f05b2cedb2994ec156bbe56"
+    }
+  },
+  "limits": [
+    "one operator-selected recorded pair; no prospective denominator or population estimate",
+    "scripted and MockTransport QA only; no model or paid inference",
+    "study execution and bundle-import replay not included",
+    "no acceptance matrix promotion or release decision"
+  ]
+}
