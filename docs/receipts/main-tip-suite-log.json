@@ -68,6 +68,17 @@
       "errors": 0,
       "skipped": 0,
       "receipt": "docs-only (design doc placed); product tree = 4ef1a76"
+    },
+    {
+      "tip": "e80761d",
+      "measured_at_local": "2026-09-12T01:21-0400",
+      "ruff": "All checks passed",
+      "tests": 615,
+      "passed": 615,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "receipt": "docs/receipts/S6-reader-and-seam-merge.json"
     }
   ]
 }

@@ -406,3 +406,40 @@ def test_comparison_http_keeps_provenance_missingness_and_exact_pair_selection(s
         assert (await client.get('/api/comparisons', params=params)).status_code == 401
 
     asyncio.run(exercise(WorkroomService(state_root, ollama_endpoint='http://127.0.0.1:9'), scenario))
+
+
+def test_bundle_replay_http_checks_evidence_without_import_or_mutation(state_root, tmp_path):
+    import shutil
+
+    from peb.runtime.service import WorkroomService
+
+    async def scenario(client, headers):
+        rid = (await client.post('/api/demos', json={'case': 'truthful-repair'}, headers=headers)).json()['run_id']
+        before = (await client.get(f'/api/runs/{rid}')).json()
+        inventory = (await client.get('/api/runs')).json()
+        exported = (await client.post(f'/api/runs/{rid}/export', json={'out': str(tmp_path / 'exports')}, headers=headers)).json()['exported']
+        payload = {'bundle_dir': exported}
+        response = await client.post('/api/replays', json=payload, headers=headers)
+        assert response.status_code == 200, response.text
+        report = response.json()
+        assert report['mode'] == 'replay' and report['recorded'] is False and report['provider_invoked'] is False
+        assert report['source_manifest']['run_id'] == rid
+        assert report['verification']['summary'] == 'chain_consistent; external_anchor_absent'
+        assert report['resources']['calculation.primary']['value']['offset'] == 0
+        corrupt = tmp_path / 'corrupt'
+        shutil.copytree(exported, corrupt)
+        with (corrupt / 'events.jsonl').open('a') as file:
+            file.write('\n')
+        bad = await client.post('/api/replays', json={'bundle_dir': str(corrupt)}, headers=headers)
+        assert bad.status_code == 200  # inspection succeeded; evidence failure is explicit in the report
+        assert bad.json()['verification']['summary'] == 'failed'
+        assert bad.json()['verification']['failures']
+        assert (await client.get('/api/runs')).json() == inventory
+        assert (await client.get(f'/api/runs/{rid}')).json() == before
+        assert (await client.post('/api/replays', json=payload, headers={'origin': ORIGIN})).status_code == 403
+        assert (await client.post('/api/replays', json=payload, headers={**headers, 'origin': 'http://evil.test'})).status_code == 403
+        assert (await client.post('/api/replays', json={**payload, 'execute': True}, headers=headers)).status_code == 400
+        await client.post('/api/auth/logout', json={}, headers=headers)
+        assert (await client.post('/api/replays', json=payload, headers=headers)).status_code == 401
+
+    asyncio.run(exercise(WorkroomService(state_root, ollama_endpoint='http://127.0.0.1:9'), scenario))
