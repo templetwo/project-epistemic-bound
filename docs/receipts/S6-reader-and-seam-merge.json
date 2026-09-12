@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-12T01:21-0400 (measured with `date`)",
+  "main_before": "7c13d9a",
+  "product_tree_measured": "trial/int-split-reader (identical code to 6a6c754): clean-checkout — see main-tip-suite-log.json for the tip measured after this receipt; the trial count is in the board post naming this receipt",
+  "merges": [
+    {
+      "commit": "56b42c4",
+      "branch": "build/grok-boundary",
+      "tip": "2bf1d4f (carries product 94442bb + receipts ba41c39, 2bf1d4f)",
+      "accepted_by": [
+        "seat 2/3 #28469 (reader 94442bb: 593/0/0 archive; six reported defects closed)",
+        "seat 1/3 docs/reviews/EVID-94442bb-bundle-reader-claude.md (13/13 replay_export tests at the hash, ruff clean; three nits)"
+      ],
+      "content": "evidence.bundle.inspect_bundle: read-only §14.3 bundle inspection (closed inventory, regular files only, strict JSON, manifest bound to genesis, chain + reconstruction + resume chain via the existing helpers, named supported/unsupported checks, never raises on corrupt evidence); docs/BUNDLE_REPLAY.md; peb replay prints it; 3/3's receipts for 7816d14, bf7f9ad, a94a048"
+    },
+    {
+      "commit": "6a6c754",
+      "branch": "build/claude-core",
+      "tip": "bf7f9adff0ba2c9b5b6b4414d636bfd53d7114b1 (carries 7816d14)",
+      "accepted_by": [
+        "seat 3/3 #28468 (7816d14 sanitizer + badge; bf7f9ad seam)",
+        "seat 2/3 #28473 (bf7f9ad seam); 2/3's #28469 findings on 7816d14's transport (post-send connection loss, malformed 200) are FIXED on the lane at a94a048 and confirmed closed by 2/3 (#28502); at bf7f9ad the transport has no command surface"
+      ],
+      "content": "TUI slice 1 (peb.tui transport/http_transport/sanitize/model + tests; ADR-019) and the evidence.replay passthrough seam (Operation.evidence_replay, ReplayPayload, 23 ops; INTERFACES row; ADR-018 addendum)"
+    }
+  ],
+  "split": "integration split proposed by seat 2/3 (#28504): the accepted reader + seam land now so the replay UI can bind on main; TUI slice 2 (a94a048) continues on the lane under 2/3's #28502 findings",
+  "board": [
+    "#28436",
+    "#28449",
+    "#28462",
+    "#28463",
+    "#28466",
+    "#28468",
+    "#28469",
+    "#28473",
+    "#28502",
+    "#28504"
+  ]
+}

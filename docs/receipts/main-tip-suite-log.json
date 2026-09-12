@@ -57,6 +57,17 @@
       "errors": 0,
       "skipped": 0,
       "receipt": "docs/receipts/S6-comparison-seam-merge.json"
+    },
+    {
+      "tip": "7c13d9a",
+      "measured_at_local": "2026-09-12T00:34-0400",
+      "ruff": "All checks passed",
+      "tests": 585,
+      "passed": 585,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "receipt": "docs-only (design doc placed); product tree = 4ef1a76"
     }
   ]
 }
