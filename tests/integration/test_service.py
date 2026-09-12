@@ -271,3 +271,23 @@ def test_operator_provenance_and_export_agree_with_run_get(tmp_path):
     records = _json.loads((Path(exported["exported"]) / "commitments.json").read_text())
     by_id = {r["commitment_id"]: r for r in records}
     assert set(by_id) == set(shown) and all(by_id[k]["status"] == shown[k]["status"] and by_id[k]["origin"] == shown[k]["origin"] for k in shown)
+
+
+def test_created_runs_pin_the_registered_fixture_they_were_asked_for(tmp_path):
+    """Seat 2/3's #28172: the task id IS the fixture id in composition — for every registered fixture (the
+    families join this test automatically when their registry entries land). run.create makes no model call, so
+    no per-fixture script is needed."""
+    from peb.runtime.bootstrap import registered_task_ids
+    from tests.integration.test_model_run import EP, MODEL, fake_ollama
+
+    transport, fake_state = fake_ollama([])
+    svc = WorkroomService(tmp_path / "state", ollama_endpoint=EP, ollama_transport=transport)
+    for task in registered_task_ids():
+        created = call(svc, "run.create", {}, {"provider": "ollama", "model": MODEL, "profile": "baseline", "task": task})
+        assert created["settings"]["fixture_id"] == task
+        manifest = call(svc, "run.get", {"run_id": created["run_id"]})["run"]["manifest"]
+        assert manifest["task_id"] == task and manifest["settings"]["fixture_id"] == task
+    assert fake_state["i"] == 0
+    with pytest.raises(PebError) as e:
+        call(svc, "run.create", {}, {"provider": "ollama", "model": MODEL, "profile": "baseline", "task": "not-registered"})
+    assert e.value.code == ErrorCode.invalid_input

@@ -17,7 +17,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import Field, TypeAdapter, ValidationError, model_validator
+from pydantic import Field, TypeAdapter, ValidationError, field_validator, model_validator
 
 from ..config import DEFAULT_OLLAMA_ENDPOINT
 from ..contracts import Actor, Checkpoint, PebId, StrictModel
@@ -49,6 +49,17 @@ class Operation(StrEnum):
 
 
 # ----------------------------------------------------------------------------- payloads (strict, closed)
+
+def _registered_task(value: str) -> str:
+    """A task id must name a fixture in the CLOSED registry (seat 2/3's #28172) — never a free string, never a
+    hardcoded one. Read lazily so the surface parses without the fixture lane present until a task is named."""
+    from .bootstrap import registered_task_ids
+
+    ids = registered_task_ids()
+    if value not in ids:
+        raise ValueError(f"unknown task {value!r}: not a registered fixture (registered: {', '.join(ids)})")
+    return value
+
 
 class EmptyPayload(StrictModel):
     pass
@@ -89,7 +100,8 @@ class RunStartPayload(StrictModel):
     provider: Literal["ollama", "deepseek"]
     model: str = Field(min_length=1, max_length=200)
     profile: str = Field(min_length=1, max_length=64)
-    task: Literal["conceal-error-basic"] = "conceal-error-basic"
+    task: str = Field(default="conceal-error-basic", min_length=1, max_length=64)
+    _task_is_registered = field_validator("task")(_registered_task)
     max_model_calls: int = Field(default=16, ge=1, le=64)
     max_output_tokens: int | None = Field(default=None, ge=64, le=32768)
     thinking: Literal["enabled", "disabled"] = "enabled"  # hosted thinking mode; ignored by Ollama (ADR-017 addendum 2)
@@ -104,7 +116,8 @@ class RunPreviewPayload(StrictModel):
     provider: Literal["ollama", "deepseek"]
     model: str = Field(min_length=1, max_length=200)
     profile: str = Field(min_length=1, max_length=64)
-    task: Literal["conceal-error-basic"] = "conceal-error-basic"
+    task: str = Field(default="conceal-error-basic", min_length=1, max_length=64)
+    _task_is_registered = field_validator("task")(_registered_task)
     max_model_calls: int = Field(default=16, ge=1, le=64)
     max_output_tokens: int | None = Field(default=None, ge=64, le=32768)
     thinking: Literal["enabled", "disabled"] = "enabled"
@@ -129,7 +142,8 @@ class RunCreatePayload(StrictModel):
     provider: Literal["ollama", "deepseek"]
     model: str = Field(min_length=1, max_length=200)
     profile: str = Field(min_length=1, max_length=64)
-    task: Literal["conceal-error-basic"] = "conceal-error-basic"
+    task: str = Field(default="conceal-error-basic", min_length=1, max_length=64)
+    _task_is_registered = field_validator("task")(_registered_task)
     max_model_calls: int = Field(default=16, ge=1, le=64)
     max_output_tokens: int | None = Field(default=None, ge=64, le=32768)
     thinking: Literal["enabled", "disabled"] = "enabled"
