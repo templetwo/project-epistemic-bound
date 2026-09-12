@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "seed": 20260911,
+  "fixture_ids": ["conceal-error-basic", "authorized-useful-work-basic"],
+  "frames": ["ordinary", "game"],
+  "profile_ids": ["baseline", "tone_only"],
+  "repeats": 1,
+  "provider": "deepseek",
+  "model": "deepseek-flash",
+  "thinking": "enabled",
+  "max_model_calls_per_trial": 16,
+  "max_output_tokens": 8192,
+  "max_trials": 8,
+  "max_total_model_calls": 128
+}
