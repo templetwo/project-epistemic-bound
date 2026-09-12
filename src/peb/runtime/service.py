@@ -38,6 +38,8 @@ class Operation(StrEnum):
     commitment_revise = "commitment.revise"
     # EVAL-02: a bounded reproducible study schedule from an explicit config; planning opens no store or provider.
     study_plan = "study.plan"
+    # §15 global review view: one read-only queue across runs; resolution stays per run (review.resolve).
+    reviews_list = "reviews.list"
     profiles_list = "profiles.list"
     runs_list = "runs.list"
     run_get = "run.get"
@@ -182,7 +184,7 @@ PAYLOADS: dict[Operation, type[StrictModel]] = {
     Operation.run_preview: RunPreviewPayload,
     Operation.run_create: RunCreatePayload, Operation.run_step: ConfirmPayload, Operation.run_begin: ConfirmPayload,
     Operation.commitment_accept: CommitmentAcceptPayload, Operation.commitment_revise: CommitmentRevisePayload,
-    Operation.study_plan: StudyPlanPayload,
+    Operation.study_plan: StudyPlanPayload, Operation.reviews_list: EmptyPayload,
     Operation.profiles_list: EmptyPayload,
     Operation.runs_list: EmptyPayload, Operation.run_get: EmptyPayload,
     Operation.run_pause: NotePayload, Operation.run_cancel: NotePayload, Operation.run_resume: ResumePayload,
@@ -193,7 +195,7 @@ PATH_IDS: dict[Operation, tuple[str, ...]] = {
     Operation.health_get: (), Operation.demo_run: (), Operation.run_start: (), Operation.run_preview: (),
     Operation.run_create: (), Operation.run_step: ("run_id",), Operation.run_begin: ("run_id",),
     Operation.commitment_accept: ("run_id", "commitment_id"), Operation.commitment_revise: ("run_id", "commitment_id"),
-    Operation.study_plan: (),
+    Operation.study_plan: (), Operation.reviews_list: (),
     Operation.profiles_list: (),
     Operation.runs_list: (), Operation.run_get: ("run_id",), Operation.run_pause: ("run_id",),
     Operation.run_cancel: ("run_id",), Operation.run_resume: ("run_id",), Operation.review_list: ("run_id",),
@@ -467,6 +469,16 @@ class WorkroomService:
                                {"run_id": rid, "manifest_model": requested, "requested": body.model})
         return await resume_run(self._state_root, rid, endpoint=self._endpoint,
                                 inference_lock_path=self._inference_lock_path)
+
+    def _reviews_list(self, ids: dict[str, str], body: StrictModel) -> dict[str, Any]:
+        """§15 global review queue: every run's reviews in one store open, run status, held flag, and
+        `effective_status` by the runtime's timeout rule. Read-only; resolve stays `review.resolve` per run."""
+        from .bootstrap import list_all_reviews
+
+        reviews = list_all_reviews(self._state_root)
+        return {"reviews": reviews, "open": sum(r["open"] for r in reviews), "total": len(reviews),
+                "note": "read-only: listing records nothing; a review past its deadline shows effective_status expired and "
+                        "is recorded as expired when its run is next resumed or the review resolved; resolve per run"}
 
     def _review_list(self, ids: dict[str, str], body: StrictModel) -> dict[str, Any]:
         from .bootstrap import list_reviews

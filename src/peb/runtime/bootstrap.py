@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from ..boundary.canonical import DOMAIN_SNAPSHOT, digest
@@ -702,6 +703,48 @@ def list_reviews(state_root: str | os.PathLike[str], run_id: str) -> list[dict[s
         if not repo.run_exists(run_id):
             raise PebError(ErrorCode.invalid_input, "unknown run_id", {"run_id": run_id})
         return [r.model_dump(mode="json") for r in reviews_from_events(run_id, repo.events(run_id))]
+    finally:
+        repo.close()
+
+
+OPEN_REVIEW_STATUSES = ("pending", "acknowledged")
+
+
+def list_all_reviews(state_root: str | os.PathLike[str], *, now: datetime | None = None) -> list[dict[str, Any]]:
+    """The global review queue (§15 global review view; seat 2/3's #28268 question): every run's reviews from the
+    event chain in ONE store open, with the run's status, whether the held proposal is still on the record, and an
+    `effective_status` that applies the runtime's own timeout rule (review.expire_reviews: an OPEN review whose
+    deadline has passed is `expired`; the proposal stays held; nothing proceeds by timeout). READ-ONLY: the listing
+    records nothing — the expiry event is written only when the run is next resumed or the review resolved.
+    Resolution stays per run: (run_id, review_id) through `review.resolve`."""
+    from .reconstruct import held_proposals_from_events, reviews_from_events
+
+    _, _, Repository, _, _, _ = _lanes()
+    now = now or utcnow()
+    repo = Repository.open(state_root)
+    try:
+        rows: list[dict[str, Any]] = []
+        for summary in repo.list_runs():
+            rid = summary.run_id
+            events = repo.events(rid)
+            reviews = reviews_from_events(rid, events)
+            if not reviews:
+                continue
+            manifest = repo.manifest(rid)
+            held = held_proposals_from_events(rid, events, reviews, policy_version=repo.policy_version(rid),
+                                              initial_session=manifest.subject_session_id)
+            for r in reviews:
+                is_open = str(r.status) in OPEN_REVIEW_STATUSES
+                effective = "expired" if (is_open and r.deadline_at <= now) else str(r.status)
+                rows.append({"run_id": rid, "run_status": str(summary.status), "mode": str(summary.mode),
+                             "review_id": r.review_id, "proposal_id": r.proposal_id, "status": str(r.status),
+                             "effective_status": effective, "open": effective in OPEN_REVIEW_STATUSES,
+                             "conflict": r.conflict, "recipient_role": r.recipient_role,
+                             "opened_at": r.opened_at.isoformat(), "deadline_at": r.deadline_at.isoformat(),
+                             "held": r.review_id in held,
+                             "resolve": {"run_id": rid, "review_id": r.review_id}})
+        rows.sort(key=lambda x: (not x["open"], x["deadline_at"], x["opened_at"]))
+        return rows
     finally:
         repo.close()
 
