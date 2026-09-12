@@ -43,6 +43,9 @@ class Operation(StrEnum):
     # Matched comparison of ONE operator-selected pair of recorded runs (seat 2/3's pure core behind the seam);
     # read-only, records nothing, the repository never crosses the seam.
     comparison_get = "comparison.get"
+    # Replay of an EXPORTED bundle through seat 3/3's shared reader (evidence.bundle.inspect_bundle): read-only,
+    # opens no store, labels the result mode=replay / recorded=false; never an import into the operator store.
+    evidence_replay = "evidence.replay"
     profiles_list = "profiles.list"
     runs_list = "runs.list"
     run_get = "run.get"
@@ -174,6 +177,23 @@ class ComparisonGetPayload(StrictModel):
     axis: Literal["frame", "profile"]
 
 
+class ReplayPayload(StrictModel):
+    """`evidence.replay`: an ABSOLUTE path to an exported bundle directory on this machine. The reader (seat 3/3's
+    `evidence.bundle.inspect_bundle`) owns every safety rule for the bytes it finds there; the seam only refuses a
+    relative path, because a relative path would depend on the workroom process's working directory."""
+
+    bundle_dir: str = Field(min_length=1, max_length=4096)
+
+    @field_validator("bundle_dir")
+    @classmethod
+    def _absolute(cls, value: str) -> str:
+        from pathlib import Path
+
+        if not Path(value).is_absolute():
+            raise ValueError("bundle_dir must be an absolute path")
+        return value
+
+
 class ConfirmPayload(StrictModel):
     """`run.step` / `run.begin`: the operation that can make a (possibly paid) model call needs the explicit
     confirmation, exactly as `run.start` and `run.resume` do."""
@@ -199,7 +219,7 @@ PAYLOADS: dict[Operation, type[StrictModel]] = {
     Operation.run_create: RunCreatePayload, Operation.run_step: ConfirmPayload, Operation.run_begin: ConfirmPayload,
     Operation.commitment_accept: CommitmentAcceptPayload, Operation.commitment_revise: CommitmentRevisePayload,
     Operation.study_plan: StudyPlanPayload, Operation.reviews_list: EmptyPayload,
-    Operation.comparison_get: ComparisonGetPayload,
+    Operation.comparison_get: ComparisonGetPayload, Operation.evidence_replay: ReplayPayload,
     Operation.profiles_list: EmptyPayload,
     Operation.runs_list: EmptyPayload, Operation.run_get: EmptyPayload,
     Operation.run_pause: NotePayload, Operation.run_cancel: NotePayload, Operation.run_resume: ResumePayload,
@@ -210,7 +230,7 @@ PATH_IDS: dict[Operation, tuple[str, ...]] = {
     Operation.health_get: (), Operation.demo_run: (), Operation.run_start: (), Operation.run_preview: (),
     Operation.run_create: (), Operation.run_step: ("run_id",), Operation.run_begin: ("run_id",),
     Operation.commitment_accept: ("run_id", "commitment_id"), Operation.commitment_revise: ("run_id", "commitment_id"),
-    Operation.study_plan: (), Operation.reviews_list: (), Operation.comparison_get: (),
+    Operation.study_plan: (), Operation.reviews_list: (), Operation.comparison_get: (), Operation.evidence_replay: (),
     Operation.profiles_list: (),
     Operation.runs_list: (), Operation.run_get: ("run_id",), Operation.run_pause: ("run_id",),
     Operation.run_cancel: ("run_id",), Operation.run_resume: ("run_id",), Operation.review_list: ("run_id",),
@@ -441,6 +461,17 @@ class WorkroomService:
                     "comparison": result, "anchor_provenance": ANCHOR_NONE, "recorded": False}
         finally:
             repo.close()
+
+    def _evidence_replay(self, ids: dict[str, str], body: ReplayPayload) -> dict[str, Any]:  # type: ignore[override]
+        """Seat 3/3's reader, unchanged (#28436/#28449): the bundle on disk is parsed, checked (inventory, chain, genesis
+        binding, no symlinks) and reconstructed; the result says mode=replay, recorded=false, provider_invoked=false and
+        names its supported and unsupported checks. No store is opened; nothing is imported into the operator root."""
+        try:
+            from ..evidence.bundle import inspect_bundle
+        except ImportError as e:  # seat 3/3's reader is not merged into this checkout
+            raise PebError(ErrorCode.not_implemented, "evidence.replay is not implemented in this checkout: the bundle "
+                           "reader (peb.evidence.bundle) is absent", {"missing": str(e)}) from e
+        return inspect_bundle(body.bundle_dir)
 
     def _profiles_list(self, ids: dict[str, str], body: StrictModel) -> dict[str, Any]:
         """§15.1 `GET /api/profiles`: versioned candidate and control configurations with source/status labels,
