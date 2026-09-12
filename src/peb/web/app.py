@@ -95,7 +95,12 @@ ROUTES = (
     ("GET", "/api/profiles", "profiles.list"),
     ("GET", "/api/runs", "runs.list"),
     ("POST", "/api/demos", "demo.run"),
-    ("POST", "/api/runs", "run.start"),
+    ("POST", "/api/runs", "run.create"),
+    ("POST", "/api/runs/observe", "run.start"),
+    ("POST", "/api/runs/{run_id}/step", "run.step"),
+    ("POST", "/api/runs/{run_id}/start", "run.begin"),
+    ("POST", "/api/runs/{run_id}/commitments/{commitment_id}/accept", "commitment.accept"),
+    ("POST", "/api/runs/{run_id}/commitments/{commitment_id}/revise", "commitment.revise"),
     ("GET", "/api/runs/{run_id}", "run.get"),
     ("POST", "/api/runs/{run_id}/pause", "run.pause"),
     ("POST", "/api/runs/{run_id}/cancel", "run.cancel"),
@@ -221,6 +226,12 @@ def create_workroom(
             except ValueError:
                 raise _WebError(400, "Invalid record identifier.", ErrorCode.invalid_input) from None
             try:
+                if operation == "run.create" and payload.get("provider") == "deepseek":
+                    raise _WebError(409, "Hosted lifecycle requires a run-bound scope preview. Use the bounded hosted launch.", ErrorCode.conflict)
+                if operation in {"run.step", "run.begin"}:
+                    existing = await service.request("run.get", {"run_id": path_ids["run_id"]}, {})
+                    if existing["run"]["manifest"]["provider_kind"] == "deepseek":
+                        raise _WebError(409, "Hosted step/start requires a run-bound scope preview. Use the bounded hosted launch.", ErrorCode.conflict)
                 if operation == "run.start":
                     ticket = payload.pop("preview_token", None)
                     if payload.get("provider") == "deepseek":
@@ -258,21 +269,21 @@ def create_workroom(
         start_payload = result.get("start_payload")
         if not isinstance(start_payload, dict):
             raise PebError(ErrorCode.internal, "Preview did not supply the normalized start request.")
-        token = None
         cost = scope.get("worst_case_cost", {}).get("total_usd_worst_case")
         priced = type(cost) in (int, float) and math.isfinite(cost) and cost >= 0
-        if start_payload.get("provider") != "deepseek" or priced:
-            for old in list(previews):
-                if previews[old][1] <= clock() or previews[old][0] == current.csrf:
-                    previews.pop(old)
-            if len(previews) >= 64:
-                previews.pop(next(iter(previews)))
-            token = secrets.token_urlsafe(32)
-            previews[token] = (current.csrf, clock() + 300,
-                               json.dumps(start_payload, sort_keys=True, separators=(",", ":")))
+        # #28101: rates are informational. Explicit scope and exact authorization
+        # remain mandatory; missing pricing cannot block an otherwise valid run.
+        for old in list(previews):
+            if previews[old][1] <= clock() or previews[old][0] == current.csrf:
+                previews.pop(old)
+        if len(previews) >= 64:
+            previews.pop(next(iter(previews)))
+        token = secrets.token_urlsafe(32)
+        previews[token] = (current.csrf, clock() + 300,
+                           json.dumps(start_payload, sort_keys=True, separators=(",", ":")))
         return {"scope": scope, "start_payload": start_payload,
                 "preview_token": token, "expires_in_seconds": 300,
-                "hosted_start_ready": bool(token and priced)}
+                "cost_available": priced, "hosted_start_ready": start_payload.get("provider") == "deepseek"}
 
     @app.get("/api/runs/{run_id}/events")
     async def event_page(request: Request, run_id: str):

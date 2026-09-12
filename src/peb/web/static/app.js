@@ -1,7 +1,7 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
 let csrf = "", selectedId = null, nextCursor = null, preview = null, activeRequests = 0;
-let selectionVersion = 0, previewVersion = 0;
+let selectionVersion = 0, previewVersion = 0, selectedState = null;
 const pretty = (value) => JSON.stringify(value, null, 2);
 function note(text, error = false) { $("notice").textContent = text; $("notice").classList.toggle("error", error); }
 function el(tag, text, className) { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (className) n.className = className; return n; }
@@ -20,11 +20,11 @@ function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; 
 async function action(button, task) {
   button.disabled = true; activeRequests++;
   try { await task(); } catch (error) { note(error.message, true); }
-  finally { activeRequests--; button.disabled = false; updateStart(); }
+  finally { activeRequests--; button.disabled = false; updateStart(); updateRunControls(); }
 }
 function invalidatePreview() { previewVersion++; preview = null; $("scope").hidden = true; $("approve-start").checked = false; updateStart(); }
-function updateStart() { const hosted = $("provider").value === "deepseek"; $("hosted-fields").hidden = !hosted; $("start-model").disabled = !$("approve-start").checked || (hosted && !preview?.preview_token); }
-function startPayload() { return {provider: $("provider").value, model: $("model").value.trim(), profile: $("profile").value, task: "conceal-error-basic", max_model_calls: Number($("calls").value), max_output_tokens: Number($("tokens").value), confirm: true}; }
+function updateStart() { const hosted = $("provider").value === "deepseek"; $("hosted-fields").hidden = !hosted; $("create-model").disabled = hosted; $("start-model").disabled = !$("approve-start").checked || (hosted && !preview?.preview_token); }
+function startPayload() { return {provider: $("provider").value, model: $("model").value.trim(), profile: $("profile").value, task: "conceal-error-basic", max_model_calls: Number($("calls").value), max_output_tokens: Number($("tokens").value), thinking: $("thinking").value, confirm: true}; }
 async function loadProfiles() {
   const data = await api("/api/profiles"); $("profile").replaceChildren();
   for (const p of data.profiles) { const option = el("option", `${p.profile_id} · ${p.arm} · ${p.status}`); option.value = p.profile_id; option.disabled = !p.runnable; $("profile").append(option); }
@@ -92,17 +92,63 @@ async function loadEvents(reset = false) {
   }
   nextCursor = page.next_cursor; $("more-events").hidden = nextCursor === null; $("event-count").textContent = `${$("events").children.length} of ${page.total} events`;
 }
+function updateRunControls() {
+  if (!selectedState) return;
+  const {status, provider} = selectedState;
+  for (const verb of ["step", "begin"]) $(verb).disabled = !["created", "running"].includes(status) || provider !== "ollama";
+  $("resume").disabled = !["paused", "waiting_review"].includes(status) || provider !== "ollama";
+  $("pause").disabled = !["created", "running", "waiting_review", "paused"].includes(status); $("cancel").disabled = $("pause").disabled;
+}
 async function selectRun(id) {
   const version = ++selectionVersion; selectedId = id; const data = await api(`/api/runs/${id}`);
   if (version !== selectionVersion) return;
   $("empty").hidden = true; $("selected").hidden = false; $("run-title").textContent = data.run.manifest.settings?.case || data.run.manifest.task_id;
-  $("run-id").textContent = id; $("run-status").textContent = data.status; $("provenance").textContent = `${data.run.manifest.mode} · ${data.run.manifest.provider_kind} · ${data.run.manifest.model_requested || "scripted"} · ${data.run.manifest.profile_id}`;
-  $("manifest").textContent = pretty(data.run.manifest); renderResources(data.run.events); renderOutcomes(data.run.events); renderReviews(data.reviews || [], data.held || {}, data.run.events);
+  $("run-id").textContent = id; $("run-status").textContent = data.status === "running" && !data.run.events.some(e => e.event_type === "model_request") ? "recorded · not started" : data.status; $("provenance").textContent = `${data.run.manifest.mode} · ${data.run.manifest.provider_kind} · ${data.run.manifest.model_requested || "scripted"} · ${data.run.manifest.profile_id}`;
+  $("manifest").textContent = pretty(data.run.manifest); renderResources(data.run.events); renderOutcomes(data.run.events); renderReviews(data.reviews || [], data.held || {}, data.run.events); renderCommitments(data.run.commitments || []); $("corrections").textContent = pretty(data.run.corrections || []);
   $("verification").hidden = true; $("export-result").hidden = true;
-  $("resume").disabled = !["paused", "waiting_review"].includes(data.status) || data.run.manifest.provider_kind !== "ollama";
-  $("pause").disabled = !["created", "running", "waiting_review", "paused"].includes(data.status); $("cancel").disabled = $("pause").disabled;
+  selectedState = {status: data.status, provider: data.run.manifest.provider_kind}; updateRunControls();
   await loadEvents(true); await loadRuns();
 }
+
+function renderCommitments(commitments) {
+  $("commitments").replaceChildren();
+  if (!commitments.length) $("commitments").append(el("p", "No commitments recorded.", "muted"));
+  for (const commitment of commitments) {
+    const row = el("div", undefined, "review");
+    row.append(el("strong", `${commitment.kind} · ${commitment.status}`), el("p", commitment.text), el("p", `Origin: ${commitment.origin} · ${commitment.commitment_id}`, "fine"));
+    const details = el("details"); details.append(el("summary", "Provenance and prior version"), el("pre", pretty(commitment))); row.append(details);
+    if (["proposed", "accepted"].includes(commitment.status)) {
+      const input = el("input"); input.setAttribute("aria-label", "Revised commitment text"); input.value = commitment.text; input.maxLength = 4000;
+      const buttons = el("div", undefined, "actions");
+      for (const verb of ["accept", "revise"]) {
+        const button = el("button", verb === "accept" ? "Accept undertaking" : "Save revision", "secondary"); button.type = "button";
+        button.disabled = verb === "accept" && commitment.status !== "proposed";
+        button.addEventListener("click", () => action(button, async () => {
+          if (verb === "revise" && !input.value.trim()) throw new Error("Revision text is required.");
+          const id = selectedId;
+          await api(`/api/runs/${id}/commitments/${commitment.commitment_id}/${verb}`, verb === "revise" ? {text: input.value} : {});
+          if (id === selectedId) await selectRun(id); note(`Commitment ${verb} recorded. Permissions are unchanged.`);
+        })); buttons.append(button);
+      }
+      row.append(input, buttons);
+    }
+    $("commitments").append(row);
+  }
+}
+$("create-model").addEventListener("click", () => action($("create-model"), async () => {
+  if (!$("model-form").reportValidity()) return;
+  const payload = startPayload(); delete payload.confirm;
+  if (payload.provider !== "ollama") throw new Error("Use the previewed bounded launch for hosted runs.");
+  note("Recording local run without inference…");
+  const result = await api("/api/runs", payload); await selectRun(result.run_id); note("Run recorded. No model call made. Step once or run to a boundary when ready.");
+}));
+for (const [verb, route] of [["step", "step"], ["begin", "start"]]) $(verb).addEventListener("click", () => action($(verb), async () => {
+  const id = selectedId;
+  note(verb === "step" ? "Requesting one decision…" : "Requesting the bounded loop…");
+  const result = await api(`/api/runs/${id}/${route}`, {confirm: true});
+  if (id === selectedId) await selectRun(id); note(`Observed status: ${result.status}. Model calls this operation: ${result.steps_taken}.`);
+}));
+
 $("login-form").addEventListener("submit", (event) => { event.preventDefault(); action(event.submitter, async () => { const data = await api("/api/auth/login", {secret: $("secret").value}); $("secret").value = ""; csrf = data.csrf_token; signedIn(true); note("Operator session opened."); await Promise.all([loadRuns(), loadProfiles()]); }); });
 $("logout").addEventListener("click", () => action($("logout"), async () => { await api("/api/auth/logout", {}); signedIn(false); note("Signed out."); }));
 $("refresh").addEventListener("click", () => action($("refresh"), async () => { await loadRuns(); if (selectedId) await selectRun(selectedId); $("health").textContent = pretty(await api("/api/health")); note("Records refreshed."); }));
@@ -112,18 +158,17 @@ $("preview").addEventListener("click", () => action($("preview"), async () => {
   if (!$("model-form").reportValidity()) return;
   const version = previewVersion;
   const payload = startPayload(); delete payload.confirm;
-  if (payload.provider === "deepseek" && $("input-rate").value !== "" && $("output-rate").value !== "") { payload.input_rate = Number($("input-rate").value); payload.output_rate = Number($("output-rate").value); payload.rates_provenance = $("rate-source").value; }
-  if (payload.provider === "deepseek" && payload.input_rate !== undefined && !payload.rates_provenance.trim()) throw new Error("Supply the rate source and date before previewing a hosted budget.");
+  if (payload.provider === "deepseek" && $("input-rate").value !== "" && $("output-rate").value !== "") { payload.input_rate = Number($("input-rate").value); payload.output_rate = Number($("output-rate").value); if ($("rate-source").value.trim()) payload.rates_provenance = $("rate-source").value.trim(); }
   const result = await api("/api/runs/preview", payload);
   if (version !== previewVersion) throw new Error("Selection changed during preview. Preview again.");
-  preview = result; $("scope").hidden = false; $("scope-text").textContent = pretty(preview.scope); updateStart(); note(preview.preview_token ? "Scope ready. Review it and explicitly authorize before starting." : "Scope shown. Supply current rates and provenance to enable a hosted start.");
+  preview = result; $("scope").hidden = false; $("scope-text").textContent = pretty(preview.scope); updateStart(); note("Scope ready. Review it and explicitly authorize before starting. Rates are informational.");
 }));
 $("model-form").addEventListener("submit", (event) => { event.preventDefault(); action(event.submitter, async () => {
   if (!$("approve-start").checked) throw new Error("Explicit authorization is required.");
   const hosted = $("provider").value === "deepseek"; if (hosted && !preview?.preview_token) throw new Error("Preview this exact hosted request first.");
   const payload = hosted ? {...preview.start_payload, preview_token: preview.preview_token} : startPayload();
   invalidatePreview(); note("Requesting model run… Its record will appear after creation; pause and cancel remain available there.");
-  const result = await api("/api/runs", payload); await selectRun(result.run_id); note("Run reached a boundary. Its observed outcome is recorded.");
+  const result = await api("/api/runs/observe", payload); await selectRun(result.run_id); note("Run reached a boundary. Its observed outcome is recorded.");
 }); });
 for (const verb of ["pause", "cancel", "resume"]) $(verb).addEventListener("click", () => action($(verb), async () => {
   if (["cancel", "resume"].includes(verb) && !window.confirm(`${verb === "cancel" ? "Cancel" : "Resume"} this run?`)) return;

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "project": "project-epistemic-bound",
+  "service_commit": "7f53445df8ffcbaa77575b796710dc1f0755fc9b",
+  "web_source": "commit carrying this receipt",
+  "command": "uv run --locked pytest tests/web -q --junitxml=/private/tmp/astra-28101-web.xml",
+  "exit_code": 0,
+  "tests": {
+    "passed": 28,
+    "skipped": 0,
+    "failed": 0
+  },
+  "junit_sha256": "93f1e8e6d822c2d2a148cb0ddad7d0abe30e4cebe5fff638bb04602bdf3f19e8",
+  "browser": {
+    "script": "tests/browser/workroom.cjs",
+    "fixture": "tests/browser/fixture_server.py --mock-model",
+    "engine": "Playwright1.51.1 / Chromium headless shell1169",
+    "hostile_text_inert": true,
+    "actual_demo_visible": true,
+    "local_lifecycle_checked": true,
+    "thinking_preview_checked": true,
+    "mobile_no_overflow": true,
+    "page_errors": []
+  },
+  "limits": [
+    "No real model or paid request in these checks.",
+    "Hosted separate create/step/start and resume remain refused; bounded hosted observe uses the exact scope preview token.",
+    "Global reviews, studies and full pause/review UI acceptance remain incomplete.",
+    "Pricing is informational per #28101; missing rates do not block a run."
+  ]
+}
