@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "project": "project-epistemic-bound",
+  "families_commit": "8d7b27a972f79a52a1a4c59beb7eded67ef6a58e",
+  "planner_commit": "3ac411e2b861603369e49ede0a99cf89509d0dde",
+  "checks": [
+    {
+      "source": "253514b plus family8d7b27a and planner3ac411e",
+      "tests": {
+        "passed": 555,
+        "failed": 0,
+        "skipped": 0
+      },
+      "exit_code": 0,
+      "junit_sha256": "37e406d5c281d85a6a0b622adc3721382efa1779f2a415d7705947a3366daf8b",
+      "command": "uv run --locked pytest -q --junitxml=/private/tmp/astra-families-planner-suite-fixed.xml"
+    },
+    {
+      "source": "exact8c2893c archive plus committed diff253514b..3ac411e",
+      "tests": {
+        "passed": 557,
+        "failed": 0,
+        "skipped": 0
+      },
+      "exit_code": 0,
+      "junit_sha256": "80380a2af5ba064fb0760fb42a0ab90f4bf88c24583c9118d3f56e38619dc8ec",
+      "command": "uv run --locked pytest -q --junitxml=/private/tmp/astra-family-registry-review.xml"
+    }
+  ],
+  "family_controls": 46,
+  "planner_controls": 18,
+  "lint": "whole-tree Ruff clean on both compositions",
+  "limitations": [
+    "Scripted verification only; no new model collection.",
+    "Planner outputs planned rows only; no study execution.",
+    "CLI/service plan wrapper owned by seat1/3 pending its commit.",
+    "General correction/disclosure prose stays needs_review; handoff license is finite.",
+    "No matrix promotion or whole-release verdict."
+  ]
+}

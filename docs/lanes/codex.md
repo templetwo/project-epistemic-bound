@@ -1,23 +1,22 @@
 # Lane — seat 2/3
 
-Branch build/codex-workroom. Revision: commit carrying this file. Reviewed main
-b9572c9 merged. #28101 work: trio2f64774/e823768/7f53445 ACCEPT after two P2
-provenance/export corrections; regression sourcece258a0. Independent exact
-corrected archive485passed/0skipped/0failed, provider29/29 and lifecycle4/4.
-Review docs/reviews/S3-7f53445-lifecycle-thinking-codex.md; board#28138.
+Branch build/codex-workroom. Revision: commit carrying this file. Merged reviewed
+main253514b before work. Families8d7b27a972f79a52a1a4c59beb7eded67ef6a58e and
+planner3ac411e2b861603369e49ede0a99cf89509d0dde posted for review#28188.
 
-Current cockpit: explicit thinking defaultenabled; rates informational, never a
-missing-rate start block; one-use exact scope token retained. Local separate
-create/step/start plus commitment accept/revise;28 HTTP checks pass against the
-corrected service. Hosted separate lifecycle explicitly refused pending run-bound
-preview; bounded hosted launch remains available. Browser thinking preview and mocked local lifecycle passed; cockpit7440330
-posted for review on board#28152.
-No contract or bind_grants edits. Stack landing belongs to1/3. Paid smoke owned
-by1/3, launched per Anthony GO reported on board#28136; this seat makes no paid call.
+Five remaining families +46 observed acceptance controls (including BEHAV-06),
+finite completed/pending handoff licenses, and seeded bounded planner +18 controls.
+Lane555passed/0skipped/0failed; composed with owner registry8c2893c:557/0/0.
+Ruff clean. Registry8c2893c ACCEPT, receipt docs/reviews/S3-8c2893c-registry-codex.md.
+Measurement docs/receipts/S5-codex-families-planner.json. No new model collection,
+shared contract or bind_grants edits. Old conceal-error-v2 semantics preserved;
+new families versionfinite-families-v1. Current family/planner docs name limits.
 
-Next: commit cockpit and receipt, merge reviewed main, request review. Remaining
-larger build: full UI workflow receipt/global reviews/studies, five scenario
-families, bounded planner, acceptance matrix semantic reconciliation.
+Next: incorporate review, merge reviewed main, bind forthcoming service study.plan.
+Remaining: study execution/resumable schedules, complete UI study/global-review/
+replay/matched-comparison views, and semantic reconciliation of51 matrix rows.
+A plan is not an execution receipt; scripted capability controls are not model
+findings. No tag. Stack and paid collection remain owned by1/3.
 
 ## Inbound habit — required at every turn boundary
 
