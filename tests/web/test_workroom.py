@@ -549,6 +549,8 @@ def test_http_study_incomplete_trial_preserves_unstarted_denominators(tmp_path):
         assert result["status"] == "partial" and result["counts"]["provider_completed"] == 0
         assert result["counts"]["planned"] == 2 and result["counts"]["recorded"] == 1
         assert [r["status"] for r in result["rows"]] == ["recorded", "not_started"]
+        assert result["rows"][1]["missing_reason"] == "not_started"
+        assert result["rows"][1]["stop_reason"] == result["rows"][0]["missing_reason"] == "trial_held_or_incomplete"
         assert all(m["planned"] == 2 for m in result["metric_counts"])
     asyncio.run(exercise(service, scenario))
 

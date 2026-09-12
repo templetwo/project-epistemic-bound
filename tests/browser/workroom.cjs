@@ -208,6 +208,7 @@ fs.mkdirSync(output,{recursive:true});
   await page.locator('#study-execution-status').filter({hasText:'Study partial'}).waitFor();
   const partial = JSON.parse(await page.locator('#study-execution-json').textContent());
   if(partial.counts.planned !== 8 || partial.counts.recorded !== 1 || partial.counts.provider_completed !== 0 || partial.rows.slice(1).some(r => r.status !== 'not_started')) throw Error('partial study hid unstarted denominators');
+  if(!await page.locator('#study-execution-trials tr').nth(1).textContent().then(text => text.includes('not started · study stopped: trial held or incomplete'))) throw Error('undispatched trial inherited another trial outcome');
   if(submits !== 1 || !await page.locator('#start-study').isDisabled()) throw Error('uncertain POST was retried');
   await page.unroute('**/api/studies/start');
   await page.locator('#study-execution-status').evaluate(node => node.scrollIntoView({block:'start'}));

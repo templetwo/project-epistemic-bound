@@ -30,6 +30,9 @@ study_id/plan_hash, timestamps, status, explicit max_model_calls,
 reserved_model_calls, rows, counts, metric_counts and limitations.
 Rows retain trial_id, pair_id, ordinal, status, dispatched, result and
 missing_reason. A rejected result may carry observed_run_id solely for inspection.
+New undispatched rows after a stop use missing_reason=not_started and record the
+study's stopping cause separately in stop_reason; they do not inherit the
+dispatched trial's observed failure/hold as their own outcome.
 Study statuses: ready, running, completed, partial, interrupted. Row statuses:
 planned, dispatching, recorded, unknown, not_started. Completed means every
 planned trial returned recorded completion; it is not a behavioral success.

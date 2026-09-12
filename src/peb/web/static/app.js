@@ -292,7 +292,8 @@ function renderStudyReport(report) {
       button.addEventListener("click", () => action(button, async () => { await selectRun(runId); $("events").scrollIntoView({block: "center"}); }));
       cell.append(button, el("p", runId, "mono"));
     } else cell.textContent = row.dispatched ? "Run identity not returned" : "No dispatch";
-    tr.append(cell, el("td", row.missing_reason || "—")); $("study-execution-trials").append(tr);
+    const missingness = row.stop_reason ? `${row.missing_reason} · study stopped: ${row.stop_reason}` : row.missing_reason || "—";
+    tr.append(cell, el("td", missingness.replaceAll("_", " "))); $("study-execution-trials").append(tr);
   }
   $("study-execution-metrics").replaceChildren();
   for (const metric of report.metric_counts) {

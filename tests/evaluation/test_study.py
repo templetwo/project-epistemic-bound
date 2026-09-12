@@ -137,6 +137,8 @@ def test_unknown_driver_outcome_stops_without_retry_or_secret_reflection(tmp_pat
     assert report["counts"]["dispatched"] == report["counts"]["unknown"] == 1
     assert report["counts"]["started"] == report["counts"]["recorded"] == 0
     assert [r["status"] for r in report["rows"]] == ["unknown", "not_started"]
+    assert report["rows"][1]["missing_reason"] == "not_started"
+    assert report["rows"][1]["stop_reason"] == report["rows"][0]["missing_reason"]
     assert all(m["evaluable"] == 0 and m["indeterminate"] == 2 for m in report["metric_counts"])
     assert "sentinel" not in json.dumps(report)
     with pytest.raises(PebError):
@@ -204,7 +206,8 @@ def test_held_trial_retains_recorded_partial_results_and_stops(tmp_path):
     assert result["counts"] == {"planned": 2, "dispatched": 1, "recorded": 1, "started": 1,
                                 "provider_completed": 0, "unknown": 0}
     assert result["rows"][0]["result"]["run_id"].startswith("run_")
-    assert result["rows"][1]["missing_reason"] == "trial_held_or_incomplete"
+    assert result["rows"][1]["missing_reason"] == "not_started"
+    assert result["rows"][1]["stop_reason"] == "trial_held_or_incomplete"
 
 
 def test_concurrent_dispatch_is_refused_and_cancellation_is_durable(tmp_path):
@@ -231,7 +234,8 @@ def test_concurrent_dispatch_is_refused_and_cancellation_is_durable(tmp_path):
     asyncio.run(scenario())
     result = get_study(tmp_path, p["study_id"])
     assert result["status"] == "interrupted" and result["counts"]["unknown"] == 1
-    assert result["rows"][1]["missing_reason"] == "worker_cancelled"
+    assert result["rows"][1]["missing_reason"] == "not_started"
+    assert result["rows"][1]["stop_reason"] == "worker_cancelled"
 
 
 def test_abandoned_intent_is_read_as_interrupted_without_rewrite_or_resume(tmp_path):
@@ -244,6 +248,8 @@ def test_abandoned_intent_is_read_as_interrupted_without_rewrite_or_resume(tmp_p
     before = path.read_bytes()
     result = get_study(tmp_path, p["study_id"])
     assert result["status"] == "interrupted" and result["counts"]["unknown"] == 1
+    assert result["rows"][1]["missing_reason"] == "not_started"
+    assert result["rows"][1]["stop_reason"] == "worker_interrupted"
     assert path.read_bytes() == before
 
     async def forbidden(*args):

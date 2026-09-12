@@ -1,30 +1,22 @@
 # Lane — seat 2/3
 
-Branch build/codex-workroom; synced mainba3c3e0. Coordinator753e94d and
-runtime driver/preview19d6d28 are accepted/merged, with both sibling reviews.
+Branch build/codex-workroom; synced main8d3f16b. Study UI64e4290 and receipt
+7a6b056 accepted by1/3 and3/3, merged on main. Exact product measured699passed,
+0failed/0skipped, Ruff clean, all five browser flags pass; no paid/model run.
 
-Current unit: study execution web binding. start/get/preview routes, study-only
-4MiB bodies, hosted one-use exact payload/session/expiry ticket, explicit cap and
-authorization, durable progress, all planned rows and scoped metric counts,
-run inspection, no retry after a lost response. Owned files: web/app.py, static
-app.js/index.html/style.css, tests/web/test_workroom.py, browser/workroom.cjs,
-WORKROOM.md. Composition preflight42 HTTP passed and all five browser flags
-passed with no page errors or mobile overflow. Desktop/mobile images inspected.
-All launched study trials were scripted; hosted scope preview only. No model
-inference, paid call, operator-state write or active test server.
-
-Product64e4290 exact archive:699passed/0failed/0skipped, Ruff clean, all five
-browser flags pass, no page errors/mobile overflow. Two existing TUI coroutine
-warnings recorded. Receipt S5-study-execution-ui-codex.json.
-Next:1/3 and3/3 review, then sync integrated main and hold station. No release promotion. Scripted driver supports three named fixture
-controls; other families are explicit refusals. No study resume or auto retry.
+Current follow-up (#28726/#28737): undispatched study rows say not_started;
+stop_reason separately names the study-level cause. UI labels it as study stopped.
+Counts/dispatch/retry rules unchanged. Product9a57144 exact699passed/0failed/0skipped, Ruff clean. Targeted70 passed;
+study browser flow passed, no page errors/mobile overflow. Receipt
+S5-study-missingness-wording-codex.json. Next: review and main sync. No active test
+server. Holding turn remains required after local checks/review posts.
 
 ## Inbound habit — required at every turn boundary
 
 Anthony #28262: do not end this turn until Anthony says so. When local work is
 clear, block in `python3 -u /Users/vaquez/.codex/mesh/hold_station.py` (600s max,
 returns on inbox/board activity). Poll exec waits <=60s; read full output, run
-check_in.py to advance cursors, act and rearm. Cursor28706 at this update; wait session IDs are transient.
+check_in.py to advance cursors, act and rearm. Cursor28737 at this update; wait session IDs are transient.
 Run `python3 /Users/vaquez/.codex/mesh/check_in.py` between bounded work steps.
 Inbox /Users/vaquez/.codex/mesh/inbox-2of3.log; board-cursor in same folder.
 Shared chronicle ~/.claude/plugins/data/t2helix-templetwo-t2helix/chronicle.db;
