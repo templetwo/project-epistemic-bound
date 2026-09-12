@@ -325,3 +325,101 @@ def test_global_review_queue_lists_every_run_read_only_with_the_runtime_expiry_r
     assert exp["status"] == "pending" and exp["effective_status"] == "expired" and exp["open"] is False
     assert len(repo1.events(run1.manifest.run_id)) == events_before[run1.manifest.run_id]
     repo1.close(); repo2.close()
+
+
+def test_new_runs_pin_consequence_hash_with_the_planners_formula(tmp_path):
+    """Matched comparison (ADR-018 addendum): every composed run pins the consequence model it was shown, by the
+    planner's exact formula, so a recorded run and a planned trial can be matched on it. Additive: settings only."""
+    from peb.boundary.canonical import DOMAIN_SNAPSHOT, digest
+    from peb.workspace.fixtures import load_fixture
+
+    for frame in ("ordinary", "game"):
+        c = compose_scripted_run(tmp_path / "state", "truthful-repair", frame=frame)
+        try:
+            pin = c.run.manifest.settings["consequence_hash"]
+            expected = digest(DOMAIN_SNAPSHOT, load_fixture("conceal-error-basic").frame_case(frame)["consequence_model"])
+            assert pin == expected and len(pin) == 64 and set(pin) <= set("0123456789abcdef")
+            assert c.repo.manifest(c.run.manifest.run_id).settings["consequence_hash"] == pin  # persisted, not just in memory
+        finally:
+            c.repo.close()
+
+
+def test_comparison_get_hands_snapshots_and_bound_verifiers_never_the_store(tmp_path, monkeypatch):
+    """The seam's whole contract: two detached ReadOnlyRun snapshots + one verifier bound to each, the axis, nothing
+    else; the core's result comes back untouched under `comparison`; nothing is recorded. The core itself is seat 2/3's
+    and is exercised by its own tests, so here it is a probe module that records exactly what crossed the seam."""
+    import sys
+    import types
+
+    from peb.contracts import ReadOnlyRun, VerificationResult
+    from peb.storage.repository import SqliteRepository
+
+    state = tmp_path / "state"
+    runs = []
+    for frame in ("ordinary", "game"):
+        c = compose_scripted_run(state, "truthful-repair", frame=frame)
+        runs.append(c.run.manifest.run_id)
+        c.repo.close()
+    seen: dict = {}
+
+    def compare_runs(left, right, *, axis, verify_left, verify_right, **unexpected):
+        assert not unexpected, "nothing but snapshots, verifiers and the axis crosses the seam"
+        assert isinstance(left, ReadOnlyRun) and isinstance(right, ReadOnlyRun)
+        assert not any(hasattr(x, "events") and hasattr(x, "close") for x in (left, right, verify_left, verify_right))
+        results = [verify_left(left), verify_right(right)]  # bound to the snapshot; the store is still open for this
+        assert all(isinstance(r, VerificationResult) for r in results)
+        assert [r.run_id for r in results] == [left.manifest.run_id, right.manifest.run_id]
+        seen.update(axis=axis, left=left.manifest.run_id, right=right.manifest.run_id,
+                    frames=(left.manifest.settings["frame"], right.manifest.settings["frame"]),
+                    pins=(left.manifest.settings["consequence_hash"], right.manifest.settings["consequence_hash"]),
+                    summaries=[r.summary for r in results])
+        return {"schema_version": 1, "kind": "operator_selected_pair", "status": "probe", "axis": axis}
+
+    probe = types.ModuleType("peb.evaluation.comparison")
+    probe.compare_runs = compare_runs  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "peb.evaluation.comparison", probe)
+    before = _event_counts(state, runs)
+    svc = WorkroomService(state, inference_lock_path=tmp_path / "inference.lock")
+    out = call(svc, "comparison.get", {}, {"left_run_id": runs[0], "right_run_id": runs[1], "axis": "frame"})
+    assert out["comparison"] == {"schema_version": 1, "kind": "operator_selected_pair", "status": "probe", "axis": "frame"}
+    assert out["recorded"] is False and out["anchor_provenance"] == ANCHOR_NONE and out["axis"] == "frame"
+    assert seen["left"] == runs[0] and seen["right"] == runs[1] and seen["frames"] == ("ordinary", "game")
+    assert seen["pins"][0] == seen["pins"][1]  # same fixture: the consequence model is frame-invariant
+    assert seen["summaries"] == ["chain_consistent; external_anchor_absent"] * 2  # no retained anchor was minted here
+    assert _event_counts(state, runs) == before  # a comparison records nothing
+    with pytest.raises(PebError) as e:
+        call(svc, "comparison.get", {}, {"left_run_id": runs[0], "right_run_id": "run_" + "0" * 32, "axis": "frame"})
+    assert e.value.code == ErrorCode.invalid_input  # unknown run: refused before any projection
+    repo = SqliteRepository.open(state)
+    repo.close()
+
+
+def _event_counts(state, run_ids):
+    from peb.storage.repository import SqliteRepository
+
+    repo = SqliteRepository.open(state)
+    try:
+        return [len(repo.events(rid)) for rid in run_ids]
+    finally:
+        repo.close()
+
+
+def test_comparison_get_is_not_implemented_when_the_comparison_lane_is_absent(tmp_path, monkeypatch):
+    """Lane rule (planner pattern, #28017): an absent `peb.evaluation.comparison` is an honest not_implemented, never a
+    fake result. Simulated through the import seam because the lane may be integrated on main."""
+    import builtins
+    import sys
+
+    monkeypatch.delitem(sys.modules, "peb.evaluation.comparison", raising=False)
+    real_import = builtins.__import__
+
+    def no_core(name, *a, **k):
+        if name.endswith("evaluation.comparison"):
+            raise ImportError("simulated: comparison lane absent")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", no_core)
+    svc = WorkroomService(tmp_path / "state", inference_lock_path=tmp_path / "inference.lock")
+    with pytest.raises(PebError) as e:
+        call(svc, "comparison.get", {}, {"left_run_id": "run_" + "1" * 32, "right_run_id": "run_" + "2" * 32, "axis": "frame"})
+    assert e.value.code == ErrorCode.not_implemented and "comparison" in e.value.message

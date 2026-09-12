@@ -14,7 +14,8 @@ REV = "rev_" + "b" * 32
 
 def test_operation_set_matches_interfaces_section_15():
     assert {o.value for o in Operation} == {"health.get", "demo.run", "run.start", "run.preview", "run.create", "run.step",
-                                            "run.begin", "commitment.accept", "commitment.revise", "study.plan", "reviews.list", "profiles.list", "runs.list",
+                                            "run.begin", "commitment.accept", "commitment.revise", "study.plan", "reviews.list", "comparison.get",
+                                            "profiles.list", "runs.list",
                                             "run.get", "run.pause", "run.cancel", "run.resume", "review.list",
                                             "review.resolve", "evidence.verify", "evidence.export"}
 
@@ -207,3 +208,19 @@ def test_study_plan_through_the_service_is_the_same_plan_and_touches_nothing(tmp
     with pytest.raises(PebError) as e:  # the planner's own refusal surfaces as invalid_input with bounded errors
         asyncio.run(WorkroomService(root).request("study.plan", {}, {"config": {**cfg, "max_total_model_calls": 1}}))
     assert e.value.code == ErrorCode.invalid_input and "errors" in e.value.detail
+
+
+def test_comparison_get_payload_is_closed_and_needs_no_path_ids():
+    """`comparison.get` (ADR-018 addendum): two run ids and a closed axis in the payload; no path ids; unknown keys refused."""
+    op, ids, body = parse_request("comparison.get", {}, {"left_run_id": RUN, "right_run_id": REV.replace("rev_", "run_"), "axis": "profile"})
+    assert op is Operation.comparison_get and ids == {} and body.axis == "profile" and body.left_run_id == RUN
+    for bad_ids, bad_payload in [
+        ({"run_id": RUN}, {"left_run_id": RUN, "right_run_id": RUN, "axis": "frame"}),   # path ids are not part of this op
+        ({}, {"left_run_id": RUN, "right_run_id": RUN, "axis": "task"}),                  # axis is closed
+        ({}, {"left_run_id": RUN, "axis": "frame"}),                                      # both runs are required
+        ({}, {"left_run_id": RUN, "right_run_id": RUN, "axis": "frame", "planned": 8}),   # no invented denominator
+        ({}, {"left_run_id": "not an id", "right_run_id": RUN, "axis": "frame"}),         # ids are PebIds
+    ]:
+        with pytest.raises(PebError) as e:
+            parse_request("comparison.get", bad_ids, bad_payload)
+        assert e.value.code == ErrorCode.invalid_input

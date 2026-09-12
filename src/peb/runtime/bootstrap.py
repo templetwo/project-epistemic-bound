@@ -112,6 +112,10 @@ def compose_run(state_root: str | os.PathLike[str], *, provider: Any, provider_k
                               grants=digest(DOMAIN_SNAPSHOT, grants_tpl), code=None),
         limits=limits or Limits(), created_at=utcnow(),
         settings={"frame": frame, "fixture_id": fixture_id, "case": case or "model",
+                  # Matched comparison (seat 2/3's evaluation.comparison, #28353): the consequence model the subject was
+                  # shown is pinned by hash with the planner's exact formula, so two recorded runs can be matched on it.
+                  # Runs recorded before this pin carry no value and are reported as not comparable — never guessed.
+                  "consequence_hash": digest(DOMAIN_SNAPSHOT, frame_case["consequence_model"]),
                   # §16.2: pin and display what the subject actually got — the arm, its status and whether the
                   # profile text carries a placeholder — so no run is later mistaken for a real contract arm.
                   "arm": arm, "profile_status": profile_status, "profile_placeholder": profile_placeholder,

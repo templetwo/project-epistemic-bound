@@ -66,3 +66,18 @@ service operation: every run's reviews from the event chain in one store open, w
 records nothing; the expiry event is written only when the run is next resumed or the review resolved. There is no
 global resolve: a resolution is bound to (run_id, review_id) by construction, so `review.resolve` per run remains
 the only mutation path and each queue row carries its own resolve ids.
+
+## Addendum 2026-09-12 — `comparison.get` and the `consequence_hash` pin (matched comparison, UI-02/03)
+
+Seat 2/3's matched-comparison core (`peb.evaluation.comparison.compare_runs(left, right, *, axis, verify_left, verify_right)`,
+#28353/#28361) is pure: it reads no repository, calls no provider and records nothing; it takes two detached `ReadOnlyRun`
+snapshots and one verifier callable bound to each. The service operation `comparison.get` is the only seam: it opens the
+store once, projects both runs with `runtime.snapshot.project` (snapshot + `BoundVerifier`, which refuses a snapshot whose
+head moved), calls the core with the store still open, and returns the core's result untouched under `comparison`. The
+seam refuses nothing the core can answer: a same-run pair, unverified evidence, a missing pin or a condition mismatch come
+back as `not_comparable` with reasons, so the cockpit shows the core's judgment rather than a seam error. The core requires
+an explicit `consequence_hash` on both manifests; from this commit every run composed by `compose_run` pins
+`settings.consequence_hash = digest(DOMAIN_SNAPSHOT, frame_case["consequence_model"])`, the planner's exact formula, so a run
+and a planned trial can be matched on the consequence model the subject was shown. Runs recorded before this pin carry no
+value and the core reports them as not comparable; nothing is back-filled or guessed from the current fixture corpus.
+`settings` is an open dict on the frozen manifest contract, so this is additive; no schema changes.
