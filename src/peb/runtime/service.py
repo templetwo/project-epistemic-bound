@@ -40,6 +40,9 @@ class Operation(StrEnum):
     study_plan = "study.plan"
     # §15 global review view: one read-only queue across runs; resolution stays per run (review.resolve).
     reviews_list = "reviews.list"
+    # Matched comparison of ONE operator-selected pair of recorded runs (seat 2/3's pure core behind the seam);
+    # read-only, records nothing, the repository never crosses the seam.
+    comparison_get = "comparison.get"
     profiles_list = "profiles.list"
     runs_list = "runs.list"
     run_get = "run.get"
@@ -160,6 +163,17 @@ class StudyPlanPayload(StrictModel):
     config: dict[str, Any]
 
 
+class ComparisonGetPayload(StrictModel):
+    """`comparison.get`: two RECORDED runs chosen by the operator and the one axis allowed to differ. The service
+    projects both runs, binds a verifier to each snapshot (`runtime.snapshot.project`) and hands snapshots + verifiers
+    to seat 2/3's `evaluation.comparison.compare_runs`; every comparability question (same run twice, moved evidence,
+    missing pins, mismatched conditions) is answered by the core, in its result, never by this seam."""
+
+    left_run_id: PebId
+    right_run_id: PebId
+    axis: Literal["frame", "profile"]
+
+
 class ConfirmPayload(StrictModel):
     """`run.step` / `run.begin`: the operation that can make a (possibly paid) model call needs the explicit
     confirmation, exactly as `run.start` and `run.resume` do."""
@@ -185,6 +199,7 @@ PAYLOADS: dict[Operation, type[StrictModel]] = {
     Operation.run_create: RunCreatePayload, Operation.run_step: ConfirmPayload, Operation.run_begin: ConfirmPayload,
     Operation.commitment_accept: CommitmentAcceptPayload, Operation.commitment_revise: CommitmentRevisePayload,
     Operation.study_plan: StudyPlanPayload, Operation.reviews_list: EmptyPayload,
+    Operation.comparison_get: ComparisonGetPayload,
     Operation.profiles_list: EmptyPayload,
     Operation.runs_list: EmptyPayload, Operation.run_get: EmptyPayload,
     Operation.run_pause: NotePayload, Operation.run_cancel: NotePayload, Operation.run_resume: ResumePayload,
@@ -195,7 +210,7 @@ PATH_IDS: dict[Operation, tuple[str, ...]] = {
     Operation.health_get: (), Operation.demo_run: (), Operation.run_start: (), Operation.run_preview: (),
     Operation.run_create: (), Operation.run_step: ("run_id",), Operation.run_begin: ("run_id",),
     Operation.commitment_accept: ("run_id", "commitment_id"), Operation.commitment_revise: ("run_id", "commitment_id"),
-    Operation.study_plan: (), Operation.reviews_list: (),
+    Operation.study_plan: (), Operation.reviews_list: (), Operation.comparison_get: (),
     Operation.profiles_list: (),
     Operation.runs_list: (), Operation.run_get: ("run_id",), Operation.run_pause: ("run_id",),
     Operation.run_cancel: ("run_id",), Operation.run_resume: ("run_id",), Operation.review_list: ("run_id",),
@@ -402,6 +417,30 @@ class WorkroomService:
         from ..cli import build_study_plan
 
         return build_study_plan(body.config)
+
+    def _comparison_get(self, ids: dict[str, str], body: ComparisonGetPayload) -> dict[str, Any]:  # type: ignore[override]
+        """One operator-selected pair, compared by seat 2/3's pure core from two detached snapshots. The store stays
+        open for the call because each bound verifier re-reads the run's head and refuses a snapshot that moved; the
+        repository object itself is never passed across the seam. Nothing is recorded. `not_implemented` when the
+        comparison lane is absent from this checkout (the planner rule)."""
+        from .snapshot import ANCHOR_NONE, project
+
+        try:
+            from ..evaluation.comparison import compare_runs
+        except ImportError as e:  # seat 2/3's comparison core is not merged into this checkout
+            raise PebError(ErrorCode.not_implemented, "comparison.get is not implemented in this checkout: seat 2/3's "
+                           "comparison core (peb.evaluation.comparison) is absent", {"missing": str(e)}) from e
+        repo = self._open()
+        try:
+            self._require_run(repo, body.left_run_id)
+            self._require_run(repo, body.right_run_id)
+            left, verify_left = project(repo, body.left_run_id)
+            right, verify_right = project(repo, body.right_run_id)
+            result = compare_runs(left, right, axis=body.axis, verify_left=verify_left, verify_right=verify_right)
+            return {"left_run_id": body.left_run_id, "right_run_id": body.right_run_id, "axis": body.axis,
+                    "comparison": result, "anchor_provenance": ANCHOR_NONE, "recorded": False}
+        finally:
+            repo.close()
 
     def _profiles_list(self, ids: dict[str, str], body: StrictModel) -> dict[str, Any]:
         """§15.1 `GET /api/profiles`: versioned candidate and control configurations with source/status labels,
