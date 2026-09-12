@@ -423,3 +423,46 @@ def test_comparison_get_is_not_implemented_when_the_comparison_lane_is_absent(tm
     with pytest.raises(PebError) as e:
         call(svc, "comparison.get", {}, {"left_run_id": "run_" + "1" * 32, "right_run_id": "run_" + "2" * 32, "axis": "frame"})
     assert e.value.code == ErrorCode.not_implemented and "comparison" in e.value.message
+
+
+def test_evidence_replay_returns_the_readers_dict_unchanged_and_opens_no_store(tmp_path, monkeypatch):
+    """The seam is a passthrough to seat 3/3's reader (#28436): its dict comes back byte-for-byte, no store is opened
+    (the state root is never created) and nothing is imported. The reader itself is exercised by its own tests."""
+    import sys
+    import types
+
+    seen = []
+    probe = types.ModuleType("peb.evidence.bundle")
+    payload = {"mode": "replay", "recorded": False, "provider_invoked": False, "source_manifest": None, "events": [],
+               "resources": {}, "verification": {"summary": "failed", "failures": ["probe"]}}
+
+    def inspect_bundle(bundle_dir):
+        seen.append(bundle_dir)
+        return payload
+
+    probe.inspect_bundle = inspect_bundle  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "peb.evidence.bundle", probe)
+    state = tmp_path / "state"
+    svc = WorkroomService(state, inference_lock_path=tmp_path / "inference.lock")
+    out = call(svc, "evidence.replay", {}, {"bundle_dir": str(tmp_path / "bundle" / "run-x")})
+    assert out is payload and seen == [str(tmp_path / "bundle" / "run-x")]
+    assert not state.exists()  # a replay opens no store and creates nothing in the operator root
+
+
+def test_evidence_replay_is_not_implemented_when_the_reader_is_absent(tmp_path, monkeypatch):
+    import builtins
+    import sys
+
+    monkeypatch.delitem(sys.modules, "peb.evidence.bundle", raising=False)
+    real_import = builtins.__import__
+
+    def no_reader(name, *a, **k):
+        if name.endswith("evidence.bundle"):
+            raise ImportError("simulated: reader absent")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", no_reader)
+    svc = WorkroomService(tmp_path / "state", inference_lock_path=tmp_path / "inference.lock")
+    with pytest.raises(PebError) as e:
+        call(svc, "evidence.replay", {}, {"bundle_dir": str(tmp_path / "b")})
+    assert e.value.code == ErrorCode.not_implemented and "reader" in e.value.message
