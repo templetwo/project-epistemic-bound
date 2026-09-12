@@ -1,5 +1,7 @@
 """Recorded-pair eligibility and missingness on real scripted runs, never models."""
 import asyncio
+from contextlib import nullcontext
+from unittest.mock import patch
 
 import pytest
 
@@ -20,7 +22,17 @@ def recorded_pair(tmp_path):
              settings=None, evaluate=True, pin=True, case="truthful-repair", limits=None):
         fixture = load_fixture(fixture_id)
         pins = {"consequence_hash": digest(DOMAIN_SNAPSHOT, fixture.frame_case(frame)["consequence_model"])} if pin else {}
-        c = compose_run(tmp_path / name, provider=ScriptedProvider(load_script(case)),
+        # Create a real legacy manifest before its genesis is recorded, even once
+        # compose_run starts adding consequence pins by default.
+        from peb.runtime import bootstrap
+        real_manifest = bootstrap.RunManifest
+
+        def legacy_manifest(**kwargs):
+            kwargs["settings"].pop("consequence_hash", None)
+            return real_manifest(**kwargs)
+
+        with patch.object(bootstrap, "RunManifest", legacy_manifest) if not pin else nullcontext():
+            c = compose_run(tmp_path / name, provider=ScriptedProvider(load_script(case)),
                         provider_kind=ProviderKind.scripted, mode=RunMode.scripted_validation,
                         model_requested="scripted", model_resolved="scripted", profile_id=profile,
                         profile_text=text, preaction_protocol=PreactionProtocol.observe, fixture_id=fixture_id,
