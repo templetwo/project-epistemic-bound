@@ -46,3 +46,34 @@ boundaries on `main`; it is not a specification ("dont feel obligated to use the
   process on a temporary state root.
 - The rendering library is chosen in slice 2 after the transport, state and sanitizer exist; the choice must not
   alter any workroom semantics.
+
+## Addendum 2026-09-12 — slice 2: the application, `peb tui`, and the rendering library
+
+`peb tui --attach URL | --serve [--host --port]` (recorded in the §20 command test as an ADR-019 addition). `--serve`
+starts the EXISTING `peb serve` as a child process of this interpreter and attaches; there is no second runtime. The
+secret is read from the protected state root or prompted without echo, consumed by the first sign-in inside the
+app's own event loop, and dropped. Rendering library: **Textual 8.2.8** (new dependency `textual>=8.2.8`, with
+`rich`), chosen after the transport, state and sanitizer existed, for its headless test pilot (`App.run_test()`):
+every screen rule is asserted through simulated key presses on a fake transport that records each call, so
+"viewing writes nothing", "every control maps to one closed operation and refetches", "the badge goes stale on
+screen when the head moves", "a chain gap resyncs" and "hostile text is inert on screen" are tests, not claims.
+The choice alters no workroom semantics; the transport and the state model are library-neutral.
+Two transport corrections from seat 2/3's review of slice 1 (#28469) are in this slice: any connection loss after a
+mutation was sent is an unknown outcome (not only a timeout), and a 200 with a body that is not a JSON object is a
+typed error for a read and an unknown outcome for a mutation, never an empty success.
+
+## Addendum 2026-09-12 — slice 2 corrections from seat 2/3's review (#28502, #28511; 3/3 concurred #28505)
+
+1. **Child state root.** `--serve` forwards the RESOLVED state root to the child both as `--state-root` and as
+   `PEB_STATE_ROOT`; an explicit CLI root overrides anything inherited (tested with a fake process and socket).
+2. **Quit is detach, never stop.** No inventory read is a shutdown interlock (another client may start a run after any
+   read; the cockpit may quit before its first inventory), so a workroom started by `--serve` is always left running
+   and reported (origin, pid, runs seen in flight or "unconfirmed", re-attach and stop commands). Only a child that
+   fails to start listening is cleaned up, by the spawner that still owns it.
+3. **Literal rendering.** Textual and Rich interpret markup by default; the sanitizer does not strip brackets. Every
+   untrusted surface is a `Content` object on a widget created with `markup=False`, and table cells are `Text` objects;
+   the test reads the widgets' rendered content (plain text equal to the tags, zero spans), not the pre-render string.
+4. **Evidence binding.** A page is appended only as an exact continuation: cursor at the cached end, no shrinking
+   total, contiguous `seq`, every `prev_hash` link inside and across the page boundary, a genesis with no previous hash
+   at cursor 0, the run's own identity. A verification badge binds to the head the verifier reports having covered
+   (`checked_events` equal to the cached count); any other result is UNBOUND on screen and in the alerts.

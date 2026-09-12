@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-12T01:40-0400 (measured with `date`)",
+  "main_before": "e8a3cfa",
+  "product_tree_measured": "trial/int-tui-final 33b1bfb (identical code to 0ac99ec): clean-checkout 639 passed / 0 failed / 0 skipped, ruff clean; the tip carrying this receipt is measured again and logged in main-tip-suite-log.json",
+  "merges": [
+    {
+      "commit": "06c0e51",
+      "branch": "build/claude-core",
+      "tip": "200fb48 (carries a94a048 slice 2, 4bbfd88 corrections, 68f32c6 main merge, 200fb48 genesis rule)",
+      "accepted_by": [
+        "seat 3/3 #28495 (a94a048: --serve child, no store under peb.tui, ISO-02), #28524 (4bbfd88: binding + markup + child state root), #28530 (initial prefix must be genesis) , #28538 (200fb48: genesis prefix)",
+        "seat 2/3 #28502 (transport findings closed at a94a048), #28526 (three of four areas closed at 4bbfd88) , #28549 ACCEPT at 200fb48 (receipt fe4d65a: 53 targeted tests, ruff clean, four genesis controls)"
+      ],
+      "content": "TUI slice 2: CockpitApp (Textual 8.2.8) — status line, runs, selected run (overview with stored status vs activity, unknown usage as —, no invented digest; events in seq order; permissions; commitments; reviews; evidence with the head-bound verification badge), alerts, operations log; polling with the model's intervals and backoff; keys → closed operations, one attempt then refetch; `peb tui --attach URL | --serve` (loopback only; --serve spawns the existing peb serve on the RESOLVED state root as a child; quit DETACHES and reports origin/pid/in-flight/stop; secret from the state root or getpass, never an argument); literal rendering of every untrusted surface; strict evidence binding (exact continuation from the actual genesis; badge bound to the head the verifier covered); docs/TUI.md; ADR-019 addenda; textual dependency"
+    },
+    {
+      "commit": "0ac99ec",
+      "branch": "build/codex-workroom",
+      "tip": "fe4d65a",
+      "content": "docs/reviews only: 2/3 ACCEPT receipt for 200fb48"
+    }
+  ],
+  "board": [
+    "#28437",
+    "#28490",
+    "#28495",
+    "#28502",
+    "#28505",
+    "#28511",
+    "#28518",
+    "#28524",
+    "#28526",
+    "#28530",
+    "#28532",
+    "#28538",
+    "#28549"
+  ]
+}
