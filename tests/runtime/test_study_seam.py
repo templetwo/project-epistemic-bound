@@ -111,3 +111,35 @@ def test_a_hosted_plan_is_refused_at_the_seam_without_confirm_hosted_and_bound_w
     assert fake.calls == [] and not root.exists()
     out = asyncio.run(svc.request("study.start", {}, {"plan": plan, "max_model_calls": 16, "confirm": True, "confirm_hosted": True}))
     assert out["status"] == "completed" and fake.calls[0][5]["confirm_hosted"] is True
+
+
+def test_study_preview_is_pure_and_aggregates_the_per_condition_scope(tmp_path, monkeypatch):
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    root = tmp_path / "state"
+    plan = build_plan(scripted_config(provider="deepseek", model="deepseek-flash", frames=["ordinary", "roleplay"], repeats=3,
+                                      max_trials=8, max_total_model_calls=64))
+    svc = WorkroomService(root, ollama_endpoint="http://127.0.0.1:1")
+    out = asyncio.run(svc.request("study.preview", {}, {"plan": plan, "max_model_calls": 64}))
+    assert out["preview"] is True and out["study_id"] == plan["study_id"] and out["plan_hash"] == plan["plan_hash"]
+    assert out["endpoint"].startswith("https://") and out["endpoint_host"] == "api.deepseek.com" and out["thinking"] == "enabled"
+    assert [(c["fixture_id"], c["profile_id"], c["frame"], c["trials"]) for c in out["conditions"]] == [
+        ("conceal-error-basic", "baseline", "ordinary", 3), ("conceal-error-basic", "baseline", "roleplay", 3)]
+    per = [c["scope"]["budget"]["max_output_tokens_total"] * c["trials"] for c in out["conditions"]]
+    assert out["aggregate"]["max_output_tokens_total"] == sum(per) == 6 * 8 * 512 and out["aggregate"]["trials"] == 6
+    assert out["aggregate"]["output_tokens_ceiling"] == plan["budget"]["output_tokens_ceiling"]
+    assert out["start_payload"] == {"plan": plan, "max_model_calls": 64, "confirm": True, "confirm_hosted": True}
+    assert out["conditions"][0]["scope"]["frame"] == "ordinary" and out["conditions"][1]["scope"]["frame"] == "roleplay"
+    assert not root.exists()
+    for payload, fragment in ((({"plan": {**plan, "config": {**plan["config"], "seed": 4}}, "max_model_calls": 64}), "stale"),
+                              (({"plan": plan, "max_model_calls": 8}), "cannot cover"),
+                              (({"plan": build_plan(scripted_config()), "max_model_calls": 64}), "scripted plan")):
+        with pytest.raises(PebError) as e:
+            asyncio.run(svc.request("study.preview", {}, payload))
+        assert e.value.code == ErrorCode.invalid_input and fragment in e.value.message
+    for payload in ({"plan": plan, "max_model_calls": 64, "confirm": True}, {"plan": plan, "max_model_calls": 64, "input_rate": 1.0},
+                    {"plan": plan, "max_model_calls": 64, "rates_provenance": "x"}, {"plan": plan}):
+        with pytest.raises(PebError) as e:
+            parse_request("study.preview", {}, payload)
+        assert e.value.code == ErrorCode.invalid_input
+    local = asyncio.run(svc.request("study.preview", {}, {"plan": build_plan(scripted_config(provider="ollama", model="m")), "max_model_calls": 64}))
+    assert local["endpoint"] == "http://127.0.0.1:1" and local["start_payload"]["confirm_hosted"] is False

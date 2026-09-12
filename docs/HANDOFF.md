@@ -37,12 +37,13 @@ Earlier states of this file are history, not current state: `git log -p -- docs/
   (`--provider ollama|deepseek`, `--thinking enabled|disabled` default enabled, `--dry-run` prints the
   pre-approval scope without a call), `peb pause`/`cancel`/`resume`, `peb review list|ack|allow|deny`
   (§13, ADR-015), `peb study plan --config [--out NEW]` (EVAL-02 planning), `peb study run <study-id> --plan FILE
-  --max-model-calls N --confirm [--confirm-hosted]` and `peb study get` (EVAL-02 execution: seat 2/3's durable
-  coordinator `evaluation.study` + this seat's trial driver `runtime.study.run_trial`, every trial a fresh recorded
-  run; ADR-018 addendum; docs/STUDY_COORDINATOR.md), profiles A0–A3 with EVAL-03 hygiene, and `WorkroomService`
-  (§15) with 25 closed operations: health.get, demo.run, profiles.list, runs.list, run.get, run.preview, run.create,
-  run.start, run.begin, run.step, run.pause, run.cancel, run.resume, commitment.accept, commitment.revise,
-  review.list, review.resolve, reviews.list (global, read-only), study.plan, study.start, study.get, comparison.get,
+  --max-model-calls N --confirm [--confirm-hosted]`, `peb study get` and `peb study preview` (EVAL-02 execution: seat
+  2/3's durable coordinator `evaluation.study` + this seat's trial driver `runtime.study.run_trial`, every trial a
+  fresh recorded run; the whole plan's pre-launch scope before a hosted study; ADR-018 addendum;
+  docs/STUDY_COORDINATOR.md), profiles A0–A3 with EVAL-03 hygiene, and `WorkroomService` (§15) with 26 closed
+  operations: health.get, demo.run, profiles.list, runs.list, run.get, run.preview, run.create, run.start, run.begin,
+  run.step, run.pause, run.cancel, run.resume, commitment.accept, commitment.revise, review.list, review.resolve,
+  reviews.list (global, read-only), study.plan, study.preview, study.start, study.get, comparison.get,
   evidence.replay, evidence.verify, evidence.export (ADR-018 and addenda). Task ids are validated against the closed
   fixture registry.
 - The DeepSeek hosted provider (ADR-017 and addenda): https only, host pinned to `api.deepseek.com`, the key

@@ -5,8 +5,9 @@
   clean-checkout suite, push only on green; receipts in docs/receipts/, reviews in docs/reviews/,
   docs/receipts/main-tip-suite-log.json appended per tip).
 - Latest unit on the lane (2026-09-12): the study trial driver `src/peb/runtime/study.py` (`run_trial`, `bind_trial_driver`,
-  `STUDY_SCRIPTS`, `coordinator()`), `peb study run <study-id> --plan FILE --max-model-calls N --confirm [--confirm-hosted]`
-  and `peb study get`, service `study.start` / `study.get`, `compose_model_run(extra_settings=)`; tests in
+  `STUDY_SCRIPTS`, `coordinator()`, `TrialRefused`, `preview_study`, `validate_displayed_plan`, `PLAN_FILE_MAX_BYTES`),
+  `peb study run <study-id> --plan FILE --max-model-calls N --confirm [--confirm-hosted]`, `peb study get`,
+  `peb study preview`, service `study.start` / `study.get` / `study.preview`, `compose_model_run(extra_settings=)`; tests in
   tests/integration/test_study_driver.py, tests/runtime/test_study_seam.py, tests/unit/test_cli_study_run.py; ADR-018
   addendum; INTERFACES §15 rows; HANDOFF and RUNBOOK. Binds seat 2/3's coordinator `peb.evaluation.study` (753e94d).
 - Earlier on this lane, all on `main`: S2 loop and runtime; providers (scripted, Ollama loopback, DeepSeek hosted with

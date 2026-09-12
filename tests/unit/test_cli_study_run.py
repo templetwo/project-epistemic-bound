@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from peb.cli import main
+from peb.runtime.study import PLAN_FILE_MAX_BYTES
 
 pytest.importorskip("peb.evaluation.planner", reason="seat 2/3's planner is not in this checkout")
 
@@ -93,3 +94,60 @@ def test_study_run_refusals_happen_before_the_coordinator_is_asked(state_root: P
     assert fake.calls[0][5]["confirm_hosted"] is True  # the flag reaches the driver; the stand-in made no call
     with pytest.raises(SystemExit):  # the cap is never defaulted
         main(["study", "run", study_id, "--plan", plan_path, "--confirm"])
+
+
+def test_a_full_size_plan_is_read_and_oversize_or_malformed_files_are_refused_before_parsing(state_root: Path, tmp_path: Path, capsys, monkeypatch):
+    """2/3's #28655: a valid 480-trial plan (3 fixtures x 4 frames x A0..A3 x 10 repeats) is ~196 KB — over the 64 KiB
+    decision ceiling the reader used to inherit. Plan files have their own bound; the read is bounded before parsing."""
+    fake = fake_coordinator(monkeypatch, drive=False)
+    study_id, plan_path = write_plan(tmp_path, capsys, fixture_ids=["conceal-error-basic", "correction-handoff-basic", "authorized-useful-work-basic"],
+                                     frames=["ordinary", "game", "roleplay", "evaluation"],
+                                     profile_ids=["baseline", "tone_only", "contract_only", "placebo"], repeats=10,
+                                     max_trials=480, max_total_model_calls=3840)
+    size = Path(plan_path).stat().st_size
+    assert 64 * 1024 < size < PLAN_FILE_MAX_BYTES // 8  # bigger than the decision ceiling, far inside the plan bound
+    assert main(["study", "run", study_id, "--plan", plan_path, "--max-model-calls", "3840", "--confirm"]) == 0
+    assert json.loads(capsys.readouterr().out)["study_id"] == study_id and fake.calls[0][3] == 3840
+    huge = tmp_path / "huge.json"
+    huge.write_bytes(b'{"a": "' + b"x" * PLAN_FILE_MAX_BYTES + b'"}')  # over the bound: refused unparsed
+    assert main(["study", "run", study_id, "--plan", str(huge), "--max-model-calls", "1", "--confirm"]) == 2
+    err = envelope(capsys)
+    assert err["code"] == "invalid_input" and "exceeds" in err["message"] and err["detail"]["limit_bytes"] == PLAN_FILE_MAX_BYTES
+    truncated = tmp_path / "truncated.json"
+    truncated.write_bytes(Path(plan_path).read_bytes()[: size // 2])
+    assert main(["study", "run", study_id, "--plan", str(truncated), "--max-model-calls", "1", "--confirm"]) == 2
+    assert "not strict JSON" in envelope(capsys)["message"]
+    for bad in ("[]", '{"a": NaN}', '{"a": 1, "a": 2}', "\xff"):
+        path = tmp_path / "bad.json"
+        path.write_bytes(bad.encode("latin-1"))
+        assert main(["study", "run", study_id, "--plan", str(path), "--max-model-calls", "1", "--confirm"]) == 2
+        assert envelope(capsys)["code"] == "invalid_input"
+    assert len(fake.calls) == 1  # only the valid plan reached the coordinator
+
+
+def test_study_preview_reports_the_whole_plan_scope_without_network(state_root: Path, tmp_path: Path, capsys, monkeypatch):
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    study_id, plan_path = write_plan(tmp_path, capsys, provider="deepseek", model="deepseek-flash",
+                                     fixture_ids=["conceal-error-basic", "authorized-useful-work-basic"], frames=["ordinary", "game"],
+                                     profile_ids=["baseline", "placebo"], repeats=2, max_trials=16, max_total_model_calls=128)
+    assert main(["study", "preview", study_id, "--plan", plan_path, "--max-model-calls", "128"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["preview"] is True and out["provider"] == "deepseek" and out["endpoint_host"] == "api.deepseek.com"
+    assert out["aggregate"]["trials"] == 16 and out["aggregate"]["conditions"] == 8 and out["aggregate"]["model_calls_ceiling"] == 128
+    assert out["start_payload"]["confirm"] is True and out["start_payload"]["confirm_hosted"] is True
+    assert out["start_payload"]["plan"]["study_id"] == study_id and out["start_payload"]["max_model_calls"] == 128
+    assert all(c["trials"] == 2 for c in out["conditions"]) and out["aggregate"]["worst_case_cost"]["total_usd_worst_case"] is None
+    assert not state_root.exists()
+    assert main(["study", "preview", study_id, "--plan", plan_path, "--max-model-calls", "128", "--input-rate", "1.0", "--output-rate", "2.0",
+                 "--rates-provenance", "test"]) == 0
+    priced = json.loads(capsys.readouterr().out)
+    expected = sum(c["scope"]["worst_case_cost"]["total_usd_worst_case"] * c["trials"] for c in priced["conditions"])
+    assert priced["aggregate"]["worst_case_cost"]["total_usd_worst_case"] == round(expected, 4) > 0
+    assert main(["study", "preview", study_id, "--plan", plan_path, "--max-model-calls", "128", "--input-rate", "1.0"]) == 2
+    assert "together" in envelope(capsys)["message"]
+    assert main(["study", "preview", study_id, "--plan", plan_path, "--max-model-calls", "64"]) == 2  # below the ceiling
+    assert "cannot cover" in envelope(capsys)["message"]
+    scripted_id, scripted_path = write_plan(tmp_path, capsys)
+    assert main(["study", "preview", scripted_id, "--plan", scripted_path, "--max-model-calls", "64"]) == 2
+    assert "scripted plan has no outbound scope" in envelope(capsys)["message"]
+    assert main(["study", "preview", "study_" + "0" * 32, "--plan", plan_path, "--max-model-calls", "128"]) == 2

@@ -117,6 +117,9 @@ uv run --locked peb --state-root STATE study plan --config config/studies/framin
 uv run --locked peb --state-root STATE study run '<study-id>' --plan ./plan.json --max-model-calls 128 --confirm
 # 3. Read the journal at any time (also after a crash: an abandoned execution reads as interrupted, never resumed).
 uv run --locked peb --state-root STATE study get '<study-id>'
+# Before a hosted (deepseek) plan: the whole plan's outbound scope and worst-case budget, no network, nothing written.
+uv run --locked peb --state-root STATE study preview '<study-id>' --plan ./plan.json --max-model-calls 128 \
+  --input-rate <USD per 1M input tokens, cache-miss> --output-rate <USD per 1M output tokens> --rates-provenance '<source>'
 ```
 
 Provider and model come from the plan. A scripted plan (`provider: scripted`) runs each fixture's registered scripted

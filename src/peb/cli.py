@@ -250,20 +250,52 @@ def cmd_study_plan(args: argparse.Namespace) -> int:
 
 
 def _read_plan_file(path_str: str) -> dict:
+    """A plan file has its OWN bound (`runtime.study.PLAN_FILE_MAX_BYTES`, 4 MiB — every supported schedule fits with
+    room): the decision ceiling is for subject output, not schedules (2/3's #28655: a valid 480-trial plan is 196 KB).
+    The read is bounded BEFORE parsing; strict JSON (no duplicate keys, no NaN); an object."""
     from pathlib import Path
 
     from .contracts import strict_json_loads
+    from .runtime.study import PLAN_FILE_MAX_BYTES
 
     path = Path(path_str)
     if not path.is_file():
         raise PebError(ErrorCode.invalid_input, "study plan file not found", {"plan": str(path)})
+    with path.open("rb") as fh:
+        raw = fh.read(PLAN_FILE_MAX_BYTES + 1)
+    if len(raw) > PLAN_FILE_MAX_BYTES:
+        raise PebError(ErrorCode.invalid_input, f"study plan file exceeds {PLAN_FILE_MAX_BYTES} bytes; not parsed",
+                       {"plan": str(path), "limit_bytes": PLAN_FILE_MAX_BYTES})
     try:
-        plan = strict_json_loads(path.read_text(encoding="utf-8"))
-    except ValueError as e:
+        plan = strict_json_loads(raw.decode("utf-8"), ceiling_bytes=PLAN_FILE_MAX_BYTES)
+    except (ValueError, UnicodeDecodeError) as e:
         raise PebError(ErrorCode.invalid_input, "study plan is not strict JSON", {"plan": str(path), "reason": str(e)[:200]}) from None
     if not isinstance(plan, dict):
         raise PebError(ErrorCode.invalid_input, "study plan must be a JSON object", {"plan": str(path)})
     return plan
+
+
+def cmd_study_preview(args: argparse.Namespace) -> int:
+    """`peb study preview <study-id> --plan FILE --max-model-calls N [--input-rate --output-rate --rates-provenance]`:
+    the pre-launch scope of the whole plan (outbound data and maximum budget per unique condition, summed) with NO
+    network call and NO state change — what an operator sees before a hosted `peb study run … --confirm-hosted`."""
+    from .runtime.study import preview_study
+
+    cfg = load_config(args.state_root)
+    plan = _read_plan_file(args.plan)
+    if plan.get("study_id") != args.study_id:
+        raise PebError(ErrorCode.invalid_input, "the typed study id does not match the plan file",
+                       {"typed": str(args.study_id)[:80], "plan": str(plan.get("study_id"))[:80]})
+    rates = None
+    if (args.input_rate is None) != (args.output_rate is None):
+        raise PebError(ErrorCode.invalid_input, "--input-rate and --output-rate must be supplied together (USD per 1M tokens)")
+    if args.input_rate is not None:
+        rates = {"input_cache_miss_per_mtok": args.input_rate, "output_per_mtok": args.output_rate,
+                 "provenance": args.rates_provenance or "supplied on the command line; not verified by this software"}
+    out = preview_study(plan, max_model_calls=args.max_model_calls, ollama_endpoint=cfg.ollama_endpoint,
+                        deepseek_endpoint=cfg.deepseek_endpoint, rates=rates)
+    print(json.dumps(out, indent=2, sort_keys=True))
+    return 0
 
 
 def cmd_study_run(args: argparse.Namespace) -> int:
@@ -645,6 +677,14 @@ def build_parser() -> argparse.ArgumentParser:
     sg = st.add_parser("get", help="read a study's durable journal (rows, results, counts); an abandoned run reads as interrupted")
     sg.add_argument("study_id")
     sg.set_defaults(fn=cmd_study_get)
+    spv = st.add_parser("preview", help="the whole plan's outbound scope and maximum budget before a hosted run; no network, no state change")
+    spv.add_argument("study_id", help="the plan's study_id, typed by the operator; must match --plan")
+    spv.add_argument("--plan", required=True)
+    spv.add_argument("--max-model-calls", type=int, required=True, help="the cap you would pass to `study run`; must cover the plan's ceiling")
+    spv.add_argument("--input-rate", type=float, default=None, help="USD per 1M input tokens at the cache-MISS (peak) rate")
+    spv.add_argument("--output-rate", type=float, default=None, help="USD per 1M output tokens")
+    spv.add_argument("--rates-provenance", default=None, help="where the rates came from (recorded verbatim; not verified)")
+    spv.set_defaults(fn=cmd_study_preview)
 
     rl = sub.add_parser("runs", help="run inventory").add_subparsers(dest="runs_cmd", required=True)
     rl.add_parser("list", help="list runs in the state root").set_defaults(fn=cmd_runs_list)

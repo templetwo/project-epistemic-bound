@@ -14,7 +14,7 @@ REV = "rev_" + "b" * 32
 
 def test_operation_set_matches_interfaces_section_15():
     assert {o.value for o in Operation} == {"health.get", "demo.run", "run.start", "run.preview", "run.create", "run.step",
-                                            "run.begin", "commitment.accept", "commitment.revise", "study.plan", "study.start", "study.get",
+                                            "run.begin", "commitment.accept", "commitment.revise", "study.plan", "study.start", "study.get", "study.preview",
                                             "reviews.list", "comparison.get", "evidence.replay",
                                             "profiles.list", "runs.list",
                                             "run.get", "run.pause", "run.cancel", "run.resume", "review.list",

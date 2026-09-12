@@ -119,11 +119,17 @@ trial)` shape by `bind_trial_driver`) owns everything that touches the runtime. 
    only when the run started and reached a terminal state — a held or paused trial is not evaluated and not resolved.
    Verification is `repo.verify(run_id, None)`: chain only, labelled `none_external_anchor_absent` (3/3's #28611); a
    checkpoint minted by the same process would not be an external anchor.
-4. **Failure semantics.** A refusal BEFORE creation is a `PebError` (`invalid_input` for a plan/trial mismatch, a hosted
-   plan without confirmation or a fixture without a scripted control; `busy` for a held lock; `provider_unavailable` for a
-   failed probe; `not_implemented` for an absent lane) and the coordinator journals it without a run. A failure AFTER the
-   run exists is reported ON the recorded run — its id, stored status and event-derived facts — with `error` naming the
-   failure type and a bounded message; nothing is retried; the coordinator persists only `trial_failed`.
+4. **Failure semantics.** The driver's OWN refusals before it calls the runtime (a plan/trial mismatch, a hosted plan
+   without confirmation, a fixture without a scripted control, an unrunnable profile, an absent lane) raise
+   `runtime.study.TrialRefused`, a `PebError` subclass that guarantees nothing was created. A held supervisor lock (`busy`)
+   and a failed probe (`provider_unavailable`) also happen before creation but are raised by the locks and the composer
+   as plain `PebError`. A failure AFTER the run exists is reported ON the recorded run — its id, stored status and
+   event-derived facts — with `error` naming the failure type and a bounded message; if the record itself cannot be read
+   back, the driver raises `evidence_failure` naming the run and both failures. So a plain `PebError` CAN escape after
+   a run exists (2/3's counterexample, #28655: evaluation refuses, then read-back fails), and the coordinator's rule —
+   any exception is an unknown outcome that stops dispatch, never retried — is the right one; `TrialRefused` only lets a
+   later refinement tell a pre-creation refusal apart with certainty. Nothing is retried; the coordinator persists only
+   `trial_failed`.
 5. **Hosted providers need `confirm_hosted`** at the CLI (`--confirm-hosted`), at the seam (`study.start`) and inside the
    driver; a study is never a way around the hosted preview, and the web layer must bind its preview token to the exact
    plan and cap before a hosted `study.start`.
@@ -135,3 +141,16 @@ trial)` shape by `bind_trial_driver`) owns everything that touches the runtime. 
    journal. `peb study get <study-id>` reads the journal. `study.start` is synchronous like `run.start`; the journal is
    written before every dispatch, so `study.get` shows progress during the call. The `study.run` stub and `_stub` are gone:
    every §20 command is real, and an absent coordinator lane fails `not_implemented` (kept as the S0 test).
+8. **A plan file has its own bound** (2/3's #28655): `runtime.study.PLAN_FILE_MAX_BYTES` = 4 MiB. The decision ceiling
+   (64 KiB, §9.1) is for subject output; a valid 480-trial plan is ~196 KB and the largest schedule `StudyConfig` admits
+   (512 trials) is ~210 KB. `peb study run|preview` read at most the bound before parsing (an oversize file is refused
+   unparsed), then strict JSON, then an object. The coordinator embeds the plan in its journal under its own 32 MiB bound.
+9. **`study.preview` / `peb study preview`** (2/3's #28658) is the whole plan's pre-launch scope, the study analogue of
+   `run.preview`: the plan is validated by the coordinator's own admission rule (exact rebuild equality,
+   `runtime.study.validate_displayed_plan`) and the cap by the coordinator's rule (covers the ceiling), so a preview never
+   blesses what `study.start` would refuse; then the existing `outbound_scope` runs per unique (fixture, profile, frame)
+   condition with the plan's actual provider, model, thinking and per-trial limits — the frame is carried, which
+   `run.preview` cannot do — and the result is summed over planned trials (output/input token totals, step-0 estimate,
+   worst-case cost only with operator rates; probes named as separate). It returns the normalized `start_payload`
+   `{plan, max_model_calls, confirm: true, confirm_hosted}` the web layer binds its one-use ticket to. Pure: no network, no
+   store, nothing written; never confirms; a scripted plan has no outbound scope and is refused.

@@ -19,7 +19,14 @@ from peb.errors import ErrorCode, PebError
 from peb.evaluation.planner import build_plan
 from peb.runtime import bootstrap
 from peb.runtime.profiles import load_profile
-from peb.runtime.study import HOSTED_REFUSAL, PIN_KEYS, STUDY_SCRIPTS, bind_trial_driver, run_trial
+from peb.runtime.study import (
+    HOSTED_REFUSAL,
+    PIN_KEYS,
+    STUDY_SCRIPTS,
+    TrialRefused,
+    bind_trial_driver,
+    run_trial,
+)
 from peb.storage.repository import SqliteRepository
 from peb.workspace.fixtures import FIXTURE_ROOT, SCRIPT_PATHS, load_script
 
@@ -108,15 +115,15 @@ def test_every_refusal_happens_before_any_run_or_state_root_exists(tmp_path: Pat
         (plan, {k: v for k, v in trial.items() if k != "pair_id"}, "required field"),
     ]
     for bad_plan, bad_trial, fragment in cases:
-        with pytest.raises(PebError) as e:
+        with pytest.raises(TrialRefused) as e:  # the driver's own pre-runtime refusal type: nothing was created
             drive(root, tmp_path, bad_plan, bad_trial)
         assert e.value.code == ErrorCode.invalid_input and fragment in e.value.message
     hosted = build_plan(scripted_config(provider="deepseek", model="deepseek-flash"))
-    with pytest.raises(PebError) as e:
+    with pytest.raises(TrialRefused) as e:
         drive(root, tmp_path, hosted, hosted["trials"][0])
     assert e.value.code == ErrorCode.invalid_input and e.value.message == HOSTED_REFUSAL
     uncovered = build_plan(scripted_config(fixture_ids=["fictional-authority-basic"]))
-    with pytest.raises(PebError) as e:
+    with pytest.raises(TrialRefused) as e:
         drive(root, tmp_path, uncovered, uncovered["trials"][0])
     assert e.value.code == ErrorCode.invalid_input and "no registered scripted control" in e.value.message
     assert not root.exists() and not (tmp_path / "inference.lock").exists()
@@ -185,3 +192,32 @@ def test_bound_driver_has_the_coordinators_shape_and_a_held_trial_is_not_evaluat
         assert r["evaluation"] is None and r["evaluation_present"] is False  # held where the record says; not resolved
     else:
         assert r["evaluation_present"] is True
+
+
+def test_a_record_that_cannot_be_read_back_is_an_evidence_failure_naming_the_run(tmp_path: Path, monkeypatch):
+    """2/3's #28655 counterexample: evaluation raises a PebError after a real run AND the read-back fails. The driver
+    must not re-raise the PebError as if nothing had been created: the exception names the run and both failures."""
+    def evaluation_refuses(*a, **kw):
+        raise PebError(ErrorCode.invalid_input, "synthetic evaluation refusal after the run")
+
+    def verify_breaks(self, run_id, checkpoint):
+        raise RuntimeError("synthetic verify failure")
+
+    monkeypatch.setattr(bootstrap, "_maybe_evaluate", evaluation_refuses)
+    monkeypatch.setattr(SqliteRepository, "verify", verify_breaks)
+    root = tmp_path / "state"
+    plan = build_plan(scripted_config())
+    with pytest.raises(PebError) as e:
+        drive(root, tmp_path, plan, plan["trials"][0])
+    assert not isinstance(e.value, TrialRefused) and e.value.code == ErrorCode.evidence_failure
+    assert e.value.detail["readback"] == "RuntimeError" and e.value.detail["runtime_failure"] == "PebError"
+    run_id = e.value.detail["run_id"]
+    repo = SqliteRepository.open(root)
+    try:
+        assert repo.run_exists(run_id) and [s.run_id for s in repo.list_runs()] == [run_id]
+    finally:
+        repo.close()
+    monkeypatch.undo()
+    monkeypatch.setattr(bootstrap, "_maybe_evaluate", evaluation_refuses)  # evaluation refuses, read-back works: reported on the run
+    r = drive(root, tmp_path, plan, plan["trials"][1])
+    assert r["error"]["type"] == "PebError" and r["status"] == "completed" and r["evaluation"] is None
