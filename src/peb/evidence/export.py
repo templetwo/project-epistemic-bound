@@ -8,7 +8,7 @@ from typing import Any
 
 from ..contracts import utcnow
 from ..errors import ErrorCode, PebError
-from ..runtime.snapshot import projected_commitments
+from ..runtime.snapshot import projected_commitments, projected_reviews, recorded_evaluation
 from ..storage.repository import SqliteRepository
 from .replay import history_as_wiring, replay_run
 from .verify import verify_run
@@ -47,8 +47,10 @@ def export_run(repo: SqliteRepository, run_id: str, out_dir: str | Path) -> Path
         # The shared projection (runtime/snapshot.projected_commitments): status and origin from the event chain,
         # unmatched table rows kept. Seat 2/3's #28117: the table alone omitted operator accept/revise records.
         "commitments.json": _dump([c.model_dump(mode="json") for c in projected_commitments(repo, run_id)]),
-        "reviews.json": _dump([]),
-        "evaluation.json": _dump({"present": False}),
+        # Recorded review queue only (review_opened / review_resolved). Not expire_reviews at read time
+        # (2/3 #28286): an open review past its deadline stays pending until a recorded resolution.
+        "reviews.json": _dump([r.model_dump(mode="json") for r in projected_reviews(repo, run_id)]),
+        "evaluation.json": _dump(recorded_evaluation(repo, run_id)),
         "checkpoints.json": _dump([checkpoint.model_dump(mode="json")]),
         "receipts.json": _dump([r.model_dump(mode="json") for r in receipts]),
         "report.md": (
