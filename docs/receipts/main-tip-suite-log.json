@@ -35,6 +35,17 @@
       "errors": 0,
       "skipped": 0,
       "receipt": "docs-only reconciliation commit; product tree = 22a0359"
+    },
+    {
+      "tip": "51668c1",
+      "measured_at_local": "2026-09-12T00:10-0400",
+      "ruff": "All checks passed",
+      "tests": 564,
+      "passed": 564,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "receipt": "LIVE-01 promotion (docs); product tree = 22a0359"
     }
   ]
 }
