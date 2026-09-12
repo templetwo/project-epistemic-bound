@@ -56,6 +56,23 @@ def _lanes():
     return DefaultReferenceMonitor, ResourceSnapshot, SqliteRepository, SqliteExecutor, load_fixture, load_script
 
 
+def registered_task_ids() -> tuple[str, ...]:
+    """The CLOSED fixture registry (seat 2/3's workspace.fixtures.FIXTURE_PATHS): the only task ids a run may name.
+    Fails not_implemented when the fixture lane is absent, exactly like `_lanes()`. Never a free string (#28172)."""
+    try:
+        from ..workspace.fixtures import FIXTURE_PATHS
+    except ImportError as e:  # the fixture lane is not merged into this checkout
+        raise PebError(ErrorCode.not_implemented, "the fixture registry is not in this checkout", {"missing": str(e)}) from e
+    return tuple(sorted(FIXTURE_PATHS))
+
+
+def require_registered_task(task_id: str) -> str:
+    ids = registered_task_ids()
+    if task_id not in ids:
+        raise PebError(ErrorCode.invalid_input, f"unknown task {task_id!r}: not a registered fixture", {"tasks": list(ids)})
+    return task_id
+
+
 @dataclass
 class ComposedRun:
     runtime: SubjectRuntime
@@ -177,8 +194,7 @@ async def compose_model_run(state_root: str | os.PathLike[str], *, model: str, p
     from ..providers.ollama import response_schema_for_decisions
     from .profiles import load_profile, require_runnable
 
-    if task_id != "conceal-error-basic":
-        raise PebError(ErrorCode.invalid_input, f"unknown task {task_id!r}", {"tasks": ["conceal-error-basic"]})
+    require_registered_task(task_id)  # the closed fixture registry, never a free string (#28172)
     profile = require_runnable(load_profile(profile_id))  # §16.2: a placeholder arm is not that arm
     limits = Limits(max_model_calls=max_model_calls, **({"max_output_tokens": max_output_tokens} if max_output_tokens else {}))
     provider = _build_provider(provider_kind, endpoint=endpoint, model=model, limits=limits, transport=transport,
@@ -191,7 +207,7 @@ async def compose_model_run(state_root: str | os.PathLike[str], *, model: str, p
     return compose_run(state_root, provider=provider, provider_kind=ProviderKind(provider_kind), mode=RunMode.model_observation,
                        model_requested=model, model_resolved=None,  # resolved id is recorded per response
                        profile_id=profile.profile_id, profile_text=profile.text,
-                       preaction_protocol=profile.preaction_protocol, frame=frame, limits=limits,
+                       preaction_protocol=profile.preaction_protocol, fixture_id=task_id, frame=frame, limits=limits,
                        response_schema=response_schema_for_decisions(), case="model",
                        profile_status=profile.status, profile_placeholder=profile.placeholder, arm=profile.arm,
                        extra_settings=settings)
@@ -762,6 +778,7 @@ def outbound_scope(*, provider_kind: str, endpoint: str, model: str, profile_id:
 
     if provider_kind not in ("ollama", "deepseek"):
         raise PebError(ErrorCode.invalid_input, f"unknown model provider {provider_kind!r}", {"providers": ["ollama", "deepseek"]})
+    require_registered_task(task_id)  # the same registry and the same composer as the real run (#28172)
     profile = require_runnable(load_profile(profile_id))
     limits = Limits(max_model_calls=max_model_calls, **({"max_output_tokens": max_output_tokens} if max_output_tokens else {}))
     tmp = tempfile.mkdtemp(prefix="peb-dry-run-")
@@ -769,7 +786,7 @@ def outbound_scope(*, provider_kind: str, endpoint: str, model: str, profile_id:
         composed = compose_run(tmp, provider=_MustNotBeCalled(), provider_kind=ProviderKind(provider_kind),
                                mode=RunMode.model_observation, model_requested=model, model_resolved=None,
                                profile_id=profile.profile_id, profile_text=profile.text,
-                               preaction_protocol=profile.preaction_protocol, frame=frame, limits=limits,
+                               preaction_protocol=profile.preaction_protocol, fixture_id=task_id, frame=frame, limits=limits,
                                response_schema=response_schema_for_decisions(), case="dry-run",
                                profile_status=profile.status, profile_placeholder=profile.placeholder, arm=profile.arm)
         try:

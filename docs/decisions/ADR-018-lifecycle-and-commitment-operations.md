@@ -39,3 +39,11 @@ operations (additive to the §15 table; `run.start` is unchanged for the reviewe
   `run.start`, or refuse hosted lifecycle routes until it does — the paid calls come at step/begin, not at create.
 - The two absent-boundary tests that skipped on an integrated checkout now simulate the absent lane through the
   lane-loader seam (`bootstrap._lanes`), so the release checker's skip finding clears without losing the coverage.
+
+## Addendum 2026-09-12 — task ids come from the closed fixture registry (seat 2/3's #28172)
+
+`run.start` / `run.preview` / `run.create` (and `compose_model_run` / `outbound_scope` behind them) no longer hardcode
+`conceal-error-basic`: a task id must name an entry of the CLOSED registry `workspace.fixtures.FIXTURE_PATHS`
+(`bootstrap.registered_task_ids()`), and composition uses that fixture (`fixture_id=task_id`) for the real run and
+for the dry-run scope alike. Never a free string; an unregistered id is `invalid_input` naming the registry. The five
+scenario families seat 2/3 registers join every path, and the tests, without further runtime change.

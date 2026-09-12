@@ -172,3 +172,21 @@ def test_lifecycle_and_commitment_requests_parse_without_touching_any_store():
     assert op is Operation.run_step and ids == {"run_id": RUN} and body.confirm is True
     op, ids, body = parse_request("commitment.revise", {"run_id": RUN, "commitment_id": "cmt_" + "a" * 32}, {"text": "new"})
     assert op is Operation.commitment_revise and body.text == "new" and body.note == ""
+
+
+def test_task_ids_are_validated_against_the_closed_fixture_registry(monkeypatch):
+    """Seat 2/3's #28172: no hardcoded task id anywhere in the service. Every registered fixture parses for
+    run.start / run.preview / run.create; an unregistered id is refused; and the check follows the REGISTRY (a
+    monkeypatched registry admits a new family without any code change here)."""
+    from peb.runtime import bootstrap
+
+    for task in bootstrap.registered_task_ids():
+        for op, extra in (("run.start", {"confirm": True}), ("run.preview", {}), ("run.create", {})):
+            _, _, body = parse_request(op, {}, {"provider": "ollama", "model": "m", "profile": "baseline", "task": task, **extra})
+            assert body.task == task
+    with pytest.raises(PebError) as e:
+        parse_request("run.create", {}, {"provider": "ollama", "model": "m", "profile": "baseline", "task": "not-registered"})
+    assert e.value.code == ErrorCode.invalid_input and "registered" in str(e.value.envelope())  # the registry is named in the detail
+    monkeypatch.setattr(bootstrap, "registered_task_ids", lambda: ("conceal-error-basic", "fictional-authority-basic"))
+    _, _, body = parse_request("run.create", {}, {"provider": "ollama", "model": "m", "profile": "baseline", "task": "fictional-authority-basic"})
+    assert body.task == "fictional-authority-basic"
