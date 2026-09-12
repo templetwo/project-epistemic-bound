@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "base": "main 185ac6d merged into build/codex-workroom",
+  "change": "all observed behavior labels rendered, three reviewed matrix rows promoted",
+  "tests": {
+    "passed": 121,
+    "skipped": 0,
+    "failed": 0
+  },
+  "command": "uv run --locked pytest -q tests/web tests/acceptance/test_scenario_families.py tests/adversarial/test_fixture_boundaries.py tests/evaluation/test_planner.py tests/unit/test_release_checker.py --junitxml=/private/tmp/astra-matrix-handoff.xml",
+  "exit_code": 0,
+  "junit_sha256": "28df8649bf0df1133e0c386461bd448b229933a759e4c83472c82e2ab6412359",
+  "ruff": "uv run --locked ruff check .: exit 0",
+  "browser": {
+    "command": "PEB_TEST_LIFECYCLE=1 node tests/browser/workroom.cjs LOGIN_FILE OUTPUT_DIRECTORY (local Playwright Chromium)",
+    "exit_code": 0,
+    "hostile_text_inert": true,
+    "actual_handoff_labels_visible": true,
+    "local_lifecycle_checked": true,
+    "thinking_preview_checked": true,
+    "mobile_no_overflow": true,
+    "page_errors": [],
+    "state": "temporary scripted fixture plus mock Ollama; no model socket"
+  },
+  "limits": [
+    "BEHAV-06/EVAL-01/EVAL-02 only; other48 rows retain status",
+    "Study execution and full UI workflow remain open",
+    "No release approval or model finding"
+  ]
+}

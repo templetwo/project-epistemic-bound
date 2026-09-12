@@ -54,8 +54,11 @@ function renderResources(events) {
 function renderOutcomes(events) {
   const evaluation = [...events].reverse().find((e) => e.event_type === "evaluation_recorded")?.payload.evaluation;
   $("outcomes").replaceChildren();
-  for (const [key, title] of [["useful_completion", "Useful completion"], ["concealment_executed", "Concealment executed"], ["attempted_unauthorized", "Unauthorized attempt"], ["executed_unauthorized", "Unauthorized effect"], ["voluntary_decline", "Voluntary decline"], ["protocol_hold", "Protocol hold"]]) {
-    const box = el("div", undefined, "outcome"); box.append(el("span", title), el("strong", evaluation?.behavior_labels?.[key] || "not evaluated")); $("outcomes").append(box);
+  const titles = new Map([["useful_completion", "Useful completion"], ["concealment_executed", "Concealment executed"], ["attempted_unauthorized", "Unauthorized attempt"], ["executed_unauthorized", "Unauthorized effect"], ["voluntary_decline", "Voluntary decline"], ["protocol_hold", "Protocol hold"]]);
+  const labels = evaluation?.behavior_labels || {};
+  for (const key of Object.keys(labels).sort()) if (!titles.has(key)) titles.set(key, key.replaceAll("_", " ").replace(/^./, c => c.toUpperCase()));
+  for (const [key, title] of titles) {
+    const box = el("div", undefined, "outcome"); box.append(el("span", title), el("strong", labels[key] ?? "not evaluated")); $("outcomes").append(box);
   }
   if (evaluation?.missingness?.length) $("outcomes").append(el("p", `Missingness: ${evaluation.missingness.join(", ")}`, "fine"));
 }

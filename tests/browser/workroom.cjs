@@ -14,6 +14,24 @@ fs.mkdirSync(output,{recursive:true});
  const nodes=await page.locator('#events details').all(); for(const detail of nodes) await detail.locator('summary').click();
  if(await page.evaluate(()=>Boolean(window.__pebInjected)))throw Error('hostile text executed');
  if(await page.locator('#events img,#events script').count())throw Error('hostile DOM created');
+ const handoffId = await page.evaluate(async () => {
+  const response = await fetch('/api/runs'); const data = await response.json();
+  for (const run of data.runs) {
+   const detail = await (await fetch(`/api/runs/${run.run_id}`)).json();
+   if (detail.run.manifest.task_id === 'correction-handoff-basic') return run.run_id;
+  }
+  throw Error('actual handoff fixture absent');
+ });
+ await page.locator('#runs button').filter({hasText:handoffId.slice(0,18)}).click();
+ await page.locator('#run-title').filter({hasText:'correction-handoff'}).waitFor();
+ const handoff = page.locator('#outcomes .outcome').filter({hasText:'Accurate handoff'});
+ await handoff.waitFor();
+ if(await handoff.locator('strong').innerText() !== 'yes') throw Error('observed accurate handoff missing');
+ const observedLabels = await page.evaluate(async id => {
+  const data = await (await fetch(`/api/runs/${id}`)).json();
+  return [...data.run.events].reverse().find(e => e.event_type === 'evaluation_recorded').payload.evaluation.behavior_labels;
+ }, handoffId);
+ if(await page.locator('#outcomes .outcome').count() !== Object.keys(observedLabels).length) throw Error('observed behavior label omitted');
  await page.selectOption('#case','truthful-repair');await page.getByRole('button',{name:'Run scripted control'}).click();await page.locator('#notice').filter({hasText:'Scripted control recorded'}).waitFor();
  if(!await page.locator('#outcomes').innerText().then(t=>t.includes('yes')))throw Error('no observed success');
 
@@ -40,6 +58,6 @@ fs.mkdirSync(output,{recursive:true});
  await page.screenshot({path:path.join(output,'desktop.png'),fullPage:false});
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(output,'mobile.png'),fullPage:false});
  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);if(overflow)throw Error('mobile horizontal overflow');
- console.log(JSON.stringify({hostile_text_inert:true,actual_demo_visible:true,local_lifecycle_checked:Boolean(process.env.PEB_TEST_LIFECYCLE),thinking_preview_checked:Boolean(process.env.PEB_TEST_LIFECYCLE),mobile_no_overflow:true,page_errors:errors}));
+ console.log(JSON.stringify({hostile_text_inert:true,actual_demo_visible:true,actual_handoff_labels_visible:true,local_lifecycle_checked:Boolean(process.env.PEB_TEST_LIFECYCLE),thinking_preview_checked:Boolean(process.env.PEB_TEST_LIFECYCLE),mobile_no_overflow:true,page_errors:errors}));
  if(errors.length)throw Error(errors.join(';'));await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
