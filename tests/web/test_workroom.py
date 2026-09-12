@@ -377,3 +377,32 @@ def test_global_review_queue_resolves_exact_run_and_leaves_observed_pause(tmp_pa
     finally:
         repo.close()
         other_repo.close()
+
+
+def test_comparison_http_keeps_provenance_missingness_and_exact_pair_selection(state_root):
+    from peb.runtime.service import WorkroomService
+
+    async def scenario(client, headers):
+        left = (await client.post('/api/demos', json={'case': 'truthful-repair', 'frame': 'ordinary'}, headers=headers)).json()['run_id']
+        right = (await client.post('/api/demos', json={'case': 'truthful-repair', 'frame': 'game'}, headers=headers)).json()['run_id']
+        before = [(await client.get(f'/api/runs/{rid}')).json() for rid in (left, right)]
+        params = {'left_run_id': left, 'right_run_id': right, 'axis': 'frame'}
+        response = await client.get('/api/comparisons', params=params)
+        assert response.status_code == 200, response.text
+        assert response.json()['recorded'] is False
+        result = response.json()['comparison']
+        assert result['status'] == 'matched', result
+        assert result['counts']['planned'] is None and result['counts']['selected'] == 2
+        assert all(r['mode'] == 'scripted_validation' for r in result['runs'])
+        useful = next(m for m in result['metrics'] if m['metric'] == 'useful_completion')
+        assert useful['evaluable_pairs'] == 1 and useful['paired_counts']['both_yes'] == 1
+        assert before == [(await client.get(f'/api/runs/{rid}')).json() for rid in (left, right)]
+        duplicate = (await client.get('/api/comparisons', params={**params, 'right_run_id': left})).json()['comparison']
+        assert duplicate['status'] == 'not_comparable' and 'same_run_selected_twice' in duplicate['reasons']
+        assert all(m['evaluable_pairs'] == 0 for m in duplicate['metrics'])
+        for changed in ({'axis': 'unknown'}, {'left_run_id': '../x'}, {'execute': 'true'}):
+            assert (await client.get('/api/comparisons', params={**params, **changed})).status_code == 400
+        await client.post('/api/auth/logout', json={}, headers=headers)
+        assert (await client.get('/api/comparisons', params=params)).status_code == 401
+
+    asyncio.run(exercise(WorkroomService(state_root, ollama_endpoint='http://127.0.0.1:9'), scenario))

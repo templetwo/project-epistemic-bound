@@ -58,12 +58,24 @@ view of existing events, not bundle import or an integrity verdict. Use Verify
 evidence separately for chain/anchor coverage.
 
 Study planning and exact JSON download are available; see STUDY_PLANNER.md.
-Study execution, bundle-import replay and matched comparison views remain open.
+“Compare recorded runs” selects a pair already in the store and checks whether
+only its presentation frame or profile differs. It displays recorded evaluation
+labels, per-metric eligible and missing/excluded pairs, condition mismatches,
+scripted/model provenance and verification coverage. A duplicate run, missing
+legacy pin or condition mismatch cannot generate eligible paired counts. The
+selected pair has no prospectively planned denominator; it is not a population
+estimate. Comparison makes no model call and records no new evidence. See
+MATCHED_COMPARISON.md for the exact matching and missingness rules.
+
+The model launch form now selects any of the six scenario families. Changing
+family invalidates an existing hosted preview and authorization.
+
+Study execution and bundle-import replay remain open.
 Full UI-01 is not promoted by these controls.
 
 ## Verification
 
-31 HTTP checks cover the existing authentication, CSRF, lifecycle, commitment,
+32 HTTP checks cover the existing authentication, CSRF, lifecycle, commitment,
 preview and planning boundaries plus the global queue's real two-run review
 flow: acknowledgement, exact allow/deny, unrelated run unchanged, stale/repeated
 resolution refused and observed pause. Receipt S5-global-review-ui-codex.json
@@ -91,3 +103,9 @@ and allows/denies them, inspects observed effects and exports both records.
 Replay checks reconstruct the original error and final repair while asserting
 the recorded run is unchanged. Always restart the disposable fixture server
 before rerunning: the mock provider's decision sequence is consumed by a run.
+
+For the comparison browser workflow, set `PEB_TEST_COMPARISON=1`. Two real scripted
+frame runs are compared, their paired counts and provenance checked, and selecting
+the same run twice must be refused. The script captures desktop/mobile comparison
+panels. Use all three PEB_TEST flags with a fresh `--mock-model` fixture server to
+exercise the combined workflow. No hosted launch or real inference occurs.

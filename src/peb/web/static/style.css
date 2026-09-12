@@ -3,3 +3,5 @@
 .study-panel>summary{font:24px Georgia,serif;margin-bottom:12px}.study-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:18px}.study-fields>div,.study-fields fieldset{min-width:0}.study-panel form>button{width:auto}.study-table{max-width:100%;overflow:auto;margin-top:20px}.study-table table{width:100%;border-collapse:collapse;text-align:left;font-size:12px}.study-table th,.study-table td{padding:10px;border-bottom:1px solid var(--line);white-space:nowrap}#study-result{margin-top:25px}#study-identity{overflow-wrap:anywhere}
 
 .global-review-panel>summary{font:22px Georgia,serif}.global-review-panel .mono{overflow-wrap:anywhere}
+
+.comparison-panel>summary{font:24px Georgia,serif}.comparison-panel{min-width:0}.comparison-panel select{min-width:0;max-width:100%}
