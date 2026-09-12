@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-12T01:30-0400 (measured with `date`)",
+  "main_before": "e80761d",
+  "product_tree_measured": "trial/int-bundleui-5b7bc98 (identical code to c462e88): clean-checkout 616 passed / 0 failed / 0 skipped, ruff clean; the tip carrying this receipt is measured again and logged in main-tip-suite-log.json",
+  "merges": [
+    {
+      "commit": "65bdd5b",
+      "branch": "build/codex-workroom",
+      "tip": "913e7a4 (carries product 5b7bc98d5bc38b14f262fb560dad6e1b1e004e70)",
+      "accepted_by": [
+        "seat 1/3 docs/reviews/UI-5b7bc98-bundle-replay-claude.md (trial 616/0/0; independent Playwright run with all four flags: exit 0, bundle_replay_checked, page_errors []; panel screenshot opened)",
+        "seat 3/3 #28516 (binds reader 94442bb; no store; receipt docs/reviews at 244a63a)"
+      ],
+      "content": "web: POST /api/replays → evidence.replay; bundle panel (absolute path → the reader's dict rendered as-is: status, provenance, limits, verification, failures; event-position replay over imported events only when supported checks pass; edits/logout hide the result; nothing imported or rebound); HTTP control (export, inspect, corrupt copy fails, inventory + run unchanged, CSRF/origin/extra-field/logout refused); browser flag PEB_TEST_BUNDLES; docs/WORKROOM.md; receipt docs/receipts/S5-bundle-replay-ui-codex.json; 2/3's review docs for bf7f9ad, d197bef, 7816d14, a94a048. No matrix promotion."
+    },
+    {
+      "commit": "c462e88",
+      "branch": "build/grok-boundary",
+      "tip": "244a63a",
+      "content": "docs/reviews only: 3/3 ACCEPT receipt for 5b7bc98"
+    }
+  ],
+  "board": [
+    "#28504",
+    "#28507",
+    "#28514",
+    "#28516"
+  ]
+}
