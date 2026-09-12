@@ -431,30 +431,11 @@ def cmd_export(args: argparse.Namespace) -> int:
 
 
 def cmd_replay(args: argparse.Namespace) -> int:
-    from datetime import datetime
+    from .evidence.bundle import inspect_bundle
 
-    from .contracts import StoredEvent
-    from .evidence.replay import replay_applied_from_events
-
-    bundle = Path(args.bundle_dir)
-    events_path = bundle / "events.jsonl"
-    if not events_path.is_file():
-        raise PebError(ErrorCode.invalid_input, "bundle is missing events.jsonl",
-                       {"bundle": str(bundle)})
-    events: list[StoredEvent] = []
-    for line in events_path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        raw = json.loads(line)
-        raw["ts"] = datetime.fromisoformat(raw["ts"])
-        from .contracts import Actor, EventType
-
-        raw["event_type"] = EventType(raw["event_type"])
-        raw["actor"] = Actor(raw["actor"])
-        events.append(StoredEvent.model_validate(raw))
-    current = replay_applied_from_events(events)
-    print(json.dumps({"resources": current, "provider_invoked": False}, indent=2, sort_keys=True))
-    return 0
+    report = inspect_bundle(args.bundle_dir)
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report["verification"]["summary"] != "failed" else 1
 
 
 def cmd_runs_list(args: argparse.Namespace) -> int:
