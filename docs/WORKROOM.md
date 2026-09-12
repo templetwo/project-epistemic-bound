@@ -6,8 +6,8 @@ root. Keep that file private. Stop the foreground server with Ctrl-C. Subject
 sessions are separate from the three builder seats.
 
 The cockpit binds the runtime WorkroomService: scripted controls, explicit
-bounded model runs, saved manifests and resource effects, six separate outcome
-labels, pause/cancel/local resume, per-run reviews, verification and local export.
+bounded model runs, saved manifests and resource effects, all recorded behavior
+labels, pause/cancel/local resume, a global review queue, per-run resolution, recorded-state replay, verification and local export.
 Events are ordered and paginated with displayed totals. Model and fixture text
 uses text nodes; it is never HTML or an operator command.
 
@@ -40,19 +40,34 @@ not started even though the storage status is initially running.
 
 Task-scoped commitment accept/revise routes and controls use the service; stale
 versions conflict, previous text is preserved, and origin/status agree after
-reopen and export. Corrections are shown separately. Global review routes,
-study plan/run, replay and matched comparison views remain unimplemented.
-Review eligibility and state checks remain authoritative in the service. Full
-UI-01 still needs its complete pause/review workflow receipt.
+reopen and export. Corrections are shown separately.
+
+Open “Review queue across runs” to see the backend's open and total counts,
+recorded status, effective expiry, recipient, deadline and run reference. Listing
+records no resolution. “Inspect proposal in run” opens the exact run's review
+and proposal binding. Acknowledge leaves the hold in place; allow/deny uses the
+existing run/review-bound service route. The service rechecks eligibility and
+state; the answering process leaves an observed pause. Export retains review
+resolutions in events.jsonl and their recorded projection in reviews.json.
+
+“Replay recorded workspace” reconstructs resource state at a selected event in
+the loaded run. Its initial position contains the original failing resource;
+its final position matches the observed workspace. Moving the control makes no
+provider call, creates no replay run and changes no records. This is a replay
+view of existing events, not bundle import or an integrity verdict. Use Verify
+evidence separately for chain/anchor coverage.
+
+Study planning and exact JSON download are available; see STUDY_PLANNER.md.
+Study execution, bundle-import replay and matched comparison views remain open.
+Full UI-01 is not promoted by these controls.
 
 ## Verification
 
-28 HTTP checks on the corrected 7f53445 service plus this cockpit cover authentication,
-Origin/CSRF, malformed/oversized requests, session expiry, exact single-use hosted
-preview, normalized real preview with no state creation, concurrent pause route,
-pagination, typed failures and three real scripted run/inspect/verify/export paths.
-All 28 passed, including local create/step/begin with actual observed completion,
-commitment reopen/export equality, thinking-token binding and optional rates.
+31 HTTP checks cover the existing authentication, CSRF, lifecycle, commitment,
+preview and planning boundaries plus the global queue's real two-run review
+flow: acknowledgement, exact allow/deny, unrelated run unchanged, stale/repeated
+resolution refused and observed pause. Receipt S5-global-review-ui-codex.json
+records the full integrated lane suite:564 passed, zero skipped/failed.
 
 Browser checks use Playwright with a disposable seeded service. Run
 `uv run --locked python tests/browser/fixture_server.py --login-file /tmp/peb-browser-login.json`
@@ -69,3 +84,10 @@ For the mocked local lifecycle and thinking-preview browser checks, start the
 fixture server with `--mock-model` and set `PEB_TEST_LIFECYCLE=1` for the browser
 script. The hosted preview is inspected but never started. The local model path
 uses MockTransport; no real model endpoint is contacted.
+
+For the actual held-review browser workflow, set `PEB_TEST_REVIEWS=1`. The fixture
+creates two scripted held reviews in temporary state; the browser acknowledges
+and allows/denies them, inspects observed effects and exports both records.
+Replay checks reconstruct the original error and final repair while asserting
+the recorded run is unchanged. Always restart the disposable fixture server
+before rerunning: the mock provider's decision sequence is consumed by a run.

@@ -2,7 +2,8 @@
 const $ = (id) => document.getElementById(id);
 let csrf = "", selectedId = null, nextCursor = null, preview = null, activeRequests = 0;
 let selectionVersion = 0, previewVersion = 0, selectedState = null;
-let studyVersion = 0, studyPlan = null;
+let studyVersion = 0, studyPlan = null, reviewQueueVersion = 0;
+let replayEvents = [];
 const pretty = (value) => JSON.stringify(value, null, 2);
 function note(text, error = false) { $("notice").textContent = text; $("notice").classList.toggle("error", error); }
 function el(tag, text, className) { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (className) n.className = className; return n; }
@@ -17,7 +18,7 @@ async function api(path, body, method) {
   }
   return result;
 }
-function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; if (!yes) { csrf = ""; invalidatePreview(); invalidateStudy(); } }
+function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; if (!yes) { csrf = ""; invalidatePreview(); invalidateStudy(); reviewQueueVersion++; $("global-reviews").replaceChildren(); $("global-review-count").textContent = "Not loaded"; } }
 async function action(button, task) {
   button.disabled = true; activeRequests++;
   try { await task(); } catch (error) { note(error.message, true); }
@@ -51,9 +52,9 @@ function resourceMap(events) {
   }
   return values;
 }
-function renderResources(events) {
-  $("resources").replaceChildren();
-  for (const [id, value] of resourceMap(events)) { const details = el("details", undefined, "resource"); const summary = el("summary", id); summary.append(el("span", `rev ${value.revision} · ${value.kind}`)); details.append(summary, el("pre", pretty(value.value))); $("resources").append(details); }
+function renderResources(events, target = "resources") {
+  $(target).replaceChildren();
+  for (const [id, value] of resourceMap(events)) { const details = el("details", undefined, "resource"); const summary = el("summary", id); summary.append(el("span", `rev ${value.revision} · ${value.kind}`)); details.append(summary, el("pre", pretty(value.value))); $(target).append(details); }
 }
 function renderOutcomes(events) {
   const evaluation = [...events].reverse().find((e) => e.event_type === "evaluation_recorded")?.payload.evaluation;
@@ -66,7 +67,7 @@ function renderOutcomes(events) {
   }
   if (evaluation?.missingness?.length) $("outcomes").append(el("p", `Missingness: ${evaluation.missingness.join(", ")}`, "fine"));
 }
-function renderReviews(reviews, held, events) {
+function renderReviews(reviews, held, events, runId) {
   $("reviews").replaceChildren();
   if (!reviews.length) $("reviews").append(el("p", "No review requests in this run.", "muted"));
   for (const review of reviews) {
@@ -79,8 +80,8 @@ function renderReviews(reviews, held, events) {
         const button = el("button", label, "secondary"); button.type = "button"; button.disabled = (decision === "ack" && review.status !== "pending") || (decision === "allow" && (!held[review.review_id] || Date.parse(review.deadline_at) <= Date.now()));
         button.addEventListener("click", () => action(button, async () => {
           if (decision === "allow" && !window.confirm("Approve this exact held proposal for re-gating? State and grants will still be checked.")) return;
-          const result = await api(`/api/runs/${selectedId}/reviews/${review.review_id}/resolve`, {decision, note: input.value});
-          note(`Review ${decision} recorded. ${result.executed ? "Effect applied." : "Inspect the recorded outcome below."}`); await selectRun(selectedId);
+          const result = await api(`/api/runs/${runId}/reviews/${review.review_id}/resolve`, {decision, note: input.value});
+          note(`Review ${decision} recorded. ${result.executed ? "Effect applied." : "Inspect the recorded outcome below."}`); if (selectedId === runId) await selectRun(runId); if ($("global-review-panel").open) await loadReviewQueue();
         })); buttons.append(button);
       }
       row.append(buttons);
@@ -111,7 +112,7 @@ async function selectRun(id) {
   if (version !== selectionVersion) return;
   $("empty").hidden = true; $("selected").hidden = false; $("run-title").textContent = data.run.manifest.settings?.case || data.run.manifest.task_id;
   $("run-id").textContent = id; $("run-status").textContent = data.status === "running" && !data.run.events.some(e => e.event_type === "model_request") ? "recorded · not started" : data.status; $("provenance").textContent = `${data.run.manifest.mode} · ${data.run.manifest.provider_kind} · ${data.run.manifest.model_requested || "scripted"} · ${data.run.manifest.profile_id}`;
-  $("manifest").textContent = pretty(data.run.manifest); renderResources(data.run.events); renderOutcomes(data.run.events); renderReviews(data.reviews || [], data.held || {}, data.run.events); renderCommitments(data.run.commitments || []); $("corrections").textContent = pretty(data.run.corrections || []);
+  $("manifest").textContent = pretty(data.run.manifest); renderResources(data.run.events); loadReplay(data.run); renderOutcomes(data.run.events); renderReviews(data.reviews || [], data.held || {}, data.run.events, id); renderCommitments(data.run.commitments || []); $("corrections").textContent = pretty(data.run.corrections || []);
   $("verification").hidden = true; $("export-result").hidden = true;
   selectedState = {status: data.status, provider: data.run.manifest.provider_kind}; updateRunControls();
   await loadEvents(true); await loadRuns();
@@ -220,3 +221,39 @@ $("download-plan").addEventListener("click", () => {
   const link = el("a"); link.href = url; link.download = `${studyPlan.study_id}.json`; document.body.append(link); link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
+
+async function loadReviewQueue() {
+  const version = ++reviewQueueVersion;
+  $("global-review-count").textContent = "Loading…";
+  try {
+    const data = await api("/api/reviews");
+    if (version !== reviewQueueVersion || !csrf) return;
+    $("global-reviews").replaceChildren();
+    $("global-review-count").textContent = `${data.open} open · ${data.total} total`;
+    if (!data.reviews.length) $("global-reviews").append(el("p", "No recorded review requests.", "muted"));
+    for (const review of data.reviews) {
+      const row = el("div", undefined, "review"); row.dataset.reviewId = review.review_id;
+      row.append(el("strong", review.effective_status.replaceAll("_", " ") + (review.effective_status !== review.status ? ` (recorded: ${review.status})` : "")), el("p", review.conflict), el("p", `Recipient: ${review.recipient_role} · Deadline: ${review.deadline_at}`, "fine"), el("p", `Run: ${review.run_id} · ${review.run_status}`, "mono"));
+      const button = el("button", "Inspect proposal in run", "secondary"); button.type = "button";
+      button.addEventListener("click", () => action(button, async () => { await selectRun(review.run_id); $("reviews").scrollIntoView({block: "center"}); note("Review loaded from its run. Inspect the binding and observed state before resolving."); }));
+      row.append(button); $("global-reviews").append(row);
+    }
+  } catch (error) { if (version === reviewQueueVersion) { $("global-review-count").textContent = "Unavailable"; $("global-reviews").replaceChildren(el("p", error.message, "error")); } throw error; }
+}
+$("refresh-reviews").addEventListener("click", () => action($("refresh-reviews"), loadReviewQueue));
+$("global-review-panel").addEventListener("toggle", () => { if ($("global-review-panel").open && csrf) loadReviewQueue().catch(error => note(error.message, true)); });
+
+function loadReplay(run) {
+  replayEvents = [...run.events].sort((a, b) => a.seq - b.seq);
+  $("replay-provenance").textContent = `Replay view · source: ${run.manifest.mode} · ${run.manifest.provider_kind} · ${run.manifest.run_id}. No provider is invoked and no run state is changed.`;
+  $("replay-position").max = String(Math.max(0, replayEvents.length - 1));
+  $("replay-position").value = $("replay-position").max;
+  $("replay-position").disabled = replayEvents.length === 0;
+  renderReplay();
+}
+function renderReplay() {
+  const index = Number($("replay-position").value), event = replayEvents[index];
+  $("replay-position-label").textContent = event ? `Event ${event.seq} · ${event.event_type.replaceAll("_", " ")} · ${index + 1} of ${replayEvents.length} recorded events` : "No recorded events to replay.";
+  renderResources(replayEvents.slice(0, index + 1), "replay-resources");
+}
+$("replay-position").addEventListener("input", renderReplay);
