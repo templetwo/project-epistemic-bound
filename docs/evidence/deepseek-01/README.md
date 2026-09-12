@@ -63,3 +63,17 @@ The observed path has the structure of the scripted truthful-repair control: the
 - Anchor semantics are reported for both verifications (own checkpoint vs. none retained) rather than collapsed into one word.
 - The smoke ran while seat 2/3's re-run of its controls at this commit was pending; that re-run then ACCEPTed the trio (#28138). Recorded, not hidden.
 - Preregistration disclosure stands: the analysis plan was fixed after the run had completed and after the event-type sequence and the opening of the final statement had been seen; nothing else had been read.
+
+
+## 4. Re-export with the current exporter (2026-09-12 00:0x EDT, main `22a0359`)
+
+The original bundle (`bundle/`, exported at `7f53445`) carries the pre-`11551d3` stubs: `evaluation.json = {"present": false}`
+and `reviews.json = []`, although the evaluation is in `events.jsonl` (`evaluation_recorded`) and `summary.json`. The outside
+reviewer named this gap ("the evidence exists" and "every export surface carries it" are different claims). With seat 3/3's
+recorded projections on `main`, the same run was exported again, read-only from the operator root, into
+`export-at-22a0359/run-run_0bb455c1f24b4f668f4e7dd717fd8903/`: `evaluation.json` now copies the recorded `evaluation_recorded`
+event (`present: true`, `event_id`, `recorded_at`, the labels and the verification summary); `reviews.json` is `[]` because this run
+opened no review. Both bundles are kept; neither was edited. The key scan on the new bundle found zero occurrences.
+Registration wording, precisely: design fixed before launch; analysis/reporting plan registered after completion and partial
+outcome exposure, before detailed result inspection (section 3 above and `PREREGISTRATION.md`). This run is the baseline A0
+control arm; it is evidence of this integration path and this run only.

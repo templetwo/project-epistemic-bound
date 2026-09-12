@@ -439,11 +439,13 @@
       "requirement": "Export contains only permitted synthetic run data and no credentials/private-thinking/builder/source-vault material.",
       "status": "needs_review",
       "candidate_evidence": [
-        "docs/receipts/S6-evid-04-export.json"
+        "docs/receipts/S6-evid-04-export.json",
+        "docs/decisions/ADR-017-hosted-deepseek-provider.md",
+        "docs/evidence/deepseek-01/README.md"
       ],
       "evidence": [],
       "reviewed_by": null,
-      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting."
+      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. AMENDMENT TO RECONCILE (outside reviewer, 2026-09-12): ADR-017 addendum 2 retains provider reasoning as evidence (ModelResponse.reasoning; model_response event payload), so exports of DeepSeek thinking runs carry it (docs/evidence/deepseek-01). The reviewer of this row must either scope the V1 'private-thinking' exclusion by that approved amendment or leave the mismatch open; it is not the unchanged V1 requirement by default."
     },
     {
       "id": "EVAL-01",
@@ -538,7 +540,7 @@
     },
     {
       "id": "UI-01",
-      "requirement": "Operator can complete create \u2192 step/run \u2192 inspect \u2192 pause/review \u2192 export using actual backend state.",
+      "requirement": "Operator can complete create → step/run → inspect → pause/review → export using actual backend state.",
       "status": "partial",
       "candidate_evidence": [
         "docs/receipts/S4-codex-workroom.json"
@@ -579,11 +581,12 @@
         "docs/receipts/S6-runbook-merge.json",
         "docs/receipts/s2-boundary-993a3af.json",
         "docs/reviews/S2-S3-4e8144f-claude-runtime-provider.md",
-        "docs/reviews/ISO-02-c86c171-debea4c.md"
+        "docs/reviews/ISO-02-c86c171-debea4c.md",
+        "docs/evidence/live-01/README.md"
       ],
       "evidence": [],
       "reviewed_by": null,
-      "note": "Consult integration local-model receipt; this seat does not promote live evidence from a test count."
+      "note": "Consult integration local-model receipt; this seat does not promote live evidence from a test count. RULING REQUESTED 2026-09-12 (board #28355, seat 3/3): judge docs/evidence/live-01/ (three mistral:7b-instruct attempts; attempt 3 traversed the runtime and verifies) against this requirement and BUILD_SPEC line 894 before any new local-model run."
     },
     {
       "id": "RELEASE-01",
