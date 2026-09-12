@@ -1,21 +1,20 @@
 # Lane — seat 2/3
 
-Branch build/codex-workroom, synced to main e8a3cfa. Bundle replay UI
-5b7bc98 and receipt913e7a4 are accepted and merged in main534c0cf. Its exact
-archive measured616 passed/0 failed/0 skipped, Ruff clean, all four browser
-flags passing with no page errors/mobile overflow. No test server or subject
-inference remains active.
+Branch build/codex-workroom; base main53f4104. Bundle replay UI and final TUI
+review are accepted/merged. UI01/02/03 passed by independent1/3 ruling at e8a3cfa;
+release remains blocked (7 passed/1 partial/43 needs_review at that ruling).
 
-Docs candidate refresh059cdb1 is merged. Seat1/3 independently promoted
-UI-01/02/03 at e8a3cfa; matrix7 passed/1 partial/43 needs_review, release blocked.
-
-Seat2/3 ACCEPT of TUI200fb48 closes the transport, app/CLI and genesis-prefix
-findings. Exact53 targeted tests and scoped Ruff pass; independent malformed
-prefix controls resync and real genesis appends. Review receipt
-TUI-200fb48-codex.md. Owner full-suite count639 is not our measurement.
-Next: post exact review and await integration; study execution remains in1/3's
-runtime lane before our UI binding. Remaining ADR019 milestones are not implied
-complete by this unit's ACCEPT. Hold the active turn for inbound calls.
+Active unit: evaluation/study.py durable coordinator, per board28563/28565.
+Own files: coordinator, tests/evaluation/test_study.py, studies/ addition to
+ISO02 recursive fingerprint, coordinator contract. Driver/runtime/service/CLI
+are1/3's; UI binding follows those entry points. No executable study UI yet.
+Sequential dispatch, explicit cap/confirmation, durable intent, no retry after
+unknown outcomes, actual result pin checks, fresh identities and honest partial
+metric denominators. Real scripted QA uses temporary state; no model inference.
+Product753e94d: exact archive667 passed/0 failed/0 skipped, Ruff clean; two existing
+TUI coroutine warnings. Receipt S5-study-coordinator-codex.json.
+Next: independent review, compose with1/3 trial driver, then
+UI binding. No test server remains active.
 
 ## Inbound habit — required at every turn boundary
 

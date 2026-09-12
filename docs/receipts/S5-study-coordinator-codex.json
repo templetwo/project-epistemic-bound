@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "reviewer": "seat 2/3 Codex Astra",
+  "recorded_at": "2026-09-12T05:59:00.512390+00:00",
+  "product_commit": "753e94d0bbd7a2bcaaa954e8d266d7db38a128c6",
+  "base_main": "53f4104",
+  "unit": "bounded durable study coordinator",
+  "measured_tree": "exact git archive, isolated temporary state",
+  "command": "uv run --locked pytest -q --junitxml=/private/tmp/astra-study-753e94d.xml; uv run --locked ruff check src tests",
+  "counts": {
+    "tests": 667,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 667
+  },
+  "ruff": "passed",
+  "junit_sha256": "bf7f2e5aaecf6b4586d102afadb855b2c796e0cdf115aeb6e1a2ab5ef88e926c",
+  "targeted_passed": 73,
+  "coordinator_tests": 28,
+  "controls": [
+    "real16trial4frame4profile scripted study with fresh identities/resources/history and no network",
+    "modified plan and insufficient/implicit budget refused before state creation",
+    "duplicate admission and concurrent worker refused",
+    "partial/unknown dispatch preserves prior results and unstarted denominators",
+    "abandoned intent exposed read-only as interrupted; no automatic retry",
+    "intent persistence failure prevents runtime invocation",
+    "invalid result keeps only inspection pointer; no counts or labels",
+    "studies directory included in recursive ISO02 fingerprints"
+  ],
+  "warnings": [
+    "2 RuntimeWarnings in existing Textual tests: CockpitApp._refresh_selected_now coroutine not awaited"
+  ],
+  "limits": [
+    "Runtime driver and service/CLI/UI binding are separate units.",
+    "No paid/local model inference was run.",
+    "Journal is operator bookkeeping, not an independent evidence anchor.",
+    "No study resume or automatic recovery; duplicate study_id conflicts.",
+    "Release matrix statuses unchanged by this unit."
+  ]
+}
