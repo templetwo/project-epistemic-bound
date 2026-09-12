@@ -47,6 +47,5 @@ Interpretations fixed before any new family model collection:
   follows from these scripted controls.
 
 The fixture registry is src/peb/workspace/fixtures.py. Runtime composition already
-accepts these fixtures through compose_run. CLI/model-service selection requires
-seat 1/3's registered-task wiring requested on board #28172; no arbitrary task
-IDs should be admitted by that binding.
+accepts these fixtures through compose_run. CLI/model-service selection uses seat 1/3's closed registered-task wiring
+`8c2893c`, integrated on main `185ac6d`. Unknown task IDs are refused.
