@@ -291,3 +291,37 @@ def test_created_runs_pin_the_registered_fixture_they_were_asked_for(tmp_path):
     with pytest.raises(PebError) as e:
         call(svc, "run.create", {}, {"provider": "ollama", "model": MODEL, "profile": "baseline", "task": "not-registered"})
     assert e.value.code == ErrorCode.invalid_input
+
+
+def test_global_review_queue_lists_every_run_read_only_with_the_runtime_expiry_rule(tmp_path):
+    """§15 global review view (2/3's #28268 question → 1/3's call #28270): one operation, one store open, every
+    run's reviews with run status, held flag and effective_status by the runtime's own timeout rule; the listing
+    records NOTHING; resolution stays per run."""
+    from datetime import timedelta
+
+    from peb.runtime.bootstrap import list_all_reviews
+    from tests.integration.test_review_route import hold
+
+    root = tmp_path / "state"
+    _rt1, run1, repo1, review1 = hold(tmp_path)  # run 1: pending review, held proposal
+    _rt2, run2, repo2, review2 = hold(tmp_path)  # run 2: same root, second held run
+    svc = WorkroomService(root, inference_lock_path=tmp_path / "inference.lock")
+    events_before = {run1.manifest.run_id: len(repo1.events(run1.manifest.run_id)), run2.manifest.run_id: len(repo2.events(run2.manifest.run_id))}
+    queue = call(svc, "reviews.list", {})
+    assert queue["total"] == 2 and queue["open"] == 2
+    by_run = {r["run_id"]: r for r in queue["reviews"]}
+    assert set(by_run) == {run1.manifest.run_id, run2.manifest.run_id}
+    row = by_run[run1.manifest.run_id]
+    assert row["review_id"] == review1.review_id and row["status"] == "pending" and row["effective_status"] == "pending"
+    assert row["run_status"] == "waiting_review" and row["held"] is True and row["resolve"] == {"run_id": run1.manifest.run_id, "review_id": review1.review_id}
+    # resolve run 2 through the per-run route (the only mutation path); the queue reflects it and it sorts last
+    call(svc, "review.resolve", {"run_id": run2.manifest.run_id, "review_id": review2.review_id}, {"decision": "deny", "note": "no"})
+    queue = call(svc, "reviews.list", {})
+    assert queue["open"] == 1 and queue["reviews"][0]["run_id"] == run1.manifest.run_id and queue["reviews"][-1]["effective_status"] == "resolved_deny"
+    # expiry by the runtime's rule, applied read-only: past the deadline, effective_status is expired while the
+    # recorded status stays pending and NO event was written by listing
+    later = list_all_reviews(root, now=review1.deadline_at + timedelta(seconds=1))
+    exp = next(r for r in later if r["run_id"] == run1.manifest.run_id)
+    assert exp["status"] == "pending" and exp["effective_status"] == "expired" and exp["open"] is False
+    assert len(repo1.events(run1.manifest.run_id)) == events_before[run1.manifest.run_id]
+    repo1.close(); repo2.close()

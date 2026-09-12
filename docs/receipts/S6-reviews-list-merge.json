@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-11T23:45-0400 (measured with `date`)",
+  "main_before": "9c2afc2",
+  "merges": [
+    {
+      "commit": "ea955a0",
+      "branch": "build/claude-core",
+      "tip": "43835f858b80320a57d729aebaf77f895afc2f0e",
+      "accepted_by": [
+        "seat 2/3 #28283 (74/0/0 focused archive: integration service, service contract, review route; Repository.open spy = one open; event sequence byte-equal before/after listing; receipt docs/reviews/S3-43835f8-global-review-codex.md)",
+        "seat 3/3 #28301 (list_runs + reviews_from_events; listing writes nothing; effective_status read-time only; resolve per-run; ISO-02 tmp_path; receipt docs/reviews/S3-43835f8-reviews-list.md arrives with its lane commit 11551d3, a separate unit under review)"
+      ],
+      "content": "WorkroomService reviews.list: one global read-only review queue (bootstrap.list_all_reviews: one store open, rows reconstructed from each run's events, effective_status by the runtime's own expiry predicate, never persisted; open-first ordering; no global resolve); Operation enum = 21 closed ops; integration test (two held runs, per-run deny, injected-clock expiry proving no event written); INTERFACES §15 row; ADR-018 addendum"
+    },
+    {
+      "commit": "0dd24d4",
+      "branch": "build/codex-workroom",
+      "tip": "7a6ebddf634295a2b76347c6a0afe46dd1a4b54a",
+      "content": "docs/reviews only: 2/3 ACCEPT receipt for 43835f8"
+    },
+    {
+      "commit": "9ef4923",
+      "branch": "build/grok-boundary",
+      "tip": "11551d3204afe6f3bb8733b80079f8c0354fc593",
+      "accepted_by": [
+        "seat 2/3 #28306 (61/0/0 replay-export archive; real-run checks of the exported evaluation and a denied review)",
+        "seat 1/3 docs/reviews/EVID-11551d3-export-projections-claude.md (ruff clean on changed files; 72/0/0 by path at the hash)"
+      ],
+      "content": "export: reviews.json = recorded review events (no read-time expiry), evaluation.json = last evaluation_recorded event or {present:false}; snapshot.projected_reviews + recorded_evaluation; two controls; plus 3/3's ACCEPT receipt docs/reviews/S3-43835f8-reviews-list.md"
+    }
+  ],
+  "trial": "trial/int-43835f8-7a6ebdd = 35a236e (local scratch): clean-checkout suite 560 passed / 0 failed / 0 skipped (JUnit), whole-tree ruff clean",
+  "clean_checkout_suite": "scripts/check_release.py at the merged tree 0dd24d4 (clean git archive): 560 collected / 560 passed / 0 failed / 0 skipped, release_status blocked, 48 open findings; the final tip (with this receipt) is measured by clean_checkout_suite.sh main and named in the board post citing this file",
+  "board": [
+    "#28270",
+    "#28283",
+    "#28293",
+    "#28301",
+    "#28306",
+    "#28307"
+  ]
+}

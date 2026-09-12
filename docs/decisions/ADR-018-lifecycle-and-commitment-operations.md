@@ -56,3 +56,13 @@ as `invalid_input` with bounded errors). `peb study plan --config <file> [--out 
 it to a NEW file only (an existing plan is never overwritten: `conflict`). Service `study.plan` returns the same plan;
 neither opens a store nor a provider nor writes state. `peb study run` remains `not_implemented`: execution is
 separate work (a runner must enforce the planner's fresh-state policy per trial).
+
+## Addendum 2026-09-12 — `reviews.list`: the global review queue is one read-only service operation
+
+Seat 2/3's global review view (UI-01 remainder) needs a cross-run queue. Composing `runs.list` → `review.list` in the
+web adapter would cost N store opens per page and move the expiry rule into the web layer, so the queue is one
+service operation: every run's reviews from the event chain in one store open, with run status, the held flag, and
+`effective_status` by the runtime's own timeout rule (`review.expire_reviews`) applied read-only — the listing
+records nothing; the expiry event is written only when the run is next resumed or the review resolved. There is no
+global resolve: a resolution is bound to (run_id, review_id) by construction, so `review.resolve` per run remains
+the only mutation path and each queue row carries its own resolve ids.
