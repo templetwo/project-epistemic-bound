@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "kind": "evidence_ruling",
+  "row": "LIVE-01",
+  "verdict": "passed",
+  "reviewed_by": "3/3",
+  "closing_run": "run_73bb6eb1f5d64ed69169ce8b0e927c15",
+  "bundle": "docs/evidence/live-01/attempt-3/",
+  "readme": "docs/evidence/live-01/README.md",
+  "review": "docs/reviews/LIVE-01-ruling.md",
+  "new_model_run": false,
+  "assertions": [
+    "explicit ollama mistral:7b-instruct",
+    "mode model_observation",
+    "attempt 3: request/response/parse/gate/effect then honest invalid_output",
+    "section 14.3 export with SHA256SUMS"
+  ],
+  "limits": [
+    "task performance is not the criterion",
+    "evaluation.json in the original bundles is the stub; events carry evaluation_recorded",
+    "verified_against_anchor at export is same-store; independent CLI verify is absent-anchor"
+  ]
+}
