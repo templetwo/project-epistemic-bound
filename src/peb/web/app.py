@@ -95,6 +95,7 @@ ROUTES = (
     ("GET", "/api/profiles", "profiles.list"),
     ("GET", "/api/runs", "runs.list"),
     ("POST", "/api/demos", "demo.run"),
+    ("POST", "/api/studies/plan", "study.plan"),
     ("POST", "/api/runs", "run.create"),
     ("POST", "/api/runs/observe", "run.start"),
     ("POST", "/api/runs/{run_id}/step", "run.step"),

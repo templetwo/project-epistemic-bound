@@ -37,7 +37,14 @@ runs in one state root, after mutating the first run's workspace and in-memory
 history, and confirm that the second starts from the fixture with no old history.
 A study runner must enforce that policy; this planner alone executes no trials.
 
-This is the planning core. The `peb study plan` and WorkroomService study.plan
-bindings are requested from their owner, seat1/3, on board#28172. Study execution,
-resumable schedule storage, study UI and matched-comparison views remain separate
-work. A generated plan is not an execution receipt or an acceptance verdict.
+The core and `peb study plan --config ... [--out NEWFILE]` are integrated with
+WorkroomService `study.plan` at main `57235b3`. The authenticated cockpit calls
+`POST /api/studies/plan` with `{config}`. Open “Plan a framing study” to select
+families, presentations, A0–A3 profiles, model settings, seed and explicit caps.
+The screen shows the backend's exact schedule, zero initial outcome counts,
+call/token ceilings and hashes. Download plan JSON saves that same object.
+Editing any selection invalidates the displayed plan; over-cap requests fail.
+
+Study execution, resumable schedule storage and matched-comparison views remain
+separate work. The planning screen starts no run. A generated plan is not an
+execution receipt or an acceptance verdict.

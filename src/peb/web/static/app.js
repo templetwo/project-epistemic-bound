@@ -2,6 +2,7 @@
 const $ = (id) => document.getElementById(id);
 let csrf = "", selectedId = null, nextCursor = null, preview = null, activeRequests = 0;
 let selectionVersion = 0, previewVersion = 0, selectedState = null;
+let studyVersion = 0, studyPlan = null;
 const pretty = (value) => JSON.stringify(value, null, 2);
 function note(text, error = false) { $("notice").textContent = text; $("notice").classList.toggle("error", error); }
 function el(tag, text, className) { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (className) n.className = className; return n; }
@@ -16,7 +17,7 @@ async function api(path, body, method) {
   }
   return result;
 }
-function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; if (!yes) { csrf = ""; invalidatePreview(); } }
+function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; if (!yes) { csrf = ""; invalidatePreview(); invalidateStudy(); } }
 async function action(button, task) {
   button.disabled = true; activeRequests++;
   try { await task(); } catch (error) { note(error.message, true); }
@@ -29,6 +30,9 @@ async function loadProfiles() {
   const data = await api("/api/profiles"); $("profile").replaceChildren();
   for (const p of data.profiles) { const option = el("option", `${p.profile_id} · ${p.arm} · ${p.status}`); option.value = p.profile_id; option.disabled = !p.runnable; $("profile").append(option); }
   $("profile").value = "baseline";
+  $("study-profiles").replaceChildren();
+  for (const p of data.profiles.filter(p => ["A0", "A1", "A2", "A3"].includes(p.arm))) studyChoice("study-profiles", p.profile_id, `${p.arm} · ${p.profile_id}`, ["baseline", "tone_only"].includes(p.profile_id), !p.runnable);
+
 }
 async function loadRuns() {
   const data = await api("/api/runs"); $("run-count").textContent = String(data.runs.length); $("runs").replaceChildren();
@@ -182,3 +186,37 @@ $("more-events").addEventListener("click", () => action($("more-events"), () => 
 $("export-form").addEventListener("submit", (event) => { event.preventDefault(); action(event.submitter, async () => { const data = await api(`/api/runs/${selectedId}/export`, {out: $("export-path").value}); $("export-result").hidden = false; $("export-result").textContent = pretty(data); note("Local evidence bundle exported."); }); });
 (async () => { try { const session = await api("/api/auth/session"); csrf = session.csrf_token; signedIn(true); await Promise.all([loadRuns(), loadProfiles()]); } catch (_) { signedIn(false); } })();
 setInterval(() => { if (csrf && activeRequests > 0) loadRuns().catch(() => {}); }, 3000);
+
+function studyChoice(container, value, title, checked, disabled = false) {
+  const label = el("label", undefined, "check"), input = el("input");
+  input.type = "checkbox"; input.value = value; input.checked = checked; input.disabled = disabled;
+  label.append(input, el("span", title)); $(container).append(label);
+}
+for (const [id, title] of [["conceal-error-basic", "Conceal an error"], ["fictional-authority-basic", "Fictional authority"], ["claimed-harmlessness-basic", "Claimed harmlessness"], ["evaluation-pressure-basic", "Evaluation pressure"], ["authorized-useful-work-basic", "Authorized useful work"], ["correction-handoff-basic", "Correction and handoff"]]) studyChoice("study-fixtures", id, title, ["conceal-error-basic", "authorized-useful-work-basic"].includes(id));
+for (const frame of ["ordinary", "game", "roleplay", "evaluation"]) studyChoice("study-frames", frame, frame, ["ordinary", "game"].includes(frame));
+function invalidateStudy() { studyVersion++; studyPlan = null; $("study-result").hidden = true; }
+function studyConfig() {
+  const choices = id => [...$(id).querySelectorAll("input:checked:not(:disabled)")].map(input => input.value);
+  const config = {schema_version: 1, fixture_ids: choices("study-fixtures"), frames: choices("study-frames"), profile_ids: choices("study-profiles"), provider: $("study-provider").value, model: $("study-model").value.trim(), thinking: $("study-thinking").value};
+  for (const [key, id] of [["seed", "seed"], ["repeats", "repeats"], ["max_model_calls_per_trial", "calls"], ["max_output_tokens", "tokens"], ["max_trials", "max-trials"], ["max_total_model_calls", "total-calls"]]) config[key] = Number($("study-" + id).value);
+  if (!config.fixture_ids.length || !config.frames.length || !config.profile_ids.length) throw new Error("Select at least one family, presentation and profile.");
+  return config;
+}
+$("study-form").addEventListener("input", invalidateStudy);
+$("study-form").addEventListener("submit", event => { event.preventDefault(); action(event.submitter, async () => {
+  invalidateStudy(); const version = studyVersion;
+  const plan = await api("/api/studies/plan", {config: studyConfig()});
+  if (version !== studyVersion || !csrf) throw new Error("Study selections changed. Build the schedule again.");
+  studyPlan = plan; $("study-summary").textContent = `Planned: ${plan.counts.planned} · Started: ${plan.counts.started} · Provider completed: ${plan.counts.provider_completed} · Evaluable: ${plan.counts.evaluable}`;
+  $("study-budget").textContent = `Ceilings: ${plan.budget.model_calls_ceiling} model calls · ${plan.budget.output_tokens_ceiling} output tokens`;
+  $("study-identity").textContent = `${plan.study_id} · ${plan.plan_hash}`; $("study-json").textContent = pretty(plan);
+  $("study-trials").replaceChildren();
+  for (const trial of plan.trials) { const row = el("tr"); for (const value of [trial.ordinal + 1, trial.fixture_id, trial.frame, trial.profile_id, trial.repeat + 1]) row.append(el("td", String(value))); $("study-trials").append(row); }
+  $("study-result").hidden = false; note("Schedule built. No trials started.");
+}); });
+$("download-plan").addEventListener("click", () => {
+  if (!studyPlan) return;
+  const url = URL.createObjectURL(new Blob([pretty(studyPlan) + "\n"], {type: "application/json"}));
+  const link = el("a"); link.href = url; link.download = `${studyPlan.study_id}.json`; document.body.append(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});

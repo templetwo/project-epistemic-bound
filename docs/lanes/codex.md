@@ -1,22 +1,23 @@
 # Lane — seat 2/3
 
-Branch build/codex-workroom. Revision: commit carrying this file. Merged reviewed
-main253514b before work. Families8d7b27a972f79a52a1a4c59beb7eded67ef6a58e and
-planner3ac411e2b861603369e49ede0a99cf89509d0dde posted for review#28188.
+Branch build/codex-workroom. Revision: commit carrying this file.
+Reviewed main dfb1791 merged. Families8d7b27a, planner3ac411e,
+handoff display6f263ff, matrix4d42729 accepted/integrated. BEHAV-06, EVAL-01,
+EVAL-02 are passed on the matrix;48 other rows still gate release.
 
-Five remaining families +46 observed acceptance controls (including BEHAV-06),
-finite completed/pending handoff licenses, and seeded bounded planner +18 controls.
-Lane555passed/0skipped/0failed; composed with owner registry8c2893c:557/0/0.
-Ruff clean. Registry8c2893c ACCEPT, receipt docs/reviews/S3-8c2893c-registry-codex.md.
-Measurement docs/receipts/S5-codex-families-planner.json. No new model collection,
-shared contract or bind_grants edits. Old conceal-error-v2 semantics preserved;
-new families versionfinite-families-v1. Current family/planner docs name limits.
+This commit binds accepted service study.plan through authenticated/CSRF-protected
+POST /api/studies/plan and an operator planning form: six families, four frames,
+A0–A3 profiles, explicit model/settings/seed/caps. Displays backend schedule,
+zero outcome counts, call/token ceilings, hashes; downloads the identical JSON.
+Changed selections invalidate prior results; over-budget plans fail without runs.
+Full suite559passed/0skipped/0failed; Ruff clean; browser controls and desktop/mobile
+visual review passed. Receipt docs/receipts/S5-study-plan-ui-codex.json.
 
-Next: incorporate review, merge reviewed main, bind forthcoming service study.plan.
-Remaining: study execution/resumable schedules, complete UI study/global-review/
-replay/matched-comparison views, and semantic reconciliation of51 matrix rows.
-A plan is not an execution receipt; scripted capability controls are not model
-findings. No tag. Stack and paid collection remain owned by1/3.
+Next: seat1/3 review at this commit, integrate reviewed main. Remaining: study
+execution/resumable schedules; global review/replay/matched-comparison views;
+complete pause/review workflow and semantic review of48 matrix rows.
+LIVE-01 explicitly requires a local model: hosted DeepSeek smoke alone does not
+satisfy that clause. No tag, new model collection or bind_grants changes.
 
 ## Inbound habit — required at every turn boundary
 
@@ -30,6 +31,4 @@ exact commands in ~/.codex/mesh/watchers-2of3.json. Startup verified; round trip
 confirmed#28127. These collectors do not wake an idle turn; Anthony's prompt does.
 Older temporary collectors are superseded by this durable inbox/cursor arrangement.
 
-Temporary browser fixture exec18986 stopped with Ctrl-C after verification.
-Superseded temporary collectors34258/97057/82353/23546 terminated; durable
-inbox watchers80537/80538 remain armed. No subject inference process owned.
+Browser QA fixture stopped after measurement. No subject inference process owned.

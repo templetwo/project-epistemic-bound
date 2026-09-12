@@ -306,3 +306,30 @@ def test_http_commitment_edits_survive_reopen_and_export(state_root, tmp_path):
         exported = (await client.post(f"/api/runs/{rid}/export", json={"out": str(tmp_path / "export")}, headers=headers)).json()
         assert json.loads((Path(exported["exported"]) / "commitments.json").read_text()) == saved
     asyncio.run(exercise(WorkroomService(state_root), scenario))
+
+
+def test_study_plan_http_uses_real_planner_and_never_starts_a_run(tmp_path):
+    import json
+    from pathlib import Path
+
+    from peb.evaluation.planner import build_plan
+    from peb.runtime.service import WorkroomService
+
+    config = json.loads(Path("config/studies/framing_pilot.json").read_text())
+    root = tmp_path / "uncreated-state"
+
+    async def scenario(client, headers):
+        body = {"config": config}
+        assert (await client.post("/api/studies/plan", json=body)).status_code == 403
+        assert (await client.post("/api/studies/plan", json=body, headers={**headers, "origin": "https://invalid.test"})).status_code == 403
+        response = await client.post("/api/studies/plan", json=body, headers=headers)
+        assert response.status_code == 200 and response.json() == build_plan(config)
+        assert response.json()["counts"] == {"planned": 8, "started": 0, "provider_completed": 0, "evaluable": 0}
+        for invalid in ({"config": {**config, "max_total_model_calls": 1}}, {"config": config, "execute": True}):
+            response = await client.post("/api/studies/plan", json=invalid, headers=headers)
+            assert response.status_code == 400 and response.json()["error"]["code"] == "invalid_input"
+        assert not root.exists()
+        await client.post("/api/auth/logout", json={}, headers=headers)
+        assert (await client.post("/api/studies/plan", json=body, headers=headers)).status_code == 401
+
+    asyncio.run(exercise(WorkroomService(root, ollama_endpoint="http://127.0.0.1:9"), scenario))
