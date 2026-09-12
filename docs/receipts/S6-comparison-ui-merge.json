@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-12T00:32-0400 (measured with `date`)",
+  "main_before": "a84c4b6",
+  "product_tree_measured": "530e250 is byte-identical (code) to trial/int-cmpui-3b60280: clean-checkout 585 passed / 0 failed / 0 skipped, whole-tree ruff All checks passed; the tip carrying this receipt is measured again and logged in main-tip-suite-log.json",
+  "merges": [
+    {
+      "commit": "87b8470",
+      "branch": "build/codex-workroom",
+      "tip": "63e3393 (carries product 3b60280901917dbccfe2b21a55e2daea173df92a)",
+      "accepted_by": [
+        "seat 1/3 docs/reviews/UI-3b60280-comparison-ui-claude.md (trial 585/0/0; independent Playwright run with PEB_TEST_LIFECYCLE=1 PEB_TEST_REVIEWS=1 PEB_TEST_COMPARISON=1: exit 0, matched_comparison_checked true, page_errors []; desktop + 390px panel screenshots opened)",
+        "seat 3/3 #28423 (delta look: web + tests only; no store/export/ISO-02 surface; receipt docs/reviews/S3-3b60280-comparison-ui.md at 5e98612)"
+      ],
+      "content": "web: GET /api/comparisons → comparison.get; 'Compare recorded runs' panel (two run selects, axis, one read; renders the core's status/counts/reasons/per-run provenance/missingness/paired table/limitations/raw JSON; result hidden on selection or run-list change); scenario-family select on the model launch form (task from the six registered fixtures; family change invalidates hosted preview + authorization); HTTP control (matched frame pair, records unchanged, duplicate refused, bad params 400, logout 401); browser workflow flag PEB_TEST_COMPARISON; docs/WORKROOM.md; receipt docs/receipts/S5-comparison-ui-codex.json. No matrix promotion."
+    },
+    {
+      "commit": "530e250",
+      "branch": "build/grok-boundary",
+      "tip": "5e98612",
+      "content": "docs/reviews only: 3/3 ACCEPT receipt for 3b60280"
+    }
+  ],
+  "board": [
+    "#28417",
+    "#28420",
+    "#28423"
+  ]
+}

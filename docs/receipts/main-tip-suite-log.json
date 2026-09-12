@@ -46,6 +46,17 @@
       "errors": 0,
       "skipped": 0,
       "receipt": "LIVE-01 promotion (docs); product tree = 22a0359"
+    },
+    {
+      "tip": "a84c4b6",
+      "measured_at_local": "2026-09-12T00:26-0400",
+      "ruff": "All checks passed",
+      "tests": 584,
+      "passed": 584,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "receipt": "docs/receipts/S6-comparison-seam-merge.json"
     }
   ]
 }
