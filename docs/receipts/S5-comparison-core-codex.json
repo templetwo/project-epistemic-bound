@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "product_commit": "621ee3d",
+  "working_tree": "isolated git archive of621ee3d; clean committed product tree",
+  "measured_at": "2026-09-12T04:13:21.849721+00:00",
+  "command": "uv run --locked pytest -q --junitxml=/private/tmp/astra-comparison-exact.xml",
+  "exit_code": 0,
+  "tests": {
+    "passed": 580,
+    "skipped": 0,
+    "failed": 0
+  },
+  "junit_sha256": "cf96f6b082cff3447ce334d60dd8c325dfe326d012db836d8c66e55ef8d70b14",
+  "ruff": "uv run --locked ruff check .: exit0",
+  "targeted_comparison_controls": 16,
+  "state": "temporary scripted runs only, no model inference or operator state",
+  "limits": [
+    "comparison core only; service/cockpit binding not included in this hash",
+    "posthoc selected pair; no planned denominator or population inference",
+    "missing consequence pins block matching; legacy conditions not reconstructed",
+    "code revision and dataset split can be unrecorded and are surfaced"
+  ]
+}
