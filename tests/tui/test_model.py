@@ -46,7 +46,7 @@ def test_verification_is_pinned_to_the_head_it_verified_and_goes_stale_when_the_
     badge = s.selected.verification
     assert badge.label(s.selected.head) == "chain_consistent; external_anchor_absent"  # never "verified" when no anchor
     s.apply_events(g, EventPage([_ev(2, "model_request", "h1")], 1, None, 2), 2.0)
-    assert "STALE" in badge.label(s.selected.head) and "seq 1" in badge.label(s.selected.head) and "seq 2" in badge.label(s.selected.head)
+    assert "STALE" in badge.label(s.selected.head) and "head seq 0" in badge.label(s.selected.head) and "now seq 1" in badge.label(s.selected.head)
     assert any(a.level == "warning" and "verify again" in a.text for a in s.derive_alerts(2.0))
     s.apply_verification(g, {"verification": {"summary": "failed", "chain_consistent": False}}, 3.0)
     assert any(a.level == "critical" for a in s.derive_alerts(3.0))

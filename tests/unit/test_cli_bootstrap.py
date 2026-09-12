@@ -100,7 +100,8 @@ SECTION_20 = {"doctor", "demo", "serve", "providers", "run", "verify", "export",
               "study", "runs", "pause", "resume", "cancel"}
 # §20: "match them exactly or record a reviewed interface amendment before divergence".
 # Additions are listed here WITH their amendment; anything else is a divergence the test catches.
-RECORDED_ADDITIONS = {"review": "ADR-015 (§13 review route: list/ack/allow/deny a held proposal without the web UI)"}
+RECORDED_ADDITIONS = {"review": "ADR-015 (§13 review route: list/ack/allow/deny a held proposal without the web UI)",
+                      "tui": "ADR-019 (terminal cockpit: an authenticated client of the loopback web seam; --attach URL or --serve)"}
 
 
 def test_parser_registers_every_section_20_command_and_only_recorded_additions():
@@ -196,3 +197,16 @@ def test_study_plan_is_real_bounded_and_never_overwrites(state_root: Path, capsy
     monkeypatch.setattr(builtins, "__import__", no_planner)
     rc = main(["study", "plan", "--config", "config/studies/framing_pilot.json"])
     assert rc == 2 and json.loads(capsys.readouterr().err)["error"]["code"] == "not_implemented"
+
+
+def test_tui_attaches_to_loopback_only_and_never_takes_the_secret_as_an_argument(state_root: Path, capsys):
+    """ADR-019: `peb tui` refuses a non-loopback or non-http URL before anything runs; there is no --secret option."""
+    for url in ("http://example.com:8787", "https://127.0.0.1:8787", "http://127.0.0.1"):
+        rc = main(["tui", "--attach", url])
+        err = json.loads(capsys.readouterr().err)
+        assert rc == 2 and err["error"]["code"] == "invalid_input"
+    parser = build_parser()
+    tui = next(a for a in parser._subparsers._group_actions[0].choices.values() if a.prog.endswith(" tui"))
+    assert not any("secret" in opt for action in tui._actions for opt in action.option_strings)
+    rc = main(["tui", "--serve", "--host", "10.0.0.5"])  # argparse accepts it; cmd_tui refuses a non-loopback host before serving
+    assert rc == 2 and json.loads(capsys.readouterr().err)["error"]["code"] == "invalid_input"

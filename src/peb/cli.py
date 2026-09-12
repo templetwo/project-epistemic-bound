@@ -275,6 +275,72 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_tui(args: argparse.Namespace) -> int:
+    """`peb tui` (ADR-019): the terminal cockpit, an authenticated client of the loopback workroom. `--attach URL`
+    joins a workroom that is already serving; `--serve` starts the EXISTING `peb serve` as a child process on the
+    given loopback host/port and attaches to it (never a second runtime). The operator secret is read from the
+    protected state root when it is there, else prompted without echo; it is never a command-line argument and
+    never printed. Nothing under peb.tui imports the store, a provider, the monitor or the executor."""
+    import getpass
+    import os
+    import socket
+    import subprocess
+    import sys
+    import time as _time
+
+    from .config import OPERATOR_SECRET_FILE
+    from .tui.http_transport import canonical_origin
+    from .tui.transport import TransportError
+
+    url = args.attach or f"http://{args.host}:{args.port}"
+    try:
+        origin = canonical_origin(url)
+    except TransportError as e:
+        raise PebError(ErrorCode.invalid_input, "peb tui attaches to an explicit http loopback host and port only", {"url": url}) from e
+    cfg = load_config(args.state_root)
+    server = None
+    if args.serve:
+        if args.host not in ("127.0.0.1", "localhost", "::1"):
+            raise PebError(ErrorCode.invalid_input, "peb tui --serve binds loopback only", {"host": args.host})
+        server = subprocess.Popen(
+            [sys.executable, "-c", f"from peb.cli import main; raise SystemExit(main(['serve', '--host', {args.host!r}, '--port', {str(args.port)!r}]))"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=dict(os.environ))
+        deadline = _time.monotonic() + 15.0
+        host = "127.0.0.1" if args.host == "localhost" else args.host
+        while _time.monotonic() < deadline:
+            if server.poll() is not None:
+                raise PebError(ErrorCode.provider_unavailable, "the workroom child process exited before it listened",
+                               {"exit_code": server.returncode})
+            try:
+                with socket.create_connection((host, args.port), timeout=0.5):
+                    break
+            except OSError:
+                _time.sleep(0.2)
+        else:
+            server.terminate()
+            raise PebError(ErrorCode.provider_unavailable, "the workroom did not start listening in time", {"origin": origin})
+    secret_path = Path(cfg.state_root) / OPERATOR_SECRET_FILE
+    if secret_path.exists():
+        secret = secret_path.read_text(encoding="utf-8").strip()
+    else:
+        secret = getpass.getpass("operator secret (from operator.secret in the workroom's state root; not echoed): ")
+    try:
+        from .tui.app import CockpitApp
+        from .tui.http_transport import HttpWorkroomTransport
+
+        app = CockpitApp(HttpWorkroomTransport(origin), secret=secret)
+        del secret
+        app.run()
+    finally:
+        if server is not None and server.poll() is None:
+            server.terminate()
+            try:
+                server.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                server.kill()
+    return 0
+
+
 def _review_cmd(name: str):
     def run(args: argparse.Namespace) -> int:
         from .contracts import Actor
@@ -434,6 +500,13 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8787)
     s.set_defaults(fn=cmd_serve)
+
+    t = sub.add_parser("tui", help="terminal cockpit over the loopback workroom (ADR-019): --attach URL or --serve")
+    t.add_argument("--attach", metavar="URL", help="join a workroom already serving at this explicit http loopback URL")
+    t.add_argument("--serve", action="store_true", help="start the existing `peb serve` as a child process, then attach")
+    t.add_argument("--host", default="127.0.0.1")
+    t.add_argument("--port", type=int, default=8787)
+    t.set_defaults(fn=cmd_tui)
 
     pr = sub.add_parser("providers", help="provider commands").add_subparsers(dest="providers_cmd", required=True)
     pr.add_parser("list", help="show configured/available providers; never downloads a model").set_defaults(fn=cmd_providers_list)

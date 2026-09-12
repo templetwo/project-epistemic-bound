@@ -143,3 +143,48 @@ def test_hosted_start_needs_the_seams_preview_token_and_the_transport_passes_it_
         asyncio.run(scenario())
     except PebError as e:  # the preview needs the fixture registry; absent lane → honest not_implemented, not a fake pass
         assert e.code is ErrorCode.not_implemented
+
+
+@pytest.mark.parametrize("failure", [httpx.ConnectError("refused"), httpx.RemoteProtocolError("closed mid-response"),
+                                     httpx.ReadError("reset"), httpx.WriteTimeout("stalled while sending")])
+def test_any_connection_loss_around_a_sent_mutation_is_uncertain_not_a_transport_hiccup(failure):
+    """2/3's #28469: nothing in the client can tell "never sent" from "sent, answer lost"; the honest state is unknown."""
+    sent = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request.url.path)
+        if request.url.path == "/api/auth/login":
+            return httpx.Response(200, json={"authenticated": True, "csrf_token": "tok"})
+        failure.request = request
+        raise failure
+
+    t = HttpWorkroomTransport(ORIGIN, client=httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url=ORIGIN))
+
+    async def scenario():
+        await t.sign_in("s" * 40)
+        with pytest.raises(UncertainOutcome) as e:
+            await t.pause_run("run_" + "1" * 32)
+        assert e.value.operation == "run.pause" and sent.count("/api/runs/run_" + "1" * 32 + "/pause") == 1
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("body,content_type", [(b"<html>gateway</html>", "text/html"), (b"[]", "application/json"), (b"null", "application/json"), (b"", "application/json")])
+def test_a_malformed_200_is_an_error_never_an_empty_success(body, content_type):
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/auth/login":
+            return httpx.Response(200, json={"authenticated": True, "csrf_token": "tok"})
+        return httpx.Response(200, content=body, headers={"content-type": content_type})
+
+    t = HttpWorkroomTransport(ORIGIN, client=httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url=ORIGIN))
+
+    async def scenario():
+        await t.sign_in("s" * 40)
+        for call in (t.list_runs, lambda: t.events("run_" + "2" * 32)):  # reads: a typed error, retryable by the caller
+            with pytest.raises(TransportError) as e:
+                await call()
+            assert e.value.code == "internal" and e.value.status == 500 and not isinstance(e.value, UncertainOutcome)
+        with pytest.raises(UncertainOutcome):  # a mutation: applied or not is unknown, never an empty success
+            await t.pause_run("run_" + "2" * 32)
+
+    asyncio.run(scenario())

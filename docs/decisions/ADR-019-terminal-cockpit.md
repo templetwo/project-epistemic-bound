@@ -46,3 +46,18 @@ boundaries on `main`; it is not a specification ("dont feel obligated to use the
   process on a temporary state root.
 - The rendering library is chosen in slice 2 after the transport, state and sanitizer exist; the choice must not
   alter any workroom semantics.
+
+## Addendum 2026-09-12 — slice 2: the application, `peb tui`, and the rendering library
+
+`peb tui --attach URL | --serve [--host --port]` (recorded in the §20 command test as an ADR-019 addition). `--serve`
+starts the EXISTING `peb serve` as a child process of this interpreter and attaches; there is no second runtime. The
+secret is read from the protected state root or prompted without echo, consumed by the first sign-in inside the
+app's own event loop, and dropped. Rendering library: **Textual 8.2.8** (new dependency `textual>=8.2.8`, with
+`rich`), chosen after the transport, state and sanitizer existed, for its headless test pilot (`App.run_test()`):
+every screen rule is asserted through simulated key presses on a fake transport that records each call, so
+"viewing writes nothing", "every control maps to one closed operation and refetches", "the badge goes stale on
+screen when the head moves", "a chain gap resyncs" and "hostile text is inert on screen" are tests, not claims.
+The choice alters no workroom semantics; the transport and the state model are library-neutral.
+Two transport corrections from seat 2/3's review of slice 1 (#28469) are in this slice: any connection loss after a
+mutation was sent is an unknown outcome (not only a timeout), and a 200 with a body that is not a JSON object is a
+typed error for a read and an unknown outcome for a mutation, never an empty success.

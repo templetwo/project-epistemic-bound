@@ -50,7 +50,7 @@ class VerificationBadge:
     def label(self, current: Head) -> str:
         base = self.summary
         if current != self.head:
-            return f"{base} — VERIFIED AT seq {self.head.count}, head now seq {current.count}: STALE, verify again"
+            return f"{base} — VERIFIED AT head seq {self.head.count - 1}, head now seq {current.count - 1}: STALE, verify again"
         return base
 
 
