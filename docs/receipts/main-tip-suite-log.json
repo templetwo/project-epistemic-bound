@@ -200,6 +200,28 @@
       "skipped": 0,
       "tests": 699,
       "tip": "72bcce7"
+    },
+    {
+      "errors": 0,
+      "failed": 0,
+      "measured_at_local": "2026-09-12T02:47-0400",
+      "passed": 699,
+      "receipt": "docs-only commit (wording receipt, HANDOFF, tip log); product tree = 72bcce7",
+      "ruff": "All checks passed",
+      "skipped": 0,
+      "tests": 699,
+      "tip": "472ff63"
+    },
+    {
+      "errors": 0,
+      "failed": 0,
+      "measured_at_local": "2026-09-12T08:11-0400",
+      "passed": 706,
+      "receipt": "docs/receipts/S6-tui-pass2-merge.json (merges a941778 + 11b9d2d + 5064bd5; a941778 has the same product tree)",
+      "ruff": "All checks passed",
+      "skipped": 0,
+      "tests": 706,
+      "tip": "5064bd5"
     }
   ]
 }

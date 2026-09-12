@@ -12,27 +12,30 @@ Earlier states of this file are history, not current state: `git log -p -- docs/
 ## Which commit is current
 
 - Integration checkout `main` = **the docs commit carrying this file** (its hash is the pushed `origin/main` tip; it also carries
-  `docs/receipts/S5-study-missingness-wording-merge.json`). Its parent chain is `72bcce7` ← `f2871b2` ← `8d3f16b` ←
-  `0f8b6f7` ← `ec2f5c8` ← `ba3c3e0` ← `8ef7d31` ← `94413e1`.
+  `docs/receipts/S6-tui-pass2-merge.json`). Its parent chain is `5064bd5` ← `11b9d2d` ← `a941778` ← `472ff63` ←
+  `72bcce7` ← `f2871b2` ← `8d3f16b` ← `0f8b6f7`.
   Every lane unit on `main` was merged `--no-ff` after review at a named commit with both sibling verdicts
-  on the board: seat 1/3's runtime lane through `19d6d28` (study trial driver, `peb study run|get|preview`,
-  `study.start`/`study.get`/`study.preview`; earlier the terminal cockpit `200fb48`, `comparison.get` `f5e0ac9`,
-  `evidence.replay` `bf7f9ad`, global `reviews.list` `43835f8`); seat 2/3's workroom lane through `3a9d325`
+  on the board: seat 1/3's runtime lane through `d72daea` (TUI pass 2 `056edda`: review chooser + confirmation,
+  verifier-reported identity binding with the additive `verified_head`, every status mapped, usage with coverage,
+  the Inspect tab; README rework; `docs/WALKTHROUGH.md` + `scripts/walkthrough_state.sh`; earlier the study trial
+  driver `19d6d28`, the terminal cockpit `200fb48`, `comparison.get` `f5e0ac9`, `evidence.replay` `bf7f9ad`, global
+  `reviews.list` `43835f8`); seat 2/3's workroom lane through `7d934ae`
   (product through the missingness wording `9a57144`, the study execution cockpit `64e4290` and the study coordinator
   `753e94d`; bundle replay `5b7bc98`;
   comparison `3b60280`; global review and replay `88579f2`; study-plan cockpit `68eeb15`; families `8d7b27a`; planner
   `3ac411e`; release checker `368d413`; cockpit `4ab23b6` and bindings `7440330`; matrix promotions `4d42729`); seat
-  3/3's boundary lane through `e707038` (review receipts; product: bundle reader `94442bb`, export projections `11551d3`,
+  3/3's boundary lane through `a3c8ce9` (review receipts; product: bundle reader `94442bb`, export projections `11551d3`,
   `874336e` reviews and TX-02/03).
   Merge receipts: `docs/receipts/*.json`, latest `S6-reviews-list-merge`, `S6-global-review-ui-merge`,
   `S6-comparison-seam-merge`, `S6-comparison-ui-merge`, `S6-reader-and-seam-merge`, `S6-bundle-replay-ui-merge`,
   `S6-tui-merge`, `S5-study-coordinator-merge`, `S5-study-driver-merge`, `S5-study-execution-ui-merge`,
-  `S5-study-missingness-wording-merge`; per-tip suite counts in `docs/receipts/main-tip-suite-log.json`.
+  `S5-study-missingness-wording-merge`, `S6-tui-pass2-merge`; per-tip suite counts in
+  `docs/receipts/main-tip-suite-log.json`. The outside reviewer's pass 2 (read at `472ff63`) is answered item by item
+  in `docs/WALKTHROUGH.md`, which is also the compact handoff for a walkthrough of the room.
 - Remote: `origin` = https://github.com/templetwo/project-epistemic-bound (PUBLIC, ADR-016). `main` is pushed
   at that commit. Each seat pushes its own lane branch; at this refresh every lane copy on origin is current
-  (`build/claude-core` at the previous main tip `8d3f16b`, `build/codex-workroom` at `3a9d325`, `build/grok-boundary`
-  at `e707038`), and every lane commit named here is reachable from `origin/main`. No tag has been applied (see "What
-  was actually tested").
+  (`build/claude-core` at `d72daea`, `build/codex-workroom` at `7d934ae`, `build/grok-boundary` at `a3c8ce9`), and every
+  lane commit named here is reachable from `origin/main`. No tag has been applied (see "What was actually tested").
 
 ## What exists (software)
 
@@ -73,7 +76,12 @@ Earlier states of this file are history, not current state: `git log -p -- docs/
   verifier covered; controls (demo, verify, export, pause/resume, step/begin, cancel with typed confirmation, review
   ack/allow/deny) each one attempt then refetch; `--serve` starts the existing `peb serve` as a child on the resolved state
   root and quitting DETACHES (the workroom keeps serving; the stop command is printed). Nothing under `peb.tui` imports the
-  store, a provider, the monitor or the executor.
+  store, a provider, the monitor or the executor. After the outside reviewer's pass 2 (`056edda`, ADR-019 addendum 3):
+  review actions open a chooser and a confirmation showing the review's recorded context and re-read the target before
+  sending; the verification badge binds only to the head identity the verifier itself reports (`verified_head` on the
+  seam); every stored status is mapped explicitly; usage shows its coverage and is never a bill; an Inspect tab links the
+  statement, proposal, declaration, the claimed grant's actual scope, the gate decision and the observed effect from
+  records only. `docs/WALKTHROUGH.md` and `scripts/walkthrough_state.sh` prepare a walkthrough on temporary state.
 - The web workroom (seat 2/3, `src/peb/web/`, `peb serve` on 127.0.0.1; `docs/WORKROOM.md`): cockpit bound to the service
   for health, demo, run preview/create/step/begin, commitment accept/revise, per-run review list/resolve, the global
   review queue (`reviews.list`), recorded replay, matched comparison (`comparison.get`), bundle replay

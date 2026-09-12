@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-12T08:11-0400 (measured with `date`)",
+  "main_before": "472ff63",
+  "main_after": "5064bd5",
+  "product_tree_measured": "main 5064bd5 on a clean checkout (after merges a941778 + 11b9d2d + 5064bd5): 706 passed / 0 failed / 0 skipped, whole-tree ruff clean; identical product content to trial a311664 (main 472ff63 + d72daea + 7d934ae), measured 706/0/0 before the merge, and to lane 84b2ad1 (706/0/0); 11b9d2d and 5064bd5 add receipts only",
+  "context": "outside reviewer pass 2 (relayed by Anthony, read at 472ff63; board #28795): five TUI items, all open at 472ff63, all owned by seat 1/3; plus the home-walkthrough handoff and Anthony's README rework request",
+  "merges": [
+    {
+      "commit": "a941778",
+      "branch": "build/claude-core",
+      "tip": "d72daea (carries 056edda product, 84b2ad1 docs/script, d72daea walkthrough fixes)",
+      "accepted_by": [
+        "seat 2/3 #28833 ACCEPT verified_head for the browser (literal render, fields preserved, head matches the recorded chain; 145 targeted tests; receipt docs/reviews/TUI-84b2ad1-browser-walkthrough-codex.md at 1c70bb3) + CHANGES on 84b2ad1 \u2192 #28844 ACCEPT d72daea (custom-container, five-run and reuse-refusal checks reproduced; receipt docs/reviews/TUI-d72daea-walkthrough-codex.md at 7d934ae)",
+        "seat 3/3 #28846 ACCEPT 056edda items 2 and 5 (verified_head only when checked_events == len(events) after repo.verify, null on race; envelope keys preserved; inspector hides messages/content/reasoning, grants from the projection only, proposal/allow labelled not executions; inspect_event wrote no files; 15 TUI tests; receipt docs/reviews/S3-056edda-tui-verify-inspector.md at a3c8ce9)"
+      ],
+      "content": "1. review chooser (ReviewPickScreen) + confirmation with recorded context (ReviewConfirmScreen); re-read before send; changed target \u2192 nothing sent; 2. service evidence.verify += verified_head {run_id, event_count, head_hash}|null (additive); CockpitState.apply_verification binds only to that identity (bound/mismatch\u2192resync/wrong_run/unbound/stale); 3. TERMINAL + ACTIVITY map for every RunStatus, unknown never RUNNING; 4. usage with coverage + format_usage (PARTIAL / unreported / not a bill); 5. Inspect tab + model.inspect_event (statement, proposal, declaration, claimed grant's actual scope, gate, effect with revisions; NO EFFECT RECORDED; no content/reasoning/input); tests per the reviewer's named cases; docs/TUI.md rewritten; ADR-019 addendum 3; INTERFACES \u00a715 verify row; README reworked; docs/WALKTHROUGH.md; scripts/walkthrough_state.sh (one owned container: state + study artifacts; supplied path must be new or empty; held review in the serving root; serve+attach with the same --state-root)"
+    },
+    {
+      "commit": "11b9d2d",
+      "branch": "build/codex-workroom",
+      "tip": "7d934ae",
+      "content": "docs only: 2/3's review receipts for 056edda/84b2ad1 and the d72daea walkthrough acceptance"
+    },
+    {
+      "commit": "5064bd5",
+      "branch": "build/grok-boundary",
+      "tip": "a3c8ce9 (pushed to origin)",
+      "content": "docs only: 3/3's ACCEPT receipt for 056edda"
+    }
+  ],
+  "walkthrough_state_proof": "scripts/walkthrough_state.sh on a fresh temp container and on 2/3's counterexample path (<parent>/custom): 5 runs in the serving root (3 completed scripted controls, 1 waiting_review held repair, 1 failed from the partial study), study partial planned 8 / dispatched 1 / recorded 1 / started 1 / provider_completed 0 / unknown 0 with 7 rows not_started and the stop cause separate; artifacts only under CONTAINER/{state,study}; a second run on the now non-empty directory refused with exit 2; no model, no network",
+  "reviewer_dispositions": "docs/WALKTHROUGH.md: all five items fixed at 056edda; none disputed; none still open",
+  "board": [
+    "#28795",
+    "#28802",
+    "#28803",
+    "#28830",
+    "#28833",
+    "#28840",
+    "#28844",
+    "#28846"
+  ]
+}

@@ -53,15 +53,26 @@ inventory read is a shutdown interlock. Details: `docs/TUI.md` §"Attach, detach
 
 ## The five TUI items (outside reviewer, pass 2)
 
+All five were **open at 472ff63** (owner: seat 1/3) and are **fixed at `056edda`** on `build/claude-core`, merged into `main`
+as `a941778` (tip `5064bd5` with both receipts). Independent verdicts: seat 2/3 ACCEPT #28833 (the additive
+`verified_head` renders literally in the browser with the existing fields preserved; receipt
+`docs/reviews/TUI-84b2ad1-browser-walkthrough-codex.md`) and #28844 (the walkthrough after `d72daea`;
+`docs/reviews/TUI-d72daea-walkthrough-codex.md`); seat 3/3 ACCEPT #28846 (items 2 and 5: `verified_head` only when the
+count read back equals `checked_events`, the inspector's projection boundary; receipt
+`docs/reviews/S3-056edda-tui-verify-inspector.md`). Clean checkout of `5064bd5`: 706 passed / 0 failed / 0 skipped,
+ruff clean. Receipt: `docs/receipts/S6-tui-pass2-merge.json`.
+
 | # | Item | Disposition |
 |---|---|---|
-| 1 | Explicit review selection and confirmation | **fixed** in the TUI pass-2 commit (ADR-019 addendum 3): chooser + confirmation with the recorded context; re-read before send; nothing sent on a changed target; tests `test_review_actions_select_the_exact_review_and_confirm_with_its_recorded_context`, `test_a_review_that_changes_while_its_confirmation_is_open_is_not_sent` |
-| 2 | Verification identity binding | **fixed**: seam `evidence.verify` returns `verified_head`; the badge binds only to it; equal count with a different hash resyncs; wrong run or no identity is UNBOUND; tests `test_verification_binds_only_to_the_verifier_reported_identity`, `test_verify_with_a_different_hash_at_the_same_count_resyncs_and_a_wrong_run_stays_unbound` |
-| 3 | Complete status mapping | **fixed**: every `RunStatus` mapped explicitly, unknown never RUNNING; test `test_every_stored_status_maps_explicitly_and_an_unknown_status_is_never_running`, on screen in `test_the_inspector_follows_the_highlighted_event_and_statuses_render_distinctly` |
-| 4 | Usage completeness | **fixed**: per-field sums with coverage, PARTIAL named, "not a bill"; test `test_usage_shows_coverage_and_a_partial_sum_is_never_presented_as_a_total` |
-| 5 | Event-detail inspector | **fixed**: Inspect tab; `inspect_event` links statement, proposal, declaration, claimed grant's actual scope, gate, effect; no content/reasoning/input; test `test_the_inspector_links_the_recorded_story_and_never_shows_model_content` |
+| 1 | Explicit review selection and confirmation | **fixed at 056edda** (ADR-019 addendum 3): chooser + confirmation with the recorded context; re-read before send; nothing sent on a changed target; tests `test_review_actions_select_the_exact_review_and_confirm_with_its_recorded_context`, `test_a_review_that_changes_while_its_confirmation_is_open_is_not_sent`; reviewers 2/3 #28833, 3/3 #28846 |
+| 2 | Verification identity binding | **fixed at 056edda**: seam `evidence.verify` returns `verified_head`; the badge binds only to it; equal count with a different hash resyncs; wrong run or no identity is UNBOUND; tests `test_verification_binds_only_to_the_verifier_reported_identity`, `test_verify_with_a_different_hash_at_the_same_count_resyncs_and_a_wrong_run_stays_unbound`; reviewers 2/3 #28833 (browser pass-through), 3/3 #28846 |
+| 3 | Complete status mapping | **fixed at 056edda**: every `RunStatus` mapped explicitly, unknown never RUNNING; test `test_every_stored_status_maps_explicitly_and_an_unknown_status_is_never_running`, on screen in `test_the_inspector_follows_the_highlighted_event_and_statuses_render_distinctly`; reviewers 2/3 #28833, 3/3 #28846 |
+| 4 | Usage completeness | **fixed at 056edda**: per-field sums with coverage, PARTIAL named, "not a bill"; test `test_usage_shows_coverage_and_a_partial_sum_is_never_presented_as_a_total`; reviewers 2/3 #28833, 3/3 #28846 |
+| 5 | Event-detail inspector | **fixed at 056edda**: Inspect tab; `inspect_event` links statement, proposal, declaration, claimed grant's actual scope, gate, effect; no content/reasoning/input; test `test_the_inspector_links_the_recorded_story_and_never_shows_model_content`; reviewers 2/3 #28833, 3/3 #28846 |
 
-Reviewers and the merge commit are recorded in the receipt named in `docs/HANDOFF.md` for this pass.
+Nothing is disputed. The walkthrough script's first version had two defects found by seat 2/3 (#28833: a caller-supplied
+root split the held run into a sibling directory; `--attach` without `--state-root` offered the wrong secret); both are
+fixed at `d72daea` and accepted at #28844.
 
 ## What to show, in order
 
