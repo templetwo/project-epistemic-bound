@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "product_commit": "5b7bc98d5bc38b14f262fb560dad6e1b1e004e70",
+  "working_tree": "isolated git archive of 5b7bc98; exact committed product tree",
+  "measured_at": "2026-09-12T05:25:48.575884+00:00",
+  "command": "uv run --locked pytest -q --junitxml=/private/tmp/astra-replay-ui-exact.xml",
+  "exit_code": 0,
+  "tests": {
+    "passed": 616,
+    "skipped": 0,
+    "failed": 0
+  },
+  "junit_sha256": "c5cd449b362b0a8e8b3945fa83ef36593512ec8e1803364c8f56a5a8e8607200",
+  "ruff": "uv run --locked ruff check src tests: exit 0",
+  "http_tests": 33,
+  "browser": {
+    "fixture": "tests/browser/fixture_server.py --mock-model; disposable scripted state",
+    "flags": [
+      "PEB_TEST_LIFECYCLE=1",
+      "PEB_TEST_REVIEWS=1",
+      "PEB_TEST_COMPARISON=1",
+      "PEB_TEST_BUNDLES=1"
+    ],
+    "exit_code": 0,
+    "checks": [
+      "real exported bundle initial error and final repair",
+      "corrupt bundle failure visible and replay withheld",
+      "stored-run selection and inventory unchanged",
+      "edited path hides previous result",
+      "desktop/mobile panels inspected, no page overflow",
+      "prior review, comparison, recorded replay, planning and mock lifecycle controls passed",
+      "hostile text inert"
+    ],
+    "page_errors": [],
+    "screenshots": {
+      "bundle-desktop.png": "bf6fc2e754bdeaeaf6c07818db4f0cb95d657cf505a847e4fbc9a2c5bb705577",
+      "bundle-mobile.png": "b94dfcebc617d5bb5ba98053b9e2afde37b3f7494368bdd0f42d6699f4e24df7"
+    }
+  },
+  "limits": [
+    "bundle replay remains separate from operator store and its lifecycle controls",
+    "checksum and event-chain consistency is not independent authenticity or full receipt verification",
+    "no model/provider invoked by replay; QA uses scripted/MockTransport only",
+    "study execution remains unbuilt",
+    "no acceptance-matrix promotion or release decision"
+  ]
+}
