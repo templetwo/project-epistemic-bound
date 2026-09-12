@@ -70,12 +70,22 @@ MATCHED_COMPARISON.md for the exact matching and missingness rules.
 The model launch form now selects any of the six scenario families. Changing
 family invalidates an existing hosted preview and authorization.
 
-Study execution and bundle-import replay remain open.
+“Replay a local evidence bundle” inspects an absolute local export directory
+through the shared bundle reader. It shows source provenance, supported checks,
+failures and absent external-anchor coverage. A failed inspection withholds the
+resource reconstruction. Passing supported checks enables the event-position
+slider, including the original resource state and recorded applied effects.
+The files remain separate from stored runs: loading a bundle never changes the
+selected run, creates a run, invokes a provider or enables lifecycle actions on
+the bundle. Checksum/chain consistency is not independent authenticity or full
+receipt verification. See BUNDLE_REPLAY.md for the reader's exact limits.
+
+Study execution remains open.
 Full UI-01 is not promoted by these controls.
 
 ## Verification
 
-32 HTTP checks cover the existing authentication, CSRF, lifecycle, commitment,
+33 HTTP checks cover the existing authentication, CSRF, lifecycle, commitment,
 preview and planning boundaries plus the global queue's real two-run review
 flow: acknowledgement, exact allow/deny, unrelated run unchanged, stale/repeated
 resolution refused and observed pause. Receipt S5-global-review-ui-codex.json
@@ -109,3 +119,9 @@ frame runs are compared, their paired counts and provenance checked, and selecti
 the same run twice must be refused. The script captures desktop/mobile comparison
 panels. Use all three PEB_TEST flags with a fresh `--mock-model` fixture server to
 exercise the combined workflow. No hosted launch or real inference occurs.
+
+Set `PEB_TEST_BUNDLES=1` for the exported-bundle browser workflow. It loads a real
+scripted export, reconstructs initial/final resource state, then loads a corrupted
+copy and requires visible failure with reconstruction withheld. Stored-run
+inventory and the selected run remain unchanged. The HTTP control additionally
+checks auth, CSRF, cross-origin and extra-field rejection.
