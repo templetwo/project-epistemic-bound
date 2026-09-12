@@ -543,29 +543,49 @@
       "requirement": "Operator can complete create → step/run → inspect → pause/review → export using actual backend state.",
       "status": "partial",
       "candidate_evidence": [
-        "docs/receipts/S4-codex-workroom.json"
+        "docs/receipts/S4-codex-workroom.json",
+        "docs/reviews/UI-criterion-candidates-codex.md",
+        "tests/web/test_workroom.py",
+        "tests/browser/workroom.cjs",
+        "docs/receipts/S5-global-review-ui-codex.json",
+        "docs/receipts/S5-comparison-ui-codex.json",
+        "docs/receipts/S5-bundle-replay-ui-codex.json"
       ],
       "evidence": [],
       "reviewed_by": null,
-      "note": "Create/step/start and commitment mutation are implemented. Studies, global review, replay/comparison views and the complete pause/review browser workflow remain open."
+      "note": "The web operator flow now exercises local create/step/bounded run, inspect, actual held-review acknowledgement/allow/deny and observed pause, commitments and export. Global review, recorded replay, matched comparison and bundle replay are implemented. Candidate index names exact controls; independent criterion review remains pending. Study execution is still a broader open API/workroom item."
     },
     {
       "id": "UI-02",
       "requirement": "Unauthenticated/cross-origin mutations fail; hostile displayed content cannot run browser script.",
       "status": "partial",
-      "candidate_evidence": [],
+      "candidate_evidence": [
+        "docs/reviews/UI-criterion-candidates-codex.md",
+        "tests/web/test_workroom.py",
+        "tests/browser/workroom.cjs",
+        "docs/receipts/S5-global-review-ui-codex.json",
+        "docs/receipts/S5-comparison-ui-codex.json",
+        "docs/receipts/S5-bundle-replay-ui-codex.json"
+      ],
       "evidence": [],
       "reviewed_by": null,
-      "note": "HTTP boundary and browser hostile-content slice measured; full gate awaits reviewer at4ab23b6."
+      "note": "Current web HTTP controls exercise authentication, Host/Origin, CSRF and session boundaries; actual browser hostile-content controls remain inert. Candidate index and exact receipts are provided for independent review of this criterion. TUI display review is tracked separately under ADR-019."
     },
     {
       "id": "UI-03",
       "requirement": "Pending is not shown as success; pagination communicates totals and does not silently hide failed events.",
       "status": "partial",
-      "candidate_evidence": [],
+      "candidate_evidence": [
+        "docs/reviews/UI-criterion-candidates-codex.md",
+        "tests/web/test_workroom.py",
+        "tests/browser/workroom.cjs",
+        "docs/receipts/S5-global-review-ui-codex.json",
+        "docs/receipts/S5-comparison-ui-codex.json",
+        "docs/receipts/S5-bundle-replay-ui-codex.json"
+      ],
       "evidence": [],
       "reviewed_by": null,
-      "note": "Pagination and observed backend outcomes tested; full pending/failure browser controls remain to close."
+      "note": "API control traverses all 123 events with explicit page totals/cursors; browser controls show an acknowledged review still waiting and resolved review paused, with observed effects and exports. Independent review should judge pending/failure visibility and pagination against this exact criterion, not infer it from suite totals."
     },
     {
       "id": "LIVE-01",
