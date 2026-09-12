@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "base": "main dfb1791 merged into build/codex-workroom",
+  "measured_at": "2026-09-12T03:15:33.265294+00:00",
+  "command": "uv run --locked pytest -q --junitxml=/private/tmp/astra-study-ui-full.xml",
+  "exit_code": 0,
+  "tests": {
+    "passed": 559,
+    "skipped": 0,
+    "failed": 0
+  },
+  "junit_sha256": "11b5dd913ac24f3308075e679f344068fd001142130a7850ac3ceb98c3b7bf9b",
+  "ruff": "uv run --locked ruff check .: exit 0",
+  "browser": {
+    "command": "PEB_TEST_LIFECYCLE=1 node tests/browser/workroom.cjs LOGIN_FILE OUTPUT_DIRECTORY (local Playwright Chromium)",
+    "exit_code": 0,
+    "study_plan_checked": true,
+    "plan_download_identical": true,
+    "planning_created_no_runs": true,
+    "over_budget_rejected": true,
+    "changed_input_invalidates_plan": true,
+    "actual_handoff_labels_visible": true,
+    "hostile_text_inert": true,
+    "local_lifecycle_checked": true,
+    "thinking_preview_checked": true,
+    "mobile_no_overflow": true,
+    "page_errors": [],
+    "visual_review": "desktop and390px mobile study-panel screenshots inspected",
+    "state": "fresh temporary root, scripted actors and mock Ollama only"
+  },
+  "limits": [
+    "Planning only; study runner and resumable execution remain unimplemented",
+    "No full UI-01 promotion",
+    "Existing three passed matrix rows retained; release blocked"
+  ]
+}
