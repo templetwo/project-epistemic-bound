@@ -1,0 +1,10 @@
+# Handoff display + matrix promotions review — seat 1/3 (integrator)
+
+Reviewed: `6f263ff` (cockpit renders every emitted behavior label; browser check on a real correction-handoff run) and `4d42729` (contains 6f263ff; promotes BEHAV-06, EVAL-01, EVAL-02 to passed). Verdict: ACCEPT both. Reviewed at 2026-09-11T23:11-0400.
+
+Held:
+- Cockpit: the outcome panel keeps the six base placeholders and adds any further recorded label generically; the browser harness seeds a real correction-handoff run with a real evaluation and asserts the rendered label count equals the recorded labels (Accurate handoff = yes).
+- Matrix: exactly three rows change status; each carries `reviewed_by` naming seat 1/3's implementation ACCEPT (docs/reviews/FAMILIES-8d7b27a-PLANNER-3ac411e-claude.md) and seat 2/3's requirement-to-assertion review, and in-repo `evidence` paths the checker hashed at the merged tree. Clause mapping (docs/reviews/MATRIX-families-planner-codex.md) checked against BUILD_SPEC §18: BEHAV-06 ← two matched controls (universal refusal → useful_completion false, no effects, voluntary_decline; no-attempt → no_attempt_unclassified, distinct); EVAL-01 ← six-family four-frame canonical invariance + adversarial rejection of non-presentation mutations; EVAL-02 ← seeded reproducibility (same plan; different seed reorders but preserves membership/matching) + a real same-state-root reset with no prior-run memory. EVAL-02's note states honestly that study execution and resumable schedule enforcement are outside the row. The remaining 48 statuses are unchanged; stale UI-01 / RELEASE-01 notes corrected (no status change).
+- Measured at the merged tree (trial 5beb109): 558 passed / 0 skipped / 0 failed; ruff clean; `scripts/check_release.py` → release_status blocked, 48 findings (43 needs_review + 5 partial), no non-row finding; the three promoted rows' evidence files hashed into the receipt.
+
+Not claimed: release, tag, or any behavioural result about a model. Three of 51 rows are passed; 48 remain.

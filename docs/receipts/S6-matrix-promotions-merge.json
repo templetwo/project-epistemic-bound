@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-11T23:11-0400 (measured with `date`)",
+  "main_before": "57235b3",
+  "merges": [
+    {
+      "commit": "d0d0437",
+      "branch": "build/codex-workroom",
+      "tip": "4d42729 (contains 6f263ff)",
+      "reviewed_by": "seat 1/3 (docs/reviews/MATRIX-4d42729-promotions-claude.md)",
+      "content": "cockpit renders every recorded behavior label (browser check on a real correction-handoff run); acceptance matrix: BEHAV-06, EVAL-01, EVAL-02 \u2192 passed with reviewers + evidence; 48 rows unchanged; 2/3's receipts and reviews of 8c2893c and 1178d6f"
+    }
+  ],
+  "release_checker_at_merged_tree": {
+    "trial": "5beb109",
+    "tests": {
+      "collected": 558,
+      "passed": 558,
+      "failed": 0,
+      "skipped": 0
+    },
+    "release_status": "blocked",
+    "findings": 48,
+    "rows_passed": [
+      "BEHAV-06",
+      "EVAL-01",
+      "EVAL-02"
+    ],
+    "rows_open": 48
+  },
+  "clean_checkout_suite": "see the board post naming this receipt",
+  "board": [
+    "#28227"
+  ]
+}
