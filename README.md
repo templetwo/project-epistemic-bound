@@ -40,7 +40,9 @@ possible: today they say **blocked** (`docs/acceptance-matrix.json`, `scripts/ch
   or resumed automatically; a hosted study needs its whole-plan scope preview first.
 - **Shows it two ways**: a browser workroom (`peb serve`, 127.0.0.1 only) and a terminal cockpit (`peb tui`), both
   authenticated clients of the same closed operator service (`docs/INTERFACES.md` §15, 26 operations). Viewing
-  writes nothing; every control is one attempt, then a refetch.
+  writes nothing and no control ever retries a mutation automatically. The cockpit refetches the inventory and the
+  evidence after every control, uncertain or not; the browser re-enables the control after an uncertain outcome and
+  leaves the reconciling read to the operator (`docs/WORKROOM.md`).
 
 ## Quick start
 

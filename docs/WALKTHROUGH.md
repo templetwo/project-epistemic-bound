@@ -14,20 +14,29 @@ what still blocks acceptance. Everything here points at records; nothing here is
   smoke (`docs/evidence/live-01/`, `docs/evidence/deepseek-01/`, exported at `docs/evidence/deepseek-01/export-at-22a0359/`).
   Viewing them in either cockpit writes nothing.
 - **Temporary demonstration state** (bounded, scripted, no model, no network, nothing paid):
-  `bash scripts/walkthrough_state.sh` builds a fresh root holding the three scripted controls, one run held for
-  review and one partial study with honest missingness, then prints the exact serve / attach / inspect commands.
-  Delete its directory when done.
+  `bash scripts/walkthrough_state.sh [CONTAINER]` builds ONE container directory it owns (`CONTAINER/state` is the
+  state root; the study config, plan and report are inside `CONTAINER/study/`) holding the three scripted controls,
+  one run held for review and one partial study with honest missingness, then prints the exact serve / attach /
+  inspect commands. Delete the container when done; nothing is written beside it. A supplied `CONTAINER` must be new
+  or an empty directory.
 
 ## Attach, detach, stop
 
+One route: serve the state root, then attach the cockpit **to the same state root** (the cockpit reads the operator
+secret from the state root you name; without `--state-root` it would read the default operator root's secret and
+sign-in against the temporary workroom would fail):
+
 ```bash
 uv run --locked peb --state-root "$ROOT" serve --host 127.0.0.1 --port 8790        # browser: http://127.0.0.1:8790
-uv run --locked peb --state-root "$ROOT" tui --serve --port 8790                    # cockpit starts a workroom child
-uv run --locked peb tui --attach http://127.0.0.1:8790                             # or join one that is serving
+uv run --locked peb --state-root "$ROOT" tui --attach http://127.0.0.1:8790        # cockpit joins that workroom
 ```
 
-`q` in the cockpit **detaches**: runs keep going and a workroom started by `--serve` keeps serving; the cockpit prints
-the origin, the pid, the runs it saw in flight and the stop command. **You stop the workroom** (`kill <pid>`). No
+Alternative (instead of the two lines above, not in addition — one workroom per port):
+`uv run --locked peb --state-root "$ROOT" tui --serve --port 8790` starts a workroom child on that root and attaches.
+
+`q` in the cockpit **detaches**: runs keep going and the workroom keeps serving (whether you started it with `serve`
+or the cockpit started it with `--serve`); the cockpit prints the origin, the pid of a child it started, the runs it
+saw in flight and the stop command. **You stop the workroom** (`kill <pid>`, or stop the `serve` process). No
 inventory read is a shutdown interlock. Details: `docs/TUI.md` §"Attach, detach, stop".
 
 ## What was measured

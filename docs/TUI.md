@@ -18,8 +18,11 @@ state root to the child (an explicit `--state-root` wins over an inherited `PEB_
 
 ## Attach, detach, stop
 
-- **Attach**: `--attach URL` joins a workroom that is already serving (loopback only). `--serve` starts one as a child
-  of this process on the resolved state root and attaches to it.
+- **Attach**: `--attach URL` joins a workroom that is already serving (loopback only). The operator secret is read
+  from the cockpit's configured state root, so name the SAME root the workroom serves
+  (`peb --state-root ROOT tui --attach URL`); with a different root the wrong secret is offered and sign-in fails.
+  `--serve` starts a workroom as a child of this process on the resolved state root and attaches to it — an
+  alternative to `serve` + `--attach`, not an addition (one workroom per port).
 - **Detach**: `q` leaves the cockpit and **detaches**. Runs keep going, and a workroom started by `--serve` keeps
   serving. The cockpit prints the workroom's origin, pid, the runs it saw in flight at quit (or that it could not read
   them), how to re-attach and how to stop it. Nothing is terminated by the cockpit closing: no inventory read can be a
