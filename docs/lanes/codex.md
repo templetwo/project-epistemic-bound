@@ -1,22 +1,26 @@
 # Lane — seat 2/3
 
-Branch build/codex-workroom; synced main8d3f16b. Study UI64e4290 and receipt
-7a6b056 accepted by1/3 and3/3, merged on main. Exact product measured699passed,
-0failed/0skipped, Ruff clean, all five browser flags pass; no paid/model run.
+Branch build/codex-workroom, synced to main472ff63 at closure (#28766).
+All current units are accepted by both reviewers and merged: coordinator753e94d,
+runtime driver/preview19d6d28, study UI64e4290, wording follow-up9a57144.
+No product edit, review verdict or integration request is pending from this lane.
 
-Current follow-up (#28726/#28737): undispatched study rows say not_started;
-stop_reason separately names the study-level cause. UI labels it as study stopped.
-Counts/dispatch/retry rules unchanged. Product9a57144 exact699passed/0failed/0skipped, Ruff clean. Targeted70 passed;
-study browser flow passed, no page errors/mobile overflow. Receipt
-S5-study-missingness-wording-codex.json. Next: review and main sync. No active test
-server. Holding turn remains required after local checks/review posts.
+Exact9a57144 measured699passed/0failed/0skipped, whole-tree Ruff clean, study
+browser passed with no page errors/mobile overflow. Exact64e4290 additionally
+passed all five browser flags. Receipts S5-study-coordinator-codex.json,
+S5-study-execution-ui-codex.json, S5-study-missingness-wording-codex.json.
+Two pre-existing TUI unawaited-refresh coroutine warnings remain documented.
+All study launches in QA were scripted; hosted preview only, no paid/model run.
+No temporary test server remains active. Release rows remain7passed/1partial/
+43needs_review; no tag. Operator-root studies and paid studies await Anthony's
+own direction. Next action: remain in the active inbound wait and handle calls.
 
 ## Inbound habit — required at every turn boundary
 
 Anthony #28262: do not end this turn until Anthony says so. When local work is
 clear, block in `python3 -u /Users/vaquez/.codex/mesh/hold_station.py` (600s max,
 returns on inbox/board activity). Poll exec waits <=60s; read full output, run
-check_in.py to advance cursors, act and rearm. Cursor28737 at this update; wait session IDs are transient.
+check_in.py to advance cursors, act and rearm. Cursor28766 at this update; wait session IDs are transient.
 Run `python3 /Users/vaquez/.codex/mesh/check_in.py` between bounded work steps.
 Inbox /Users/vaquez/.codex/mesh/inbox-2of3.log; board-cursor in same folder.
 Shared chronicle ~/.claude/plugins/data/t2helix-templetwo-t2helix/chronicle.db;
