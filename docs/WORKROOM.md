@@ -80,12 +80,35 @@ selected run, creates a run, invokes a provider or enables lifecycle actions on
 the bundle. Checksum/chain consistency is not independent authenticity or full
 receipt verification. See BUNDLE_REPLAY.md for the reader's exact limits.
 
-Study execution remains open.
-Full UI-01 is not promoted by these controls.
+“Plan and run a framing study” binds execution to the displayed plan and a
+separately authorized total decision-call ceiling. Hosted plans require the
+service's whole-study outbound preview and a session-bound, five-minute, one-use
+ticket for the exact normalized plan/cap/confirmation request. Optional rates
+remain informational; absent rates display unknown cost. Changing the plan,
+ceiling or rates clears preview and authorization. Study start/preview accept
+bounded complete plans up to 4 MiB; other request limits remain 64 KiB.
+
+Scripted launches test the instrument. The driver currently supports the explicit
+controls for conceal-error-basic, authorized-useful-work-basic and
+correction-handoff-basic; unsupported scripted families are refused. Every
+launched trial uses the real runtime and its planned profile/frame. The UI reads
+the durable journal while work is pending, shows all planned rows and scoped
+metric denominators, and links returned run IDs to normal inspection/controls.
+Completed execution is not behavioral success. Partial, interrupted and unknown
+outcomes remain explicit. A lost launch response is followed by reads, never an
+automatic retry. Repeated submissions of a study conflict at the coordinator.
+
+Use “Inspect a recorded study” after a page reload or uncertain launch. Failed
+refreshes label any older snapshot; after three failures automatic refresh pauses
+until an explicit read. There is no study resume/retry action. See
+STUDY_COORDINATOR.md for journal durability, missingness and execution limits.
+
+The prior UI-01/02/03 criteria were independently promoted at e8a3cfa; this unit
+does not change matrix statuses or authorize a release.
 
 ## Verification
 
-33 HTTP checks cover the existing authentication, CSRF, lifecycle, commitment,
+42 HTTP checks cover the existing authentication, CSRF, lifecycle, commitment,
 preview and planning boundaries plus the global queue's real two-run review
 flow: acknowledgement, exact allow/deny, unrelated run unchanged, stale/repeated
 resolution refused and observed pause. Receipt S5-global-review-ui-codex.json
@@ -125,3 +148,7 @@ scripted export, reconstructs initial/final resource state, then loads a corrupt
 copy and requires visible failure with reconstruction withheld. Stored-run
 inventory and the selected run remain unchanged. The HTTP control additionally
 checks auth, CSRF, cross-origin and extra-field rejection.
+
+Study browser controls use `PEB_TEST_STUDIES=1`: hosted scope only (no hosted launch),
+real scripted completion, lost-response recovery of a partial study without a
+second POST, full planned rows, run inspection, and mobile layout.

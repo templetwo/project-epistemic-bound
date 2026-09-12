@@ -443,3 +443,190 @@ def test_bundle_replay_http_checks_evidence_without_import_or_mutation(state_roo
         assert (await client.post('/api/replays', json=payload, headers=headers)).status_code == 401
 
     asyncio.run(exercise(WorkroomService(state_root, ollama_endpoint='http://127.0.0.1:9'), scenario))
+
+
+def test_study_submission_has_a_separate_bounded_body_limit_and_hosted_gate():
+    import json
+
+    from peb.evaluation.planner import build_plan
+    from peb.web.app import STUDY_BODY_LIMIT
+
+    plan = build_plan({"schema_version": 1, "seed": 19, "fixture_ids": ["conceal-error-basic", "correction-handoff-basic", "authorized-useful-work-basic"],
+                       "frames": ["ordinary", "game", "roleplay", "evaluation"], "profile_ids": ["baseline", "tone_only", "contract_only", "placebo"],
+                       "repeats": 10, "provider": "scripted", "model": "scripted", "max_model_calls_per_trial": 8,
+                       "max_output_tokens": 512, "max_trials": 480, "max_total_model_calls": 3840})
+    payload = {"plan": plan, "max_model_calls": 3840, "confirm": True}
+    assert len(json.dumps(payload).encode()) > 65536
+    service = Service()
+
+    async def scenario(client, headers):
+        response = await client.post("/api/studies/start", json=payload, headers=headers)
+        assert response.status_code == 200 and service.calls[-1] == ("study.start", {}, payload)
+        assert (await client.post("/api/demos", json=payload, headers=headers)).status_code == 413
+        count = len(service.calls)
+        oversized = '{"x":"' + 'x' * STUDY_BODY_LIMIT + '"}'
+        assert (await client.post("/api/studies/start", content=oversized, headers={**headers, "content-type": "application/json"})).status_code == 413
+        hosted = {**payload, "plan": {**plan, "config": {**plan["config"], "provider": "deepseek"}}, "confirm_hosted": True}
+        assert (await client.post("/api/studies/start", json=hosted, headers=headers)).status_code == 409
+        assert len(service.calls) == count
+    asyncio.run(exercise(service, scenario))
+
+
+def test_http_study_executes_real_trials_reports_progress_and_refuses_duplicate(tmp_path, monkeypatch):
+    from peb.runtime import study
+    from peb.runtime.service import WorkroomService
+
+    root = tmp_path / "state"
+    service = WorkroomService(root, ollama_endpoint="http://127.0.0.1:9", inference_lock_path=tmp_path / "inference.lock")
+    bind = study.bind_trial_driver
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    def gated(*args, **kwargs):
+        driver = bind(*args, **kwargs)
+
+        async def trial(plan, row):
+            entered.set()
+            await release.wait()
+            return await driver(plan, row)
+        return trial
+
+    monkeypatch.setattr(study, "bind_trial_driver", gated)
+
+    async def scenario(client, headers):
+        config = {"schema_version": 1, "seed": 29, "fixture_ids": ["conceal-error-basic"], "frames": ["ordinary", "game"],
+                  "profile_ids": ["baseline", "tone_only"], "repeats": 1, "provider": "scripted", "model": "scripted",
+                  "max_model_calls_per_trial": 8, "max_output_tokens": 512, "max_trials": 4, "max_total_model_calls": 32}
+        planned = await client.post("/api/studies/plan", json={"config": config}, headers=headers)
+        assert planned.status_code == 200
+        plan = planned.json()
+        body = {"plan": plan, "max_model_calls": 32, "confirm": True}
+        assert (await client.post("/api/studies/start", json={"plan": plan, "max_model_calls": 32}, headers=headers)).status_code == 400
+        assert (await client.post("/api/studies/start", json=body, headers={"origin": ORIGIN})).status_code == 403
+        assert (await client.post("/api/studies/start", json=body, headers={**headers, "origin": "https://attacker.invalid"})).status_code == 403
+        launch = asyncio.create_task(client.post("/api/studies/start", json=body, headers=headers))
+        await asyncio.wait_for(entered.wait(), timeout=5)
+        try:
+            progress = await asyncio.wait_for(client.get(f'/api/studies/{plan["study_id"]}'), timeout=5)
+            assert progress.status_code == 200 and progress.json()["status"] == "running"
+            assert progress.json()["counts"]["dispatched"] == 1 and progress.json()["counts"]["started"] == 0
+            assert progress.json()["rows"][0]["status"] == "dispatching"
+            assert (await client.post("/api/studies/start", json=body, headers=headers)).status_code == 409
+        finally:
+            release.set()
+        response = await launch
+        assert response.status_code == 200
+        report = response.json()
+        assert report["status"] == "completed" and report["counts"]["planned"] == report["counts"]["recorded"] == 4
+        assert report["counts"]["started"] == report["counts"]["provider_completed"] == 4
+        assert len({r["result"]["subject_session_id"] for r in report["rows"]}) == 4
+        stored = (await client.get(f'/api/studies/{plan["study_id"]}')).json()
+        assert stored == report
+        assert len((await client.get("/api/runs")).json()["runs"]) == 4
+        for row in report["rows"]:
+            run = (await client.get(f'/api/runs/{row["result"]["run_id"]}')).json()["run"]
+            assert run["manifest"]["settings"]["study_id"] == plan["study_id"]
+            assert run["manifest"]["mode"] == "scripted_validation"
+        assert (await client.post("/api/studies/start", json=body, headers=headers)).status_code == 409
+        assert (await client.post("/api/auth/logout", json={}, headers=headers)).status_code == 200
+        assert (await client.get(f'/api/studies/{plan["study_id"]}')).status_code == 401
+    asyncio.run(exercise(service, scenario))
+    assert not (tmp_path / "inference.lock").exists()
+
+
+def test_http_study_incomplete_trial_preserves_unstarted_denominators(tmp_path):
+    from peb.runtime.service import WorkroomService
+
+    service = WorkroomService(tmp_path / "state", ollama_endpoint="http://127.0.0.1:9")
+
+    async def scenario(client, headers):
+        config = {"schema_version": 1, "seed": 30, "fixture_ids": ["conceal-error-basic"], "frames": ["ordinary"],
+                  "profile_ids": ["baseline"], "repeats": 2, "provider": "scripted", "model": "scripted",
+                  "max_model_calls_per_trial": 1, "max_output_tokens": 512, "max_trials": 2, "max_total_model_calls": 2}
+        plan = (await client.post("/api/studies/plan", json={"config": config}, headers=headers)).json()
+        response = await client.post("/api/studies/start", json={"plan": plan, "max_model_calls": 2, "confirm": True}, headers=headers)
+        assert response.status_code == 200  # request completed; the returned study explicitly did not
+        result = response.json()
+        assert result["status"] == "partial" and result["counts"]["provider_completed"] == 0
+        assert result["counts"]["planned"] == 2 and result["counts"]["recorded"] == 1
+        assert [r["status"] for r in result["rows"]] == ["recorded", "not_started"]
+        assert all(m["planned"] == 2 for m in result["metric_counts"])
+    asyncio.run(exercise(service, scenario))
+
+
+@pytest.mark.parametrize("alter", ["missing", "budget", "plan", "expired", "reuse"])
+def test_hosted_study_ticket_binds_full_plan_budget_session_and_single_use(tmp_path, alter):
+    import copy
+
+    from peb.evaluation.planner import build_plan
+    from peb.runtime.service import WorkroomService
+
+    class PreviewOnly(WorkroomService):
+        def __init__(self, root):
+            super().__init__(root)
+            self.launched = []
+
+        async def request(self, operation, ids, payload):
+            if operation == "study.start":
+                self.launched.append(copy.deepcopy(payload))
+                return {"captured": True, "provider_invoked": False}  # never invokes a model
+            return await super().request(operation, ids, payload)
+
+    root = tmp_path / "absent"
+    service = PreviewOnly(root)
+    now = [0]
+    plan = build_plan({"schema_version": 1, "seed": 39, "fixture_ids": ["conceal-error-basic"], "frames": ["ordinary", "game"],
+                       "profile_ids": ["baseline"], "repeats": 1, "provider": "deepseek", "model": "deepseek-flash",
+                       "max_model_calls_per_trial": 2, "max_output_tokens": 512, "max_trials": 2, "max_total_model_calls": 4})
+
+    async def scenario(client, headers):
+        response = await client.post("/api/studies/preview", json={"plan": plan, "max_model_calls": 4}, headers=headers)
+        assert response.status_code == 200
+        preview = response.json()
+        assert preview["scope"]["aggregate"]["worst_case_cost"]["total_usd_worst_case"] is None
+        assert {x["scope"]["frame"] for x in preview["scope"]["conditions"]} == {"ordinary", "game"}
+        body = {**preview["start_payload"], "preview_token": preview["preview_token"]}
+        if alter == "missing":
+            body.pop("preview_token")
+        elif alter == "budget":
+            body["max_model_calls"] = 5
+        elif alter == "plan":
+            body["plan"] = copy.deepcopy(body["plan"])
+            body["plan"]["trials"][0]["frame"] = "roleplay"
+        elif alter == "expired":
+            now[0] = 301
+        else:
+            first = await client.post("/api/studies/start", json=body, headers=headers)
+            assert first.status_code == 200 and first.json()["provider_invoked"] is False
+            assert service.launched == [preview["start_payload"]]
+        assert (await client.post("/api/studies/start", json=body, headers=headers)).status_code == 409
+        assert len(service.launched) == int(alter == "reuse")
+        assert not root.exists()
+    asyncio.run(exercise(service, scenario, now=now))
+
+
+def test_hosted_study_ticket_cannot_cross_operator_sessions(tmp_path):
+    from peb.evaluation.planner import build_plan
+    from peb.runtime.service import WorkroomService
+
+    class NoLaunch(WorkroomService):
+        async def request(self, operation, ids, payload):
+            assert operation != "study.start", "foreign session reached provider-capable operation"
+            return await super().request(operation, ids, payload)
+
+    secret = secrets.token_urlsafe(32)
+    app = create_workroom(NoLaunch(tmp_path / "absent"), secret)
+    plan = build_plan({"schema_version": 1, "seed": 40, "fixture_ids": ["conceal-error-basic"], "frames": ["ordinary"],
+                       "profile_ids": ["baseline"], "repeats": 1, "provider": "deepseek", "model": "deepseek-flash",
+                       "max_model_calls_per_trial": 1, "max_output_tokens": 512, "max_trials": 1, "max_total_model_calls": 1})
+
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=ORIGIN) as first, httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=ORIGIN) as second:
+            tokens = []
+            for client in (first, second):
+                login = await client.post("/api/auth/login", json={"secret": secret}, headers={"origin": ORIGIN})
+                tokens.append({"origin": ORIGIN, "x-peb-csrf": login.json()["csrf_token"]})
+            preview = (await first.post("/api/studies/preview", json={"plan": plan, "max_model_calls": 1}, headers=tokens[0])).json()
+            response = await second.post("/api/studies/start", json={**preview["start_payload"], "preview_token": preview["preview_token"]}, headers=tokens[1])
+            assert response.status_code == 409
+    asyncio.run(scenario())
+    assert not (tmp_path / "absent").exists()

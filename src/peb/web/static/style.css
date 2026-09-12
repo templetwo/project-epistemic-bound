@@ -7,3 +7,5 @@
 .comparison-panel>summary{font:24px Georgia,serif}.comparison-panel{min-width:0}.comparison-panel select{min-width:0;max-width:100%}
 
 .bundle-panel>summary{font:24px Georgia,serif}.bundle-panel{min-width:0}#bundle-provenance{overflow-wrap:anywhere}#bundle-result{margin-top:20px}
+
+.study-panel{min-width:0}#study-launch-form,#study-inspect-form,#study-execution-result{margin-top:24px}#study-execution-identity,#study-execution-provenance{overflow-wrap:anywhere}

@@ -5,6 +5,10 @@ let selectionVersion = 0, previewVersion = 0, selectedState = null;
 let studyVersion = 0, studyPlan = null, reviewQueueVersion = 0;
 let replayEvents = [], comparisonVersion = 0;
 let bundleEvents = [], bundleVersion = 0;
+let activeStudyId = null, studyReadVersion = 0, studyReportStatus = null, studyPollBusy = false;
+let studyPreview = null, studyPreviewVersion = 0;
+let studyReadFailures = 0;
+const attemptedStudies = new Set();
 const pretty = (value) => JSON.stringify(value, null, 2);
 function note(text, error = false) { $("notice").textContent = text; $("notice").classList.toggle("error", error); }
 function el(tag, text, className) { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (className) n.className = className; return n; }
@@ -19,11 +23,11 @@ async function api(path, body, method) {
   }
   return result;
 }
-function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; if (!yes) { csrf = ""; invalidatePreview(); invalidateStudy(); invalidateComparison(); invalidateBundle(); reviewQueueVersion++; $("global-reviews").replaceChildren(); $("global-review-count").textContent = "Not loaded"; } }
+function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; if (!yes) { csrf = ""; invalidatePreview(); invalidateStudy(); clearStudyRead(); invalidateComparison(); invalidateBundle(); reviewQueueVersion++; $("global-reviews").replaceChildren(); $("global-review-count").textContent = "Not loaded"; } }
 async function action(button, task) {
   button.disabled = true; activeRequests++;
   try { await task(); } catch (error) { note(error.message, true); }
-  finally { activeRequests--; button.disabled = false; updateStart(); updateRunControls(); }
+  finally { activeRequests--; button.disabled = false; updateStart(); updateRunControls(); updateStudyLaunch(); }
 }
 function invalidatePreview() { previewVersion++; preview = null; $("scope").hidden = true; $("approve-start").checked = false; updateStart(); }
 function updateStart() { const hosted = $("provider").value === "deepseek"; $("hosted-fields").hidden = !hosted; $("create-model").disabled = hosted; $("start-model").disabled = !$("approve-start").checked || (hosted && !preview?.preview_token); }
@@ -205,7 +209,7 @@ for (const [id, title] of [["conceal-error-basic", "Conceal an error"], ["fictio
   const option = el("option", title); option.value = id; $("model-task").append(option);
 }
 for (const frame of ["ordinary", "game", "roleplay", "evaluation"]) studyChoice("study-frames", frame, frame, ["ordinary", "game"].includes(frame));
-function invalidateStudy() { studyVersion++; studyPlan = null; $("study-result").hidden = true; }
+function invalidateStudy() { studyVersion++; studyPlan = null; $("study-result").hidden = true; invalidateStudyPreview(); }
 function studyConfig() {
   const choices = id => [...$(id).querySelectorAll("input:checked:not(:disabled)")].map(input => input.value);
   const config = {schema_version: 1, fixture_ids: choices("study-fixtures"), frames: choices("study-frames"), profile_ids: choices("study-profiles"), provider: $("study-provider").value, model: $("study-model").value.trim(), thinking: $("study-thinking").value};
@@ -223,7 +227,8 @@ $("study-form").addEventListener("submit", event => { event.preventDefault(); ac
   $("study-identity").textContent = `${plan.study_id} · ${plan.plan_hash}`; $("study-json").textContent = pretty(plan);
   $("study-trials").replaceChildren();
   for (const trial of plan.trials) { const row = el("tr"); for (const value of [trial.ordinal + 1, trial.fixture_id, trial.frame, trial.profile_id, trial.repeat + 1]) row.append(el("td", String(value))); $("study-trials").append(row); }
-  $("study-result").hidden = false; note("Schedule built. No trials started.");
+  $("study-execution-cap").value = String(plan.config.max_total_model_calls);
+  $("study-result").hidden = false; updateStudyLaunch(); note("Schedule built. No trials started.");
 }); });
 $("download-plan").addEventListener("click", () => {
   if (!studyPlan) return;
@@ -231,6 +236,127 @@ $("download-plan").addEventListener("click", () => {
   const link = el("a"); link.href = url; link.download = `${studyPlan.study_id}.json`; document.body.append(link); link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
+
+function updateStudyLaunch() {
+  const hosted = studyPlan?.config.provider === "deepseek";
+  $("study-hosted-fields").hidden = !hosted;
+  $("preview-study").hidden = !studyPlan || studyPlan.config.provider === "scripted";
+  $("start-study").disabled = !studyPlan || (hosted && !studyPreview?.preview_token) || !$("study-approve").checked || attemptedStudies.has(studyPlan?.study_id);
+}
+function invalidateStudyPreview() {
+  studyPreviewVersion++; studyPreview = null; $("study-scope").hidden = true;
+  $("study-approve").checked = false; updateStudyLaunch();
+}
+for (const id of ["study-execution-cap", "study-input-rate", "study-output-rate", "study-rate-source"]) $(id).addEventListener("input", invalidateStudyPreview);
+$("preview-study").addEventListener("click", () => action($("preview-study"), async () => {
+  if (!studyPlan) throw new Error("Build the schedule first.");
+  invalidateStudyPreview(); const version = studyPreviewVersion;
+  const body = {plan: studyPlan, max_model_calls: Number($("study-execution-cap").value)};
+  const input = $("study-input-rate").value, output = $("study-output-rate").value;
+  if ((input === "") !== (output === "")) throw new Error("Supply both rates, or leave both unknown.");
+  if (input !== "") { body.input_rate = Number(input); body.output_rate = Number(output); if ($("study-rate-source").value.trim()) body.rates_provenance = $("study-rate-source").value.trim(); }
+  const result = await api("/api/studies/preview", body);
+  if (version !== studyPreviewVersion || !csrf) throw new Error("Study selections changed. Preview again.");
+  studyPreview = result; $("study-scope-text").textContent = pretty(result.scope); $("study-scope").hidden = false;
+  updateStudyLaunch(); note("Study scope ready. Review every condition, then authorize the exact plan and ceiling. Rates are informational.");
+}));
+$("study-approve").addEventListener("change", updateStudyLaunch);
+$("study-provider").addEventListener("change", () => {
+  if ($("study-provider").value === "scripted") $("study-model").value = "scripted";
+  else if ($("study-model").value === "scripted") $("study-model").value = "";
+  invalidateStudy();
+});
+function clearStudyRead() {
+  activeStudyId = null; studyReportStatus = null; studyReadVersion++; studyReadFailures = 0;
+  $("study-execution-result").hidden = true;
+}
+function renderStudyReport(report) {
+  if (report.study_id !== activeStudyId || report.plan?.study_id !== activeStudyId || !Array.isArray(report.rows) || !Array.isArray(report.metric_counts)) throw new Error("Unexpected study report.");
+  if (!["ready", "running", "completed", "partial", "interrupted"].includes(report.status)) throw new Error("Unknown study status.");
+  studyReportStatus = report.status;
+  $("study-execution-status").textContent = `Study ${report.status}`;
+  $("study-execution-identity").textContent = report.study_id;
+  $("study-execution-status").classList.toggle("error", ["partial", "interrupted"].includes(report.status));
+  $("study-execution-provenance").textContent = `${report.plan.mode} · ${report.plan.config.provider} · ${report.plan.config.model} · development cases`;
+  const c = report.counts;
+  $("study-execution-counts").textContent = `Planned ${c.planned} · Dispatched ${c.dispatched} · Recorded ${c.recorded} · Started ${c.started} · Provider completed ${c.provider_completed} · Unknown ${c.unknown}`;
+  $("study-execution-budget").textContent = `Reserved decision calls ${report.reserved_model_calls} / authorized ceiling ${report.max_model_calls}`;
+  $("study-progress-note").textContent = ["ready", "running"].includes(report.status) ? "Reading progress while the study runs. Recorded runs are also available in the run inventory." : "Recorded snapshot loaded. Trials are not automatically resumed or repeated.";
+  $("study-execution-trials").replaceChildren();
+  for (const row of report.rows) {
+    const trial = report.plan.trials[row.ordinal], tr = el("tr");
+    tr.append(el("td", String(row.ordinal + 1)), el("td", `${trial.fixture_id} · ${trial.frame} · ${trial.profile_id}`), el("td", row.status));
+    const cell = el("td"), runId = row.result?.run_id || row.observed_run_id;
+    if (runId) {
+      const button = el("button", row.result ? `Inspect ${row.result.status} run` : "Inspect unconfirmed run", "secondary"); button.type = "button";
+      button.addEventListener("click", () => action(button, async () => { await selectRun(runId); $("events").scrollIntoView({block: "center"}); }));
+      cell.append(button, el("p", runId, "mono"));
+    } else cell.textContent = row.dispatched ? "Run identity not returned" : "No dispatch";
+    tr.append(cell, el("td", row.missing_reason || "—")); $("study-execution-trials").append(tr);
+  }
+  $("study-execution-metrics").replaceChildren();
+  for (const metric of report.metric_counts) {
+    const tr = el("tr");
+    for (const value of [`${metric.profile_id} · ${metric.frame} · ${metric.condition_hash.slice(0, 12)} · ${metric.metric}`, metric.planned, metric.evaluable, `${metric.yes} / ${metric.no}`, `${metric.indeterminate} / ${metric.not_estimated}`]) tr.append(el("td", String(value)));
+    $("study-execution-metrics").append(tr);
+  }
+  $("study-execution-json").textContent = pretty(report); $("study-execution-result").hidden = false;
+}
+async function readStudyProgress() {
+  if (!activeStudyId || !csrf) return;
+  const id = activeStudyId, version = ++studyReadVersion;
+  try {
+    const report = await api(`/api/studies/${encodeURIComponent(id)}`);
+    if (version !== studyReadVersion || id !== activeStudyId || !csrf) return;
+    studyReadFailures = 0; renderStudyReport(report);
+  } catch (error) {
+    if (version === studyReadVersion && id === activeStudyId && csrf) {
+      if (++studyReadFailures >= 3) studyReportStatus = "unconfirmed";
+      $("study-progress-note").textContent = `Progress unavailable: ${error.message} Any displayed snapshot may be older. ${studyReadFailures >= 3 ? "Automatic refresh paused; use Read study progress." : "Do not retry a launch to refresh it."}`;
+    }
+    throw error;
+  }
+}
+$("study-launch-form").addEventListener("submit", event => { event.preventDefault(); action(event.submitter, async () => {
+  if (!studyPlan || !$("study-approve").checked || attemptedStudies.has(studyPlan.study_id)) throw new Error("Build and authorize a new plan, or inspect the existing study.");
+  const hosted = studyPlan.config.provider === "deepseek";
+  if (hosted && !studyPreview?.preview_token) throw new Error("Preview this exact hosted study first.");
+  const cap = Number($("study-execution-cap").value);
+  if (!Number.isInteger(cap) || cap < studyPlan.budget.model_calls_ceiling || cap > 32768) throw new Error("The authorized ceiling must cover the displayed schedule.");
+  const plan = studyPlan, requestSession = csrf;
+  const payload = hosted ? {...studyPreview.start_payload, preview_token: studyPreview.preview_token} : {plan, max_model_calls: cap, confirm: true};
+  invalidateStudyPreview();
+  attemptedStudies.add(plan.study_id); updateStudyLaunch(); clearStudyRead();
+  activeStudyId = plan.study_id; studyReportStatus = "submitting"; $("study-record-id").value = activeStudyId;
+  $("study-execution-status").textContent = "Study launch requested · outcome pending";
+  $("study-execution-status").classList.remove("error");
+  for (const id of ["study-execution-identity", "study-execution-provenance", "study-execution-counts", "study-execution-budget", "study-execution-json"]) $(id).textContent = "";
+  for (const id of ["study-execution-trials", "study-execution-metrics"]) $(id).replaceChildren();
+  $("study-progress-note").textContent = "Reading the durable journal as trials reach recorded boundaries.";
+  $("study-execution-result").hidden = false;
+  try {
+    const report = await api("/api/studies/start", payload);
+    if (requestSession !== csrf || activeStudyId !== plan.study_id) return;
+    studyReadVersion++; renderStudyReport(report); await loadRuns(); note(`Study ${report.status}. Inspect every planned row and its missingness.`, report.status !== "completed");
+  } catch (error) {
+    if (requestSession === csrf && activeStudyId === plan.study_id) {
+      $("study-progress-note").textContent = `Launch response unavailable: ${error.message} Inspect this study; the request may have created records.`;
+      await readStudyProgress().catch(() => {});
+    }
+    throw error;
+  }
+}); });
+$("study-record-id").addEventListener("input", clearStudyRead);
+$("study-inspect-form").addEventListener("submit", event => { event.preventDefault(); action(event.submitter, async () => {
+  clearStudyRead(); activeStudyId = $("study-record-id").value.trim(); await readStudyProgress();
+}); });
+$("refresh-study").addEventListener("click", () => action($("refresh-study"), readStudyProgress));
+setInterval(async () => {
+  if (!csrf || !activeStudyId || studyPollBusy || !["submitting", "ready", "running"].includes(studyReportStatus)) return;
+  studyPollBusy = true;
+  try { await readStudyProgress(); } catch (_) { /* visible in the progress note; never retry POST */ }
+  finally { studyPollBusy = false; }
+}, 1500);
 
 async function loadReviewQueue() {
   const version = ++reviewQueueVersion;

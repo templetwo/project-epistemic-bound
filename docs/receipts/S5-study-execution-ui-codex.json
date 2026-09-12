@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "seat": "2/3 Codex Astra",
+  "recorded_at": "2026-09-12T06:32:59.165993+00:00",
+  "product_commit": "64e429096b86f40e2495419074d8dbeb6b36118a",
+  "base_main": "ba3c3e0",
+  "scope": "workroom study.start/get/preview bindings and durable execution view",
+  "measurement": "exact git archive",
+  "counts": {
+    "tests": 699,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "passed": 699
+  },
+  "ruff": "src and tests passed",
+  "javascript_syntax": "passed",
+  "http_tests": 42,
+  "junit_sha256": "7446db6a738a8f00d934738f951015e9993a1dfa59b3516a7a521f3acabbe6fc",
+  "browser": {
+    "flags": [
+      "PEB_TEST_LIFECYCLE",
+      "PEB_TEST_REVIEWS",
+      "PEB_TEST_COMPARISON",
+      "PEB_TEST_BUNDLES",
+      "PEB_TEST_STUDIES"
+    ],
+    "all_passed": true,
+    "page_errors": [],
+    "mobile_overflow": false,
+    "screenshots_inspected": true,
+    "screenshot_sha256": {
+      "study-execution-desktop.png": "242e0291324801f2b33063d96e01390e7f1e0880706b66a39d7f3c8f59860cc5",
+      "study-execution-mobile.png": "1a1a617cfbba8b6b894bc2e54226e3a0a1c5675b39dd6662d5f97ffc6256a64e"
+    },
+    "controls": [
+      "hosted study preview preserves exact conditions and unknown pricing; cap edit invalidates ticket and authorization",
+      "real8trial scripted completion with fresh recorded runs; inspect a returned run",
+      "duplicate launch button disabled and coordinator duplicate conflict enforced",
+      "lostPOSTresponse after real partial study followed by GET; no second POST",
+      "all8plannedrows retained,1recordedfailedtrial,7notstarted,metric missingness shown"
+    ]
+  },
+  "http_controls": [
+    "separate4MiB study body ceiling, other routes64KiB",
+    "real bounded plan above64KiB accepted through study route",
+    "actual progress readable during a blocked trial; duplicate worker refused",
+    "actual scripted completion and partial results; auth/CSRF/Origin controls",
+    "hosted ticket bound to full normalized plan/cap/session, expiry and single use"
+  ],
+  "warnings": [
+    "2 existing RuntimeWarnings: CockpitApp._refresh_selected_now coroutine was never awaited"
+  ],
+  "limits": [
+    "All study launches in QA were scripted; hosted preview only; no paid/local model inference.",
+    "Hosted HTTP launch pass-through uses a capturing service, never a provider.",
+    "Scripted driver supports three explicit fixture controls; other families are refused.",
+    "No study resume/retry feature or automatic re-launch.",
+    "Release/matrix statuses unchanged.",
+    "Temporary browser server stopped; no8789listener remained."
+  ]
+}
