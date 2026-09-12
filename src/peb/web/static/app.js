@@ -4,6 +4,7 @@ let csrf = "", selectedId = null, nextCursor = null, preview = null, activeReque
 let selectionVersion = 0, previewVersion = 0, selectedState = null;
 let studyVersion = 0, studyPlan = null, reviewQueueVersion = 0;
 let replayEvents = [], comparisonVersion = 0;
+let bundleEvents = [], bundleVersion = 0;
 const pretty = (value) => JSON.stringify(value, null, 2);
 function note(text, error = false) { $("notice").textContent = text; $("notice").classList.toggle("error", error); }
 function el(tag, text, className) { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (className) n.className = className; return n; }
@@ -18,7 +19,7 @@ async function api(path, body, method) {
   }
   return result;
 }
-function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; if (!yes) { csrf = ""; invalidatePreview(); invalidateStudy(); invalidateComparison(); reviewQueueVersion++; $("global-reviews").replaceChildren(); $("global-review-count").textContent = "Not loaded"; } }
+function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; if (!yes) { csrf = ""; invalidatePreview(); invalidateStudy(); invalidateComparison(); invalidateBundle(); reviewQueueVersion++; $("global-reviews").replaceChildren(); $("global-review-count").textContent = "Not loaded"; } }
 async function action(button, task) {
   button.disabled = true; activeRequests++;
   try { await task(); } catch (error) { note(error.message, true); }
@@ -293,3 +294,39 @@ $("comparison-form").addEventListener("submit", event => { event.preventDefault(
   $("comparison-limits").textContent = result.limitations.join(" "); $("comparison-json").textContent = pretty(result); $("comparison-result").hidden = false;
   note(result.status === "matched" ? "Conditions matched; inspect metric-specific missingness and evidence limits." : "Comparison refused for the listed conditions. No paired outcome counts are eligible.");
 }); });
+
+function invalidateBundle() {
+  bundleVersion++; bundleEvents = []; $("bundle-result").hidden = true;
+  $("bundle-replay").hidden = true; $("bundle-resources").replaceChildren();
+}
+$("bundle-form").addEventListener("input", invalidateBundle);
+$("bundle-form").addEventListener("submit", event => { event.preventDefault(); action(event.submitter, async () => {
+  invalidateBundle(); const version = bundleVersion;
+  const result = await api("/api/replays", {bundle_dir: $("bundle-path").value.trim()});
+  if (version !== bundleVersion || !csrf) throw new Error("Bundle selection changed. Inspect again.");
+  if (result.mode !== "replay" || result.recorded !== false || result.provider_invoked !== false) throw new Error("Unexpected bundle inspection response.");
+  const verification = result.verification;
+  const usable = verification.chain_consistent && !verification.failures.length && verification.summary === "chain_consistent; external_anchor_absent";
+  $("bundle-status").textContent = usable ? "Bundle checks passed · external anchor absent" : "Bundle inspection failed";
+  $("bundle-status").classList.toggle("error", !usable);
+  const manifest = result.source_manifest;
+  $("bundle-provenance").textContent = manifest ? `Replay · source: ${manifest.mode} · ${manifest.provider_kind} · ${manifest.run_id}` : "Replay · source manifest unavailable";
+  $("bundle-limits").textContent = "These checks assess the imported files. They do not establish an independently retained anchor or correspondence with the current store. No run is imported or started.";
+  $("bundle-verification").textContent = pretty(verification); $("bundle-failures").replaceChildren();
+  for (const failure of verification.failures) $("bundle-failures").append(el("p", failure, "error"));
+  if (usable) {
+    bundleEvents = result.events;
+    $("bundle-position").max = String(Math.max(0, bundleEvents.length - 1));
+    $("bundle-position").value = $("bundle-position").max;
+    $("bundle-position").disabled = bundleEvents.length === 0;
+    renderBundleReplay(); $("bundle-replay").hidden = false;
+  }
+  $("bundle-result").hidden = false;
+  note(usable ? "Imported trace inspected. Replay is separate from stored-run controls." : "Bundle checks failed. Reconstruction is withheld; inspect the failures.", !usable);
+}); });
+function renderBundleReplay() {
+  const index = Number($("bundle-position").value), event = bundleEvents[index];
+  $("bundle-position-label").textContent = event ? `Event ${event.seq} · ${event.event_type.replaceAll("_", " ")} · ${index + 1} of ${bundleEvents.length} imported events` : "No imported events.";
+  renderResources(bundleEvents.slice(0, index + 1), "bundle-resources");
+}
+$("bundle-position").addEventListener("input", renderBundleReplay);
