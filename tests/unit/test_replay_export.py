@@ -187,6 +187,74 @@ def test_inspect_bundle_labels_replay_and_checks_inventory(state_root: Path, tmp
     repo.close()
 
 
+def test_inspect_bundle_fails_empty_evidence(tmp_path: Path):
+    from peb.evidence.bundle import inspect_bundle
+
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    (empty / "events.jsonl").write_text("", encoding="utf-8")
+    (empty / "manifest.json").write_text("{}", encoding="utf-8")
+    (empty / "SHA256SUMS").write_text("", encoding="utf-8")
+    report = inspect_bundle(empty)
+    assert report["verification"]["summary"] == "failed"
+    assert any("empty" in f or "SHA256SUMS is empty" in f or "does not list" in f
+               for f in report["verification"]["failures"])
+
+
+def test_inspect_bundle_fails_emptied_sha256sums(state_root: Path, tmp_path: Path):
+    from peb.evidence.bundle import inspect_bundle
+
+    repo, manifest, _ = seed_run(state_root)
+    bundle = export_run(repo, manifest.run_id, tmp_path)
+    (bundle / "SHA256SUMS").write_text("", encoding="utf-8")
+    report = inspect_bundle(bundle)
+    assert report["verification"]["summary"] == "failed"
+    assert any("SHA256SUMS" in f for f in report["verification"]["failures"])
+    repo.close()
+
+
+def test_inspect_bundle_fails_manifest_run_id_unbound_from_events(state_root: Path, tmp_path: Path):
+    from peb.evidence.bundle import inspect_bundle
+
+    repo, manifest, _ = seed_run(state_root)
+    bundle = export_run(repo, manifest.run_id, tmp_path)
+    man_path = bundle / "manifest.json"
+    man = json.loads(man_path.read_text(encoding="utf-8"))
+    man["run_id"] = "run_" + "0" * 32
+    man_path.write_text(json.dumps(man, sort_keys=True) + "\n", encoding="utf-8")
+    _rewrite_sums(bundle)
+    report = inspect_bundle(bundle)
+    assert report["verification"]["summary"] == "failed"
+    assert any("run_id" in f or "digest" in f or "genesis" in f
+               for f in report["verification"]["failures"])
+    repo.close()
+
+
+def test_inspect_bundle_rejects_symlink_events(state_root: Path, tmp_path: Path):
+    from peb.evidence.bundle import inspect_bundle
+
+    repo, manifest, _ = seed_run(state_root)
+    bundle = export_run(repo, manifest.run_id, tmp_path)
+    real = bundle / "events.jsonl"
+    outside = tmp_path / "outside.jsonl"
+    outside.write_bytes(real.read_bytes())
+    real.unlink()
+    real.symlink_to(outside)
+    report = inspect_bundle(bundle)
+    assert report["verification"]["summary"] == "failed"
+    assert any("symlink" in f for f in report["verification"]["failures"])
+    repo.close()
+
+
+def _rewrite_sums(bundle: Path) -> None:
+    names = [p.name for p in bundle.iterdir() if p.is_file() and p.name != "SHA256SUMS"]
+    lines = []
+    for name in sorted(names):
+        digest = __import__("hashlib").sha256((bundle / name).read_bytes()).hexdigest()
+        lines.append(f"{digest}  {name}")
+    (bundle / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def test_inspect_bundle_refuses_checksum_mismatch(state_root: Path, tmp_path: Path):
     from peb.evidence.bundle import inspect_bundle
 

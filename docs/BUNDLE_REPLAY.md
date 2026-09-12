@@ -43,6 +43,10 @@ CLI `peb replay <bundle_dir>` prints this object. Service `evidence.replay` (1/3
 
 `summary` is `failed` when any supported check fails. A bundle `checkpoints.json` signature is **not** treated as independently retained (it was minted in the exporting store).
 
+Empty evidence, empty SHA256SUMS, a manifest whose `run_id`/digest does not bind to `run_created`, and symlink/non-regular files fail closed. Files are `lstat`+`O_NOFOLLOW` and hashed from the same captured bytes used to parse.
+
+Checksum + event-hash consistency is **not** independent authenticity and **not** full repository action/receipt verification (`unsupported_checks`).
+
 ## UI
 
 2/3 binds the cockpit. Label imported evidence as replay, not as a stored-run control.
