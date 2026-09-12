@@ -27,6 +27,7 @@ from ..errors import ErrorCode, PebError
 STATIC_ROOT = Path(__file__).with_name("static")
 COOKIE = "peb_operator"
 BODY_LIMIT = 64 * 1024
+STUDY_BODY_LIMIT = 4 * 1024 * 1024  # separate plan bound, matching the CLI plan-file ceiling
 ERROR_STATUS = {
     ErrorCode.invalid_input: 400, ErrorCode.unauthorized: 403,
     ErrorCode.provider_unavailable: 503, ErrorCode.conflict: 409,
@@ -73,16 +74,16 @@ def _origin_parts(origin: str) -> tuple[str, str]:
     return f"http://{authority}", authority
 
 
-async def _json_body(request: Request) -> dict:
+async def _json_body(request: Request, *, limit: int = BODY_LIMIT) -> dict:
     if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
         raise _WebError(415, "Use application/json.", ErrorCode.invalid_input)
     data = bytearray()
     async for chunk in request.stream():
-        if len(data) + len(chunk) > BODY_LIMIT:
+        if len(data) + len(chunk) > limit:
             raise _WebError(413, "Request body exceeds the workroom limit.", ErrorCode.invalid_input)
         data.extend(chunk)
     try:
-        value = strict_json_loads(data.decode("utf-8"))
+        value = strict_json_loads(data.decode("utf-8"), ceiling_bytes=limit)
     except (ValueError, UnicodeError):
         raise _WebError(400, "Invalid JSON object.", ErrorCode.invalid_input) from None
     if not isinstance(value, dict):
@@ -99,6 +100,8 @@ ROUTES = (
     ("POST", "/api/replays", "evidence.replay"),
     ("POST", "/api/demos", "demo.run"),
     ("POST", "/api/studies/plan", "study.plan"),
+    ("POST", "/api/studies/start", "study.start"),
+    ("GET", "/api/studies/{study_id}", "study.get"),
     ("POST", "/api/runs", "run.create"),
     ("POST", "/api/runs/observe", "run.start"),
     ("POST", "/api/runs/{run_id}/step", "run.step"),
@@ -134,6 +137,7 @@ def create_workroom(
         raise ValueError("session TTL must be 30..86400 seconds")
     sessions: dict[str, _Session] = {}
     previews: dict[str, tuple[str, float, str]] = {}
+    study_previews: dict[str, tuple[str, float, str]] = {}
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
     def session(request: Request) -> _Session:
@@ -217,7 +221,7 @@ def create_workroom(
             current_session = session(request)
             if method == "POST":
                 csrf(request)
-                payload = await _json_body(request)
+                payload = await _json_body(request, limit=STUDY_BODY_LIMIT if operation == "study.start" else BODY_LIMIT)
             else:
                 items = list(request.query_params.multi_items())
                 if (len(items) > 8 or len({k for k, _ in items}) != len(items)
@@ -230,6 +234,16 @@ def create_workroom(
             except ValueError:
                 raise _WebError(400, "Invalid record identifier.", ErrorCode.invalid_input) from None
             try:
+                if operation == "study.start":
+                    config = payload.get("plan", {}).get("config", {}) if isinstance(payload.get("plan"), dict) else {}
+                    ticket = payload.pop("preview_token", None)
+                    if isinstance(config, dict) and config.get("provider") == "deepseek":
+                        bound = study_previews.pop(ticket, None) if isinstance(ticket, str) else None
+                        fingerprint = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+                        if (bound is None or bound[0] != current_session.csrf or bound[1] <= clock() or bound[2] != fingerprint):
+                            raise _WebError(409, "Preview this exact hosted study and budget before starting.", ErrorCode.conflict)
+                        if payload.get("confirm") is not True or payload.get("confirm_hosted") is not True:
+                            raise _WebError(400, "Explicit hosted study confirmation required.", ErrorCode.invalid_input)
                 if operation == "run.create" and payload.get("provider") == "deepseek":
                     raise _WebError(409, "Hosted lifecycle requires a run-bound scope preview. Use the bounded hosted launch.", ErrorCode.conflict)
                 if operation in {"run.step", "run.begin"}:
@@ -288,6 +302,31 @@ def create_workroom(
         return {"scope": scope, "start_payload": start_payload,
                 "preview_token": token, "expires_in_seconds": 300,
                 "cost_available": priced, "hosted_start_ready": start_payload.get("provider") == "deepseek"}
+
+    @app.post("/api/studies/preview")
+    async def study_preview(request: Request):
+        csrf(request)
+        current = session(request)
+        body = await _json_body(request, limit=STUDY_BODY_LIMIT)
+        try:
+            result = await service.request("study.preview", {}, body)
+            if not isinstance(result, dict) or not isinstance(result.get("start_payload"), dict):
+                raise PebError(ErrorCode.internal, "Study preview did not supply a normalized start request.")
+            start = result["start_payload"]
+            scope = {k: v for k, v in result.items() if k != "start_payload"}
+            fingerprint = json.dumps(start, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        except PebError:
+            raise
+        except Exception:  # noqa: BLE001 — the operator gets a bounded error, never a provider traceback
+            raise PebError(ErrorCode.internal, "Study preview failed.") from None
+        for old in list(study_previews):
+            if study_previews[old][1] <= clock() or study_previews[old][0] == current.csrf:
+                study_previews.pop(old)
+        if len(study_previews) >= 64:
+            study_previews.pop(next(iter(study_previews)))
+        token = secrets.token_urlsafe(32)
+        study_previews[token] = (current.csrf, clock() + 300, fingerprint)
+        return {"scope": scope, "start_payload": start, "preview_token": token, "expires_in_seconds": 300}
 
     @app.get("/api/runs/{run_id}/events")
     async def event_page(request: Request, run_id: str):
