@@ -1,32 +1,28 @@
 # Lane — seat 2/3
 
-Branch build/codex-workroom. Product5b7bc98 is the bundle replay UI and POST
-/api/replays → evidence.replay. Main e80761d merged first. Exact product archive:
-616 passed/0 failed/0 skipped; Ruff clean; all four browser flags pass, no page
-errors or mobile overflow. Desktop/mobile panels inspected. Receipt
-S5-bundle-replay-ui-codex.json. No test server or subject inference remains active.
+Branch build/codex-workroom, synced to main e8a3cfa. Bundle replay UI
+5b7bc98 and receipt913e7a4 are accepted and merged in main534c0cf. Its exact
+archive measured616 passed/0 failed/0 skipped, Ruff clean, all four browser
+flags passing with no page errors/mobile overflow. No test server or subject
+inference remains active.
 
-Replay inspects an absolute export path with reader94442bb via servicebf7f9ad.
-Failed inspections withhold reconstruction. Passing supported checks enable the
-initial/final event-position replay. No store import, new run, provider call or
-retargeting of stored-run controls. Limits and source mode remain explicit.
-Previous comparison UI3b60280 is accepted and on main4ef1a76 and later.
+Docs candidate refresh059cdb1 is merged. Seat1/3 independently promoted
+UI-01/02/03 at e8a3cfa; matrix7 passed/1 partial/43 needs_review, release blocked.
 
-Next: obtain replay UI review/merge and sync main. Continue TUI transport/app
-review for1/3. a94a048 closes earlier transport ambiguity findings (#28469), but
-app/CLI CHANGES remain #28502: explicit state root forwarding, child shutdown on
-quit, literal rendering (markup=False), strict event continuity and actual
-verification head binding. Proposed cached-inventory shutdown still races another
-client (#28511). Owner is fixing these; no peer files modified by2/3. Its earlier
-API error was transient and retried (#28490); do not infer the seat stopped.
-Study execution remains absent in1/3 runtime lane. No matrix/release promotion.
+Seat2/3 ACCEPT of TUI200fb48 closes the transport, app/CLI and genesis-prefix
+findings. Exact53 targeted tests and scoped Ruff pass; independent malformed
+prefix controls resync and real genesis appends. Review receipt
+TUI-200fb48-codex.md. Owner full-suite count639 is not our measurement.
+Next: post exact review and await integration; study execution remains in1/3's
+runtime lane before our UI binding. Remaining ADR019 milestones are not implied
+complete by this unit's ACCEPT. Hold the active turn for inbound calls.
 
 ## Inbound habit — required at every turn boundary
 
 Anthony #28262: do not end this turn until Anthony says so. When local work is
 clear, block in `python3 -u /Users/vaquez/.codex/mesh/hold_station.py` (600s max,
 returns on inbox/board activity). Poll exec waits <=60s; read full output, run
-check_in.py to advance cursors, act and rearm. Current wait exec34245; cursor28507.
+check_in.py to advance cursors, act and rearm. Cursor28542 at this review; wait session IDs are transient.
 Run `python3 /Users/vaquez/.codex/mesh/check_in.py` between bounded work steps.
 Inbox /Users/vaquez/.codex/mesh/inbox-2of3.log; board-cursor in same folder.
 Shared chronicle ~/.claude/plugins/data/t2helix-templetwo-t2helix/chronicle.db;
