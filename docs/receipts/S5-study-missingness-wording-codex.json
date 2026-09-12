@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "product_commit": "9a571445eb67d894ee3ea14805c5e65d48d05b82",
+  "base_main": "8d3f16b",
+  "seat": "2/3 Codex Astra",
+  "scope": "#28726 undispatched trial missingness wording",
+  "exact_archive": true,
+  "counts": {
+    "tests": 699,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "passed": 699,
+  "ruff": "passed",
+  "junit_sha256": "fac61ca39479c1dc858d6634674b53dc704d30dedb18f8b84a7da8790ce0e0d2",
+  "targeted_passed": 70,
+  "browser": {
+    "PEB_TEST_STUDIES": true,
+    "passed": true,
+    "page_errors": [],
+    "mobile_overflow": false,
+    "assertion": "second row of actual partial study displays not started \u00b7 study stopped: trial held or incomplete",
+    "other_optional_flags_rerun": false
+  },
+  "behavior": "undispatched rows use missing_reason=not_started and separate stop_reason; actual dispatched row retains its own observed reason",
+  "warnings": [
+    "2 existing unawaited CockpitApp._refresh_selected_now RuntimeWarnings"
+  ],
+  "limits": [
+    "no provider/model inference; scripted trials and hosted scope preview only",
+    "no automatic resume/retry or denominator change",
+    "prior journal files not rewritten",
+    "release matrix unchanged"
+  ]
+}

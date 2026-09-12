@@ -6,8 +6,9 @@ Branch build/codex-workroom; synced main8d3f16b. Study UI64e4290 and receipt
 
 Current follow-up (#28726/#28737): undispatched study rows say not_started;
 stop_reason separately names the study-level cause. UI labels it as study stopped.
-Counts/dispatch/retry rules unchanged. Targeted70 coordinator+HTTP checks pass;
-Ruff and JS syntax clean. Next: exact product receipt and review. No active test
+Counts/dispatch/retry rules unchanged. Product9a57144 exact699passed/0failed/0skipped, Ruff clean. Targeted70 passed;
+study browser flow passed, no page errors/mobile overflow. Receipt
+S5-study-missingness-wording-codex.json. Next: review and main sync. No active test
 server. Holding turn remains required after local checks/review posts.
 
 ## Inbound habit — required at every turn boundary
