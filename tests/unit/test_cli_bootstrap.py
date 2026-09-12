@@ -67,7 +67,6 @@ def test_peb_console_script_help_and_doctor_start(state_root: Path):
 @pytest.mark.parametrize(
     "argv",
     [
-        ["study", "plan", "--config", "config/studies/framing_pilot.json"],
         ["study", "run", "study-x", "--provider", "scripted", "--max-model-calls", "1"],
     ],
 )
@@ -163,3 +162,37 @@ def test_run_dry_run_prints_the_scope_and_makes_no_run(state_root: Path, capsys,
                "--max-model-calls", "4", "--max-tokens", "256", "--dry-run", "--thinking", "disabled"])
     assert rc == 0 and json.loads(capsys.readouterr().out)["thinking"].startswith("disabled")
     assert main(["runs", "list"]) == 0 and json.loads(capsys.readouterr().out) == []  # nothing was created in the state root
+
+
+def test_study_plan_is_real_bounded_and_never_overwrites(state_root: Path, capsys, tmp_path, monkeypatch):
+    """EVAL-02 seam: `peb study plan` calls seat 2/3's build_plan; no store, no provider, no write unless --out (and
+    then only to a NEW file). An over-cap config is refused; an absent planner lane fails honestly."""
+    rc = main(["study", "plan", "--config", "config/studies/framing_pilot.json"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    plan = json.loads(out)
+    assert plan["schema_version"] == 1 and plan["counts"] == {"planned": 8, "started": 0, "provider_completed": 0, "evaluable": 0}
+    assert plan["study_id"].startswith("study_") and len(plan["trials"]) == 8 and plan["budget"]["model_calls_ceiling"] == 128
+    assert not state_root.exists()  # planning touched no state root
+    target = tmp_path / "plans" / "pilot.json"
+    assert main(["study", "plan", "--config", "config/studies/framing_pilot.json", "--out", str(target)]) == 0
+    assert json.loads(target.read_text())["plan_hash"] == plan["plan_hash"]  # byte-identical plan, same hash
+    assert json.loads(capsys.readouterr().out)["out"] == str(target)
+    rc = main(["study", "plan", "--config", "config/studies/framing_pilot.json", "--out", str(target)])
+    assert rc == 2 and json.loads(capsys.readouterr().err)["error"]["code"] == "conflict"  # never overwritten
+    over = tmp_path / "over.json"
+    cfg = json.loads(Path("config/studies/framing_pilot.json").read_text()); cfg["max_trials"] = 4
+    over.write_text(json.dumps(cfg))
+    rc = main(["study", "plan", "--config", str(over)])
+    assert rc == 2 and json.loads(capsys.readouterr().err)["error"]["code"] == "invalid_input"
+    import builtins
+    real_import = builtins.__import__
+
+    def no_planner(name, *a, **k):
+        if name.endswith("evaluation.planner"):  # absolute or package-relative spelling
+            raise ImportError("simulated: planner lane absent")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", no_planner)
+    rc = main(["study", "plan", "--config", "config/studies/framing_pilot.json"])
+    assert rc == 2 and json.loads(capsys.readouterr().err)["error"]["code"] == "not_implemented"

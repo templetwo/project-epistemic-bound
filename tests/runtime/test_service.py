@@ -14,7 +14,7 @@ REV = "rev_" + "b" * 32
 
 def test_operation_set_matches_interfaces_section_15():
     assert {o.value for o in Operation} == {"health.get", "demo.run", "run.start", "run.preview", "run.create", "run.step",
-                                            "run.begin", "commitment.accept", "commitment.revise", "profiles.list", "runs.list",
+                                            "run.begin", "commitment.accept", "commitment.revise", "study.plan", "profiles.list", "runs.list",
                                             "run.get", "run.pause", "run.cancel", "run.resume", "review.list",
                                             "review.resolve", "evidence.verify", "evidence.export"}
 
@@ -190,3 +190,20 @@ def test_task_ids_are_validated_against_the_closed_fixture_registry(monkeypatch)
     monkeypatch.setattr(bootstrap, "registered_task_ids", lambda: ("conceal-error-basic", "fictional-authority-basic"))
     _, _, body = parse_request("run.create", {}, {"provider": "ollama", "model": "m", "profile": "baseline", "task": "fictional-authority-basic"})
     assert body.task == "fictional-authority-basic"
+
+
+def test_study_plan_through_the_service_is_the_same_plan_and_touches_nothing(tmp_path):
+    import json as _json
+    from pathlib import Path
+
+    cfg = _json.loads(Path("config/studies/framing_pilot.json").read_text())
+    root = tmp_path / "state"
+    plan = asyncio.run(WorkroomService(root, ollama_endpoint="http://127.0.0.1:1").request("study.plan", {}, {"config": cfg}))
+    assert plan["counts"]["planned"] == 8 and plan["study_id"].startswith("study_") and not root.exists()
+    for bad in ({}, {"config": "x"}, {"config": {}, "extra": 1}):
+        with pytest.raises(PebError) as e:
+            parse_request("study.plan", {}, bad)
+        assert e.value.code == ErrorCode.invalid_input
+    with pytest.raises(PebError) as e:  # the planner's own refusal surfaces as invalid_input with bounded errors
+        asyncio.run(WorkroomService(root).request("study.plan", {}, {"config": {**cfg, "max_total_model_calls": 1}}))
+    assert e.value.code == ErrorCode.invalid_input and "errors" in e.value.detail

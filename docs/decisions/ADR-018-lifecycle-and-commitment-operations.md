@@ -47,3 +47,12 @@ operations (additive to the §15 table; `run.start` is unchanged for the reviewe
 (`bootstrap.registered_task_ids()`), and composition uses that fixture (`fixture_id=task_id`) for the real run and
 for the dry-run scope alike. Never a free string; an unregistered id is `invalid_input` naming the registry. The five
 scenario families seat 2/3 registers join every path, and the tests, without further runtime change.
+
+## Addendum 2026-09-12 — `peb study plan` and `study.plan` bind seat 2/3's planner (EVAL-02)
+
+`cli.build_study_plan(config)` wraps `peb.evaluation.planner.build_plan` with the lane rule (`not_implemented` when the
+planner lane is absent; the planner's own refusal — unknown fixture, non-framing profile, over-cap schedule — surfaces
+as `invalid_input` with bounded errors). `peb study plan --config <file> [--out <new file>]` prints the plan or writes
+it to a NEW file only (an existing plan is never overwritten: `conflict`). Service `study.plan` returns the same plan;
+neither opens a store nor a provider nor writes state. `peb study run` remains `not_implemented`: execution is
+separate work (a runner must enforce the planner's fresh-state policy per trial).
