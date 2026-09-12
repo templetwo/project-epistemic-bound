@@ -14,7 +14,7 @@ REV = "rev_" + "b" * 32
 
 def test_operation_set_matches_interfaces_section_15():
     assert {o.value for o in Operation} == {"health.get", "demo.run", "run.start", "run.preview", "run.create", "run.step",
-                                            "run.begin", "commitment.accept", "commitment.revise", "study.plan", "reviews.list", "comparison.get",
+                                            "run.begin", "commitment.accept", "commitment.revise", "study.plan", "reviews.list", "comparison.get", "evidence.replay",
                                             "profiles.list", "runs.list",
                                             "run.get", "run.pause", "run.cancel", "run.resume", "review.list",
                                             "review.resolve", "evidence.verify", "evidence.export"}
@@ -223,4 +223,14 @@ def test_comparison_get_payload_is_closed_and_needs_no_path_ids():
     ]:
         with pytest.raises(PebError) as e:
             parse_request("comparison.get", bad_ids, bad_payload)
+        assert e.value.code == ErrorCode.invalid_input
+
+
+def test_evidence_replay_payload_needs_an_absolute_path_and_nothing_else():
+    op, ids, body = parse_request("evidence.replay", {}, {"bundle_dir": "/tmp/bundles/run-x"})
+    assert op is Operation.evidence_replay and ids == {} and body.bundle_dir == "/tmp/bundles/run-x"
+    for bad_ids, bad in [({}, {"bundle_dir": "relative/run-x"}), ({}, {"bundle_dir": ""}), ({}, {}), ({}, {"bundle_dir": "/x", "import": True}),
+                         ({"run_id": RUN}, {"bundle_dir": "/x"})]:
+        with pytest.raises(PebError) as e:
+            parse_request("evidence.replay", bad_ids, bad)
         assert e.value.code == ErrorCode.invalid_input

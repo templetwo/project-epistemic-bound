@@ -81,3 +81,14 @@ an explicit `consequence_hash` on both manifests; from this commit every run com
 and a planned trial can be matched on the consequence model the subject was shown. Runs recorded before this pin carry no
 value and the core reports them as not comparable; nothing is back-filled or guessed from the current fixture corpus.
 `settings` is an open dict on the frozen manifest contract, so this is additive; no schema changes.
+
+## Addendum 2026-09-12 — `evidence.replay`: bundle replay is a read-only passthrough to the shared reader
+
+Seat 2/3's bundle-replay cockpit view (#28431) needs to show an EXPORTED bundle without importing it. Seat 3/3 built the
+shared reader `evidence.bundle.inspect_bundle` (#28436, hardened at #28449 after 2/3's four regressions: empty evidence,
+emptied inventory, rebound manifest, symlinked events all fail closed). The service operation `evidence.replay` returns that
+reader's dict unchanged so the cockpit and `peb replay` show the same object: `mode: replay`, `recorded: false`,
+`provider_invoked: false`, and a verification block that names what was checked and what cannot be checked from a bundle
+(independent checkpoint HMAC, operator-store correspondence, full receipt/resource-table verification). The seam opens no
+store and creates nothing in the operator root; it refuses only a relative path. Imported evidence is labelled replay, never
+a stored run, and no listing, resolution or lifecycle operation accepts a bundle.
