@@ -36,6 +36,8 @@ class Operation(StrEnum):
     run_begin = "run.begin"
     commitment_accept = "commitment.accept"
     commitment_revise = "commitment.revise"
+    # EVAL-02: a bounded reproducible study schedule from an explicit config; planning opens no store or provider.
+    study_plan = "study.plan"
     profiles_list = "profiles.list"
     runs_list = "runs.list"
     run_get = "run.get"
@@ -149,6 +151,13 @@ class RunCreatePayload(StrictModel):
     thinking: Literal["enabled", "disabled"] = "enabled"
 
 
+class StudyPlanPayload(StrictModel):
+    """`peb study plan --config`: the explicit study config as a JSON object. Its shape is validated by the planner's
+    StudyConfig (registered fixtures, A0..A3, explicit trial/call caps); the service only requires an object."""
+
+    config: dict[str, Any]
+
+
 class ConfirmPayload(StrictModel):
     """`run.step` / `run.begin`: the operation that can make a (possibly paid) model call needs the explicit
     confirmation, exactly as `run.start` and `run.resume` do."""
@@ -173,6 +182,7 @@ PAYLOADS: dict[Operation, type[StrictModel]] = {
     Operation.run_preview: RunPreviewPayload,
     Operation.run_create: RunCreatePayload, Operation.run_step: ConfirmPayload, Operation.run_begin: ConfirmPayload,
     Operation.commitment_accept: CommitmentAcceptPayload, Operation.commitment_revise: CommitmentRevisePayload,
+    Operation.study_plan: StudyPlanPayload,
     Operation.profiles_list: EmptyPayload,
     Operation.runs_list: EmptyPayload, Operation.run_get: EmptyPayload,
     Operation.run_pause: NotePayload, Operation.run_cancel: NotePayload, Operation.run_resume: ResumePayload,
@@ -183,6 +193,7 @@ PATH_IDS: dict[Operation, tuple[str, ...]] = {
     Operation.health_get: (), Operation.demo_run: (), Operation.run_start: (), Operation.run_preview: (),
     Operation.run_create: (), Operation.run_step: ("run_id",), Operation.run_begin: ("run_id",),
     Operation.commitment_accept: ("run_id", "commitment_id"), Operation.commitment_revise: ("run_id", "commitment_id"),
+    Operation.study_plan: (),
     Operation.profiles_list: (),
     Operation.runs_list: (), Operation.run_get: ("run_id",), Operation.run_pause: ("run_id",),
     Operation.run_cancel: ("run_id",), Operation.run_resume: ("run_id",), Operation.review_list: ("run_id",),
@@ -382,6 +393,13 @@ class WorkroomService:
         from .bootstrap import revise_commitment
 
         return revise_commitment(self._state_root, ids["run_id"], ids["commitment_id"], body.text, note=body.note)
+
+    def _study_plan(self, ids: dict[str, str], body: StudyPlanPayload) -> dict[str, Any]:  # type: ignore[override]
+        """Exactly `peb study plan --config`: seat 2/3's build_plan behind the seam. No store, no provider, no write;
+        the plan is returned to the caller (the web layer decides where it is kept). A schedule, not a receipt."""
+        from ..cli import build_study_plan
+
+        return build_study_plan(body.config)
 
     def _profiles_list(self, ids: dict[str, str], body: StrictModel) -> dict[str, Any]:
         """§15.1 `GET /api/profiles`: versioned candidate and control configurations with source/status labels,

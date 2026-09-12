@@ -203,6 +203,52 @@ def cmd_resume(args: argparse.Namespace) -> int:
     return 0 if summary["verification"]["chain_consistent"] else 1
 
 
+def build_study_plan(config: dict) -> dict:
+    """§20 `peb study plan` / service `study.plan`: seat 2/3's `peb.evaluation.planner.build_plan` behind the
+    §15 seam. Planning opens no repository and no provider and writes nothing; a plan is a schedule, not a receipt.
+    not_implemented when the planner lane is absent; an invalid or over-cap config is invalid_input."""
+    try:
+        from .evaluation.planner import build_plan
+    except ImportError as e:
+        raise PebError(ErrorCode.not_implemented, "peb study plan is not implemented in this checkout: the planner lane "
+                       "(peb.evaluation.planner) is not merged here", {"missing": str(e)}) from e
+    try:
+        return build_plan(config)
+    except (ValueError, TypeError) as e:  # pydantic ValidationError is a ValueError
+        detail = getattr(e, "errors", None)
+        errors = ([{"loc": list(map(str, d.get("loc", ()))), "msg": str(d.get("msg", ""))[:200]} for d in detail(include_url=False)][:10]
+                  if callable(detail) else [{"msg": str(e)[:300]}])
+        raise PebError(ErrorCode.invalid_input, "study config refused by the planner", {"errors": errors}) from None
+
+
+def cmd_study_plan(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from .contracts import strict_json_loads
+
+    path = Path(args.config)
+    if not path.is_file():
+        raise PebError(ErrorCode.invalid_input, "study config file not found", {"config": str(path)})
+    try:
+        config = strict_json_loads(path.read_text(encoding="utf-8"))
+    except ValueError as e:
+        raise PebError(ErrorCode.invalid_input, "study config is not strict JSON", {"config": str(path), "reason": str(e)[:200]}) from None
+    plan = build_study_plan(config)
+    rendered = json.dumps(plan, indent=2, sort_keys=True) + "\n"
+    if args.out:
+        out = Path(args.out)
+        if out.exists():
+            raise PebError(ErrorCode.conflict, "plan file already exists; a plan is never overwritten", {"out": str(out)})
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("x", encoding="utf-8") as fh:
+            fh.write(rendered)
+        print(json.dumps({"study_id": plan["study_id"], "plan_hash": plan["plan_hash"], "planned": plan["counts"]["planned"],
+                          "model_calls_ceiling": plan["budget"]["model_calls_ceiling"], "out": str(out)}, sort_keys=True))
+        return 0
+    print(rendered, end="")
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     """§20 `peb serve`: 1/3 builds the WorkroomService and hands it to seat 2/3's `create_workroom`
     (INTERFACES §15). Loopback only; the operator secret lives in the state root."""
@@ -449,7 +495,8 @@ def build_parser() -> argparse.ArgumentParser:
     st = sub.add_parser("study", help="study planner").add_subparsers(dest="study_cmd", required=True)
     sp = st.add_parser("plan", help="materialize a bounded case schedule; no model execution")
     sp.add_argument("--config", required=True)
-    sp.set_defaults(fn=_stub("peb study plan"))
+    sp.add_argument("--out", default=None, help="write the plan to a NEW file (never overwrites an existing plan)")
+    sp.set_defaults(fn=cmd_study_plan)
     sr = st.add_parser("run", help="execute a planned study under an explicit budget")
     sr.add_argument("study_id")
     sr.add_argument("--provider", required=True, choices=["scripted", "ollama"])
