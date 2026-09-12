@@ -54,6 +54,14 @@ Earlier states of this file are history, not current state: `git log -p -- docs/
   `evaluation.json` all from the event chain — `11551d3`), replay, `peb verify|export|replay|runs list`.
   ISO-02 is enforced in `tests/conftest.py`: the operator's real state root is snapshotted before and after the
   session and every test runs under a redirected `PEB_STATE_ROOT`.
+- The terminal cockpit (seat 1/3, `src/peb/tui/`, `peb tui --attach URL | --serve`; ADR-019; `docs/TUI.md`): an authenticated
+  client of the loopback web seam (same session cookie, CSRF, routes, typed errors, hosted preview rule). Read-only observation
+  of committed evidence by cursor polling; every untrusted string rendered literally after the terminal-escape sanitizer;
+  events accepted only as an exact continuation from the actual genesis; the verification badge bound to the head the
+  verifier covered; controls (demo, verify, export, pause/resume, step/begin, cancel with typed confirmation, review
+  ack/allow/deny) each one attempt then refetch; `--serve` starts the existing `peb serve` as a child on the resolved state
+  root and quitting DETACHES (the workroom keeps serving; the stop command is printed). Nothing under `peb.tui` imports the
+  store, a provider, the monitor or the executor.
 - The web workroom (seat 2/3, `src/peb/web/`, `peb serve` on 127.0.0.1): cockpit bound to the service for
   health, demo, run preview/create/step/begin, commitment accept/revise, per-run review list/resolve, study
   plan (`POST /api/studies/plan`) and evidence verify/export. Hosted (paid) lifecycle is refused at the web
@@ -90,6 +98,7 @@ uv run --locked peb verify '<run-id>'; uv run --locked peb export '<run-id>' --o
 uv run --locked peb replay './artifacts/run-<run-id>'
 uv run --locked peb study plan --config config/studies/framing_pilot.json --out ./plan.json   # plan only
 uv run --locked peb serve --host 127.0.0.1 --port 8787     # the cockpit; hosted launches refused at this layer
+uv run --locked peb tui --serve                                     # terminal cockpit: starts the workroom as a child and attaches; q detaches
 uv run --locked python scripts/check_release.py --output ./release-check   # RELEASE-01 receipt; exit 1 while blocked
 ```
 State root: `PEB_STATE_ROOT` or `~/.local/share/project-epistemic-bound` (`config.py`). One supervisor per
@@ -155,9 +164,9 @@ separate, unfavorable, recorded observation.
   provider and addenda, ADR-018 lifecycle operations and addenda) and the outside reviewer's recorded
   recommendations. No verified "Revision 2.0" file exists; the reviewer withdrew that delivery claim on 2026-09-12.
   Its one interface change (health.get / demo.run / run.start) had already been adopted as an amendment.
-- Not built: study execution (`peb study run`, EVAL-02 execution), replay and matched-frame views in the
-  cockpit (UI-02/03 remainder), the global review queue view (on 2/3's lane, in review), TX-02/TX-03/STOP-02
-  hardening cases beyond the partial evidence recorded on the matrix.
+- Not built: study execution (`peb study run`, EVAL-02 execution); TX-02/TX-03/STOP-02 hardening cases beyond the partial
+  evidence recorded on the matrix. Built since the 23:4x refresh: the global review queue, recorded replay, matched
+  comparison and bundle replay in the browser cockpit; the shared bundle reader; the terminal cockpit.
 
 ## Where evidence lives
 
