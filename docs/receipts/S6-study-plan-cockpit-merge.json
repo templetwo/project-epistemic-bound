@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-11T23:16-0400 (measured with `date`)",
+  "main_before": "dfb1791",
+  "merges": [
+    {
+      "commit": "46f33f3",
+      "branch": "build/codex-workroom",
+      "tip": "68eeb1585007a5f062c32c91c657d40836106086",
+      "reviewed_by": "seat 1/3 (docs/reviews/UI-68eeb15-study-plan-cockpit-claude.md)",
+      "content": "study-plan cockpit: /api/studies/plan \u2192 study.plan; schedule/counts/ceilings/hashes shown; same JSON downloaded; stale-input invalidation; over-cap refused; no execution; docs/receipts/S5-study-plan-ui-codex.json"
+    }
+  ],
+  "trial": "trial/int-studyui-68eeb15 (a482a4c) = 559 passed / 0 skipped / 0 failed",
+  "clean_checkout_suite": "see the board post naming this receipt",
+  "board": [
+    "#28245"
+  ]
+}
