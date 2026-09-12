@@ -42,6 +42,32 @@ def projected_commitments(repo: Any, run_id: str) -> list[Commitment]:
     return commitments + [c for c in repo.commitments(run_id) if c.commitment_id not in seen]
 
 
+def projected_reviews(repo: Any, run_id: str) -> list:
+    """Recorded review queue for export: review_opened + review_resolved only.
+
+    Does not apply expire_reviews at read time. An open review past its deadline stays
+    pending in the bundle until a recorded resolution (2/3 #28286).
+    """
+    return reviews_from_events(run_id, repo.events(run_id))
+
+
+def recorded_evaluation(repo: Any, run_id: str) -> dict[str, Any]:
+    """Last evaluation_recorded event, or {present: false}. Never invents a verdict."""
+    from ..contracts import EventType
+
+    last = None
+    for ev in repo.events(run_id):
+        if ev.event_type is EventType.evaluation_recorded:
+            last = ev
+    if last is None:
+        return {"present": False}
+    payload = dict(last.payload)
+    payload["present"] = True
+    payload["event_id"] = last.event_id
+    payload["recorded_at"] = last.ts.isoformat()
+    return payload
+
+
 def read_only_run(repo: Any, run_id: str) -> ReadOnlyRun:
     """Everything from records: genesis manifest, events, receipts, commitments; corrections and reviews
     are rebuilt from the event chain (the ledger is in-memory in S3 — DEFERRED migration 0003)."""
