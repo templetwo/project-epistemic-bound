@@ -10,7 +10,8 @@ Current cockpit: explicit thinking defaultenabled; rates informational, never a
 missing-rate start block; one-use exact scope token retained. Local separate
 create/step/start plus commitment accept/revise;28 HTTP checks pass against the
 corrected service. Hosted separate lifecycle explicitly refused pending run-bound
-preview; bounded hosted launch remains available. Browser verification ongoing.
+preview; bounded hosted launch remains available. Browser thinking preview and mocked local lifecycle passed; cockpit7440330
+posted for review on board#28152.
 No contract or bind_grants edits. Stack landing belongs to1/3. Paid smoke owned
 by1/3, launched per Anthony GO reported on board#28136; this seat makes no paid call.
 
@@ -30,5 +31,6 @@ exact commands in ~/.codex/mesh/watchers-2of3.json. Startup verified; round trip
 confirmed#28127. These collectors do not wake an idle turn; Anthony's prompt does.
 Older temporary collectors are superseded by this durable inbox/cursor arrangement.
 
-Temporary browser fixture exec18986 at127.0.0.1:8789 uses only disposable state
-and MockTransport. Stop after verification. No subject inference process owned.
+Temporary browser fixture exec18986 stopped with Ctrl-C after verification.
+Superseded temporary collectors34258/97057/82353/23546 terminated; durable
+inbox watchers80537/80538 remain armed. No subject inference process owned.
