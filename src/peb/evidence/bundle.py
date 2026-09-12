@@ -8,14 +8,13 @@ repository action/receipt verification.
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import stat
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from ..boundary.canonical import DOMAIN_SNAPSHOT, digest
+from ..boundary.canonical import DOMAIN_SNAPSHOT, CanonicalizationError, digest
 from ..contracts import (
     Actor,
     EventType,
@@ -24,6 +23,8 @@ from ..contracts import (
     RunManifest,
     RunMode,
     StoredEvent,
+    StrictParseError,
+    strict_json_loads,
 )
 from ..errors import ErrorCode, PebError
 from .events import verify_chain
@@ -99,12 +100,16 @@ def inspect_bundle(bundle_dir: str | Path) -> dict[str, Any]:
     resources: dict[str, Any] = {}
     chain_ok = False
     if events:
-        chain = verify_chain(events, None)
-        failures.extend(chain.failures)
-        chain_ok = chain.chain_consistent
+        try:
+            chain = verify_chain(events, None)
+            failures.extend(chain.failures)
+            chain_ok = chain.chain_consistent
+        except CanonicalizationError as exc:
+            failures.append(f"event_hash_chain: {type(exc).__name__}")
+            chain_ok = False
         try:
             resources = replay_applied_from_events(events)
-        except (KeyError, TypeError, ValueError) as exc:
+        except (KeyError, TypeError, ValueError, CanonicalizationError) as exc:
             failures.append(f"resource reconstruction: {type(exc).__name__}")
             chain_ok = False
         if manifest is not None:
@@ -205,7 +210,7 @@ def _read_regular(path: Path) -> tuple[bytes | None, list[str]]:
 
 def _parse_manifest(raw: bytes) -> tuple[RunManifest | None, list[str]]:
     try:
-        obj = json.loads(raw.decode("utf-8"))
+        obj = strict_json_loads(raw.decode("utf-8"), ceiling_bytes=MAX_FILE_BYTES)
         if not isinstance(obj, dict) or not obj:
             return None, ["manifest.json is empty or not an object"]
         if "created_at" in obj and isinstance(obj["created_at"], str):
@@ -217,25 +222,30 @@ def _parse_manifest(raw: bytes) -> tuple[RunManifest | None, list[str]]:
         if "preaction_protocol" in obj:
             obj["preaction_protocol"] = PreactionProtocol(obj["preaction_protocol"])
         return RunManifest.model_validate(obj), []
-    except (ValueError, TypeError, KeyError) as exc:
+    except (StrictParseError, UnicodeDecodeError, ValueError, TypeError, KeyError) as exc:
         return None, [f"manifest.json: {type(exc).__name__}"]
 
 
 def _parse_events(raw: bytes) -> tuple[list[StoredEvent], list[str]]:
     failures: list[str] = []
     events: list[StoredEvent] = []
-    text = raw.decode("utf-8", errors="replace")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return [], ["events.jsonl: UnicodeDecodeError"]
     lines = [ln for ln in text.splitlines() if ln.strip()]
     if len(lines) > MAX_EVENTS:
         return [], ["events.jsonl exceeds event bound"]
     for i, line in enumerate(lines, start=1):
         try:
-            obj = json.loads(line)
+            obj = strict_json_loads(line, ceiling_bytes=MAX_FILE_BYTES)
+            if not isinstance(obj, dict):
+                raise StrictParseError("event must be an object")
             obj["ts"] = datetime.fromisoformat(obj["ts"])
             obj["event_type"] = EventType(obj["event_type"])
             obj["actor"] = Actor(obj["actor"])
             events.append(StoredEvent.model_validate(obj))
-        except (ValueError, KeyError, TypeError) as exc:
+        except (StrictParseError, UnicodeDecodeError, ValueError, KeyError, TypeError) as exc:
             failures.append(f"events.jsonl line {i}: {type(exc).__name__}")
     return events, failures
 

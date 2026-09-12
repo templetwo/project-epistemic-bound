@@ -230,6 +230,45 @@ def test_inspect_bundle_fails_manifest_run_id_unbound_from_events(state_root: Pa
     repo.close()
 
 
+def test_inspect_bundle_fails_nonfinite_payload_without_raising(state_root: Path, tmp_path: Path):
+    from peb.evidence.bundle import inspect_bundle
+
+    repo, manifest, _ = seed_run(state_root)
+    bundle = export_run(repo, manifest.run_id, tmp_path)
+    path = bundle / "events.jsonl"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    first = json.loads(lines[0])
+    first["payload"]["bad"] = float("nan")
+    lines[0] = json.dumps(first)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _rewrite_sums(bundle)
+    report = inspect_bundle(bundle)
+    assert report["verification"]["summary"] == "failed"
+    assert report["verification"]["failures"]
+    repo.close()
+
+
+def test_inspect_bundle_fails_duplicate_run_id_key(state_root: Path, tmp_path: Path):
+    from peb.evidence.bundle import inspect_bundle
+
+    repo, manifest, _ = seed_run(state_root)
+    bundle = export_run(repo, manifest.run_id, tmp_path)
+    path = bundle / "events.jsonl"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    authentic = json.loads(lines[0])["run_id"]
+    lines[0] = lines[0].replace(
+        '"run_id":',
+        '"run_id": "run_' + "0" * 32 + '", "run_id":',
+        1,
+    )
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _rewrite_sums(bundle)
+    report = inspect_bundle(bundle)
+    assert report["verification"]["summary"] == "failed"
+    assert authentic  # sanity
+    repo.close()
+
+
 def test_inspect_bundle_rejects_symlink_events(state_root: Path, tmp_path: Path):
     from peb.evidence.bundle import inspect_bundle
 
