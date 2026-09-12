@@ -659,8 +659,17 @@ class WorkroomService:
             rid = ids["run_id"]
             self._require_run(repo, rid)
             result = repo.verify(rid, body.checkpoint)  # retained checkpoint or None — never minted here (#27644)
+            # The head IDENTITY the verifier covered (outside reviewer, pass 2, item 2): the chain is append-only, so
+            # the events read back right after the verification are the verified events exactly when their count
+            # equals `checked_events`; then the last hash is the verified head. Otherwise (an append raced the read)
+            # no identity is claimed and a cockpit must show the result as unbound. Additive; the existing fields stand.
+            events = repo.events(rid)
+            head = None
+            if events and result.checked_events == len(events):
+                head = {"run_id": rid, "event_count": len(events), "head_hash": events[-1].event_hash}
             return {"run_id": rid, "verification": result.model_dump(mode="json"),
-                    "anchor_provenance": ANCHOR_RETAINED if body.checkpoint is not None else ANCHOR_NONE}
+                    "anchor_provenance": ANCHOR_RETAINED if body.checkpoint is not None else ANCHOR_NONE,
+                    "verified_head": head}
         finally:
             repo.close()
 
