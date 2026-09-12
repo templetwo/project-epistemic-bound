@@ -123,6 +123,39 @@
       "skipped": 0,
       "tests": 667,
       "tip": "a97365c"
+    },
+    {
+      "errors": 0,
+      "failed": 0,
+      "measured_at_local": "2026-09-12T02:09-0400",
+      "passed": 667,
+      "receipt": "docs-only commit (review, receipt, tip log); product tree = a97365c",
+      "ruff": "All checks passed",
+      "skipped": 0,
+      "tests": 667,
+      "tip": "84a3468"
+    },
+    {
+      "errors": 0,
+      "failed": 0,
+      "measured_at_local": "2026-09-12T02:27-0400",
+      "passed": 690,
+      "receipt": "docs/receipts/S5-study-driver-merge.json (merges 637b4ee + 94413e1; measured twice, 02:27 and 02:28)",
+      "ruff": "All checks passed",
+      "skipped": 0,
+      "tests": 690,
+      "tip": "94413e1"
+    },
+    {
+      "errors": 0,
+      "failed": 0,
+      "measured_at_local": "2026-09-12T02:28-0400",
+      "passed": 690,
+      "receipt": "docs-only merge of 3/3's receipt e34a084; product tree = 94413e1",
+      "ruff": "All checks passed",
+      "skipped": 0,
+      "tests": 690,
+      "tip": "8ef7d31"
     }
   ]
 }

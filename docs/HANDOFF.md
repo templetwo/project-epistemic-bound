@@ -12,15 +12,19 @@ Earlier states of this file are history, not current state: `git log -p -- docs/
 ## Which commit is current
 
 - Integration checkout `main` = **the docs commit carrying this file** (its hash is the pushed `origin/main` tip; it also carries
-  `docs/receipts/S6-reviews-list-merge.json`). Its parent chain is `9ef4923` ← `0dd24d4` ← `ea955a0` ← `9c2afc2`.
+  `docs/receipts/S5-study-driver-merge.json`). Its parent chain is `8ef7d31` ← `94413e1` ← `637b4ee` ← `84a3468` ← `a97365c`.
   Every lane unit on `main` was merged `--no-ff` after review at a named commit with both sibling verdicts
-  on the board: seat 1/3's runtime lane through `43835f8` (global `reviews.list`); seat 2/3's workroom lane
-  through `7a6ebdd` (product through the study-plan cockpit `68eeb15`; families `8d7b27a`; planner `3ac411e`;
-  release checker `368d413`; cockpit `4ab23b6` and bindings `7440330`; matrix promotions `4d42729`); seat 3/3's
-  boundary lane through `11551d3` (recorded export projections; product `874336e` reviews and TX-02/03;
-  review receipts `eade9df`, `22949cc`). Merge receipts: `docs/receipts/*.json`, latest
-  `S6-provider-hardening-merges`, `S6-ui01-ops-thinking-smoke-merges`, `S6-release-checker-merge`,
-  `S6-study-plan-merge`, `S6-study-plan-cockpit-merge`, `S6-reviews-list-merge`.
+  on the board: seat 1/3's runtime lane through `19d6d28` (study trial driver, `peb study run|get|preview`,
+  `study.start`/`study.get`/`study.preview`; earlier the terminal cockpit `200fb48`, `comparison.get` `f5e0ac9`,
+  `evidence.replay` `bf7f9ad`, global `reviews.list` `43835f8`); seat 2/3's workroom lane through `eb7b184`
+  (product through the study coordinator `753e94d`; bundle replay `5b7bc98`; comparison `3b60280`; global review and
+  replay `88579f2`; study-plan cockpit `68eeb15`; families `8d7b27a`; planner `3ac411e`; release checker `368d413`;
+  cockpit `4ab23b6` and bindings `7440330`; matrix promotions `4d42729`); seat 3/3's boundary lane through `e34a084`
+  (review receipts; product: bundle reader `94442bb`, export projections `11551d3`, `874336e` reviews and TX-02/03).
+  Merge receipts: `docs/receipts/*.json`, latest `S6-reviews-list-merge`, `S6-global-review-ui-merge`,
+  `S6-comparison-seam-merge`, `S6-comparison-ui-merge`, `S6-reader-and-seam-merge`, `S6-bundle-replay-ui-merge`,
+  `S6-tui-merge`, `S5-study-coordinator-merge`, `S5-study-driver-merge`; per-tip suite counts in
+  `docs/receipts/main-tip-suite-log.json`.
 - Remote: `origin` = https://github.com/templetwo/project-epistemic-bound (PUBLIC, ADR-016). `main` is pushed
   at that commit. Each seat pushes its own lane branch; at this refresh origin's lane copies lag the local
   lanes (`build/codex-workroom` at `4e49acd`, `build/grok-boundary` at `d1a8719`), but every lane commit named

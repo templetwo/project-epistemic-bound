@@ -64,11 +64,14 @@ non-blocking `flock` on `studies/<study_id>.lock`; a duplicate submission is `co
 
 ## Nits (not blocking; 2/3's call)
 
-- A `PebError` the driver raises BEFORE creating anything (a hosted plan without confirmation, a fixture with no registered
-  scripted control, a busy lock, a failed probe) is journaled as `unknown` / `driver_outcome_unavailable_or_invalid`. Under
-  the driver contract a raised `PebError` guarantees nothing was created (failures after creation are RETURNED on the
-  run, never raised), so a distinct `missing_reason: driver_refused` carrying the error code, and no inspection pointer,
-  would make the journal say what happened without weakening the stop.
+- ~~A `PebError` the driver raises BEFORE creating anything is journaled as `unknown`; under the driver contract a raised
+  `PebError` guarantees nothing was created, so a distinct `missing_reason: driver_refused` would be more informative.~~
+  **Withdrawn 2026-09-12 02:2x EDT (2/3's #28655 counterexample):** the premise was false. When evaluation raised a
+  `PebError` after a real run and the record read-back also failed, the driver at e23ce7d re-raised that `PebError` with
+  one run recorded — so a raised `PebError` did NOT prove pre-creation refusal, and the coordinator's conservative rule
+  (any exception = unknown outcome, stop, never retry) is the right one. The driver at 19d6d28 now raises
+  `evidence_failure` naming the run in that path and offers `runtime.study.TrialRefused` for its own pre-runtime
+  refusals only; the coordinator's classification stays unchanged (2/3's call, and the correct one).
 - `completed` is documented as "every planned trial returned recorded completion; not a behavioral success" — worth
   repeating on the cockpit surface when 2/3 binds it.
 - The full plan is embedded in the journal (83 KB for 16 trials); bounded by the 32 MiB ceiling, fine for this slice.
