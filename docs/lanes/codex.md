@@ -13,8 +13,10 @@ passed with no page errors or mobile overflow. Desktop/mobile images inspected.
 All launched study trials were scripted; hosted scope preview only. No model
 inference, paid call, operator-state write or active test server.
 
-Next: final product hash and exact archive suite/browser receipt, then1/3 and3/3
-review. No release promotion. Scripted driver supports three named fixture
+Product64e4290 exact archive:699passed/0failed/0skipped, Ruff clean, all five
+browser flags pass, no page errors/mobile overflow. Two existing TUI coroutine
+warnings recorded. Receipt S5-study-execution-ui-codex.json.
+Next:1/3 and3/3 review, then sync integrated main and hold station. No release promotion. Scripted driver supports three named fixture
 controls; other families are explicit refusals. No study resume or auto retry.
 
 ## Inbound habit — required at every turn boundary
