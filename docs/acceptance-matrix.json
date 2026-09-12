@@ -309,11 +309,17 @@
     {
       "id": "BEHAV-06",
       "requirement": "Universal refusal fails the authorized-work fixture; no-attempt ambiguity is represented.",
-      "status": "partial",
+      "status": "passed",
       "candidate_evidence": [],
-      "evidence": [],
-      "reviewed_by": null,
-      "note": "Authorized work and no-attempt labels exist; explicit universal-refusal control remains to implement."
+      "evidence": [
+        "tests/acceptance/test_scenario_families.py",
+        "docs/reviews/FAMILIES-8d7b27a-PLANNER-3ac411e-claude.md",
+        "docs/receipts/S6-families-planner-registry-merges.json",
+        "docs/receipts/S5-codex-families-planner.json",
+        "docs/reviews/MATRIX-families-planner-codex.md"
+      ],
+      "reviewed_by": "seat 1/3: implementation ACCEPT at 8d7b27a + 3ac411e; seat 2/3: requirement-to-assertion review on integrated main 185ac6d",
+      "note": "Two matched controls assert reachable authorized repair, universal refusal with useful_completion=false and no effects, and no-attempt-unclassified. Scripted software controls only; no inference about model capability or motive."
     },
     {
       "id": "COMMIT-01",
@@ -442,22 +448,35 @@
     {
       "id": "EVAL-01",
       "requirement": "Frame variants differ only in presentation; permissions/tools/state/consequence snapshots match.",
-      "status": "needs_review",
+      "status": "passed",
       "candidate_evidence": [
         "docs/reviews/S2-5e07b5b-codex-fixtures.md"
       ],
-      "evidence": [],
-      "reviewed_by": null,
-      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting."
+      "evidence": [
+        "tests/acceptance/test_scenario_families.py",
+        "tests/adversarial/test_fixture_boundaries.py",
+        "docs/reviews/FAMILIES-8d7b27a-PLANNER-3ac411e-claude.md",
+        "docs/receipts/S6-families-planner-registry-merges.json",
+        "docs/receipts/S5-codex-families-planner.json",
+        "docs/reviews/MATRIX-families-planner-codex.md"
+      ],
+      "reviewed_by": "seat 1/3: implementation ACCEPT at 8d7b27a + 3ac411e; seat 2/3: requirement-to-assertion review on integrated main 185ac6d",
+      "note": "All six fixture families pass four-frame canonical invariance. Adversarial mutations to nonpresentation fields are rejected. Family differences are not claimed to be frame-only differences."
     },
     {
       "id": "EVAL-02",
       "requirement": "Same-condition reset removes prior-run memory/state; randomized schedule is reproducible from its seed.",
-      "status": "partial",
+      "status": "passed",
       "candidate_evidence": [],
-      "evidence": [],
-      "reviewed_by": null,
-      "note": "Fresh reset assertions exist; seeded bounded study schedule remains unimplemented."
+      "evidence": [
+        "tests/evaluation/test_planner.py",
+        "docs/reviews/FAMILIES-8d7b27a-PLANNER-3ac411e-claude.md",
+        "docs/receipts/S6-families-planner-registry-merges.json",
+        "docs/receipts/S5-codex-families-planner.json",
+        "docs/reviews/MATRIX-families-planner-codex.md"
+      ],
+      "reviewed_by": "seat 1/3: implementation ACCEPT at 8d7b27a + 3ac411e; seat 2/3: requirement-to-assertion review on integrated main 185ac6d",
+      "note": "Seeded schedules reproduce exactly and changing the seed preserves membership/matching. Two real scripted runs in the same temporary state root show fresh workspace, session and empty request history after prior-run mutation. This gate covers planning/reset; study execution and resumable schedule enforcement remain unbuilt."
     },
     {
       "id": "EVAL-03",
@@ -526,7 +545,7 @@
       ],
       "evidence": [],
       "reviewed_by": null,
-      "note": "Partial cockpit; separate step/start, commitment mutation, studies and complete actual review/pause browser workflow remain open."
+      "note": "Create/step/start and commitment mutation are implemented. Studies, global review, replay/comparison views and the complete pause/review browser workflow remain open."
     },
     {
       "id": "UI-02",
@@ -575,7 +594,7 @@
       ],
       "evidence": [],
       "reviewed_by": null,
-      "note": "Not accepted. Two suite skips remain; matrix coverage, full UI and smoke evidence must be reconciled."
+      "note": "Integrated main 185ac6d measures 557 passed, zero skipped, zero failed. Gate remains partial pending semantic reconciliation of all matrix rows and the complete required workflow/smoke evidence."
     }
   ]
 }
