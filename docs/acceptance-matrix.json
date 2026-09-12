@@ -541,7 +541,7 @@
     {
       "id": "UI-01",
       "requirement": "Operator can complete create → step/run → inspect → pause/review → export using actual backend state.",
-      "status": "partial",
+      "status": "passed",
       "candidate_evidence": [
         "docs/receipts/S4-codex-workroom.json",
         "docs/reviews/UI-criterion-candidates-codex.md",
@@ -551,14 +551,26 @@
         "docs/receipts/S5-comparison-ui-codex.json",
         "docs/receipts/S5-bundle-replay-ui-codex.json"
       ],
-      "evidence": [],
-      "reviewed_by": null,
-      "note": "The web operator flow now exercises local create/step/bounded run, inspect, actual held-review acknowledgement/allow/deny and observed pause, commitments and export. Global review, recorded replay, matched comparison and bundle replay are implemented. Candidate index names exact controls; independent criterion review remains pending. Study execution is still a broader open API/workroom item."
+      "evidence": [
+        "docs/reviews/MATRIX-ui-rows-claude.md",
+        "tests/web/test_workroom.py",
+        "tests/browser/workroom.cjs",
+        "tests/browser/fixture_server.py",
+        "docs/receipts/S5-global-review-ui-codex.json",
+        "docs/receipts/S5-comparison-ui-codex.json",
+        "docs/receipts/S5-bundle-replay-ui-codex.json",
+        "docs/reviews/UI-criterion-candidates-codex.md",
+        "docs/reviews/UI-88579f2-global-review-replay-claude.md",
+        "docs/reviews/UI-3b60280-comparison-ui-claude.md",
+        "docs/reviews/UI-5b7bc98-bundle-replay-claude.md"
+      ],
+      "reviewed_by": "seat 1/3 (independent of the implementer seat 2/3): docs/reviews/MATRIX-ui-rows-claude.md, requirement text mapped to named assertions; browser workflows reproduced by the reviewer",
+      "note": "PASSED by seat 1/3 (reviewer; implementer seat 2/3) at main 534c0cf: create/step/run to observed completion, inspect, review-hold → observed pause, export — all on real backend state (temporary store; local model = mock transport, the real-model row is LIVE-01). Named limit: an operator pause of a run mid-inference is verified against the stub service (route contract); the observed paused state on real state comes through the review path. Study execution is not in this criterion."
     },
     {
       "id": "UI-02",
       "requirement": "Unauthenticated/cross-origin mutations fail; hostile displayed content cannot run browser script.",
-      "status": "partial",
+      "status": "passed",
       "candidate_evidence": [
         "docs/reviews/UI-criterion-candidates-codex.md",
         "tests/web/test_workroom.py",
@@ -567,14 +579,26 @@
         "docs/receipts/S5-comparison-ui-codex.json",
         "docs/receipts/S5-bundle-replay-ui-codex.json"
       ],
-      "evidence": [],
-      "reviewed_by": null,
-      "note": "Current web HTTP controls exercise authentication, Host/Origin, CSRF and session boundaries; actual browser hostile-content controls remain inert. Candidate index and exact receipts are provided for independent review of this criterion. TUI display review is tracked separately under ADR-019."
+      "evidence": [
+        "docs/reviews/MATRIX-ui-rows-claude.md",
+        "tests/web/test_workroom.py",
+        "tests/browser/workroom.cjs",
+        "tests/browser/fixture_server.py",
+        "docs/receipts/S5-global-review-ui-codex.json",
+        "docs/receipts/S5-comparison-ui-codex.json",
+        "docs/receipts/S5-bundle-replay-ui-codex.json",
+        "docs/reviews/UI-criterion-candidates-codex.md",
+        "docs/reviews/UI-88579f2-global-review-replay-claude.md",
+        "docs/reviews/UI-3b60280-comparison-ui-claude.md",
+        "docs/reviews/UI-5b7bc98-bundle-replay-claude.md"
+      ],
+      "reviewed_by": "seat 1/3 (independent of the implementer seat 2/3): docs/reviews/MATRIX-ui-rows-claude.md, requirement text mapped to named assertions; browser workflows reproduced by the reviewer",
+      "note": "PASSED by seat 1/3 at main 534c0cf: Host/Origin/CSRF/session/format boundaries on the real FastAPI app; a real scripted response carrying <img onerror> and <script> renders inert (no injected global, no img/script nodes, no page errors; CSP default-src 'none'); reproduced by the reviewer on clean archives."
     },
     {
       "id": "UI-03",
       "requirement": "Pending is not shown as success; pagination communicates totals and does not silently hide failed events.",
-      "status": "partial",
+      "status": "passed",
       "candidate_evidence": [
         "docs/reviews/UI-criterion-candidates-codex.md",
         "tests/web/test_workroom.py",
@@ -583,9 +607,21 @@
         "docs/receipts/S5-comparison-ui-codex.json",
         "docs/receipts/S5-bundle-replay-ui-codex.json"
       ],
-      "evidence": [],
-      "reviewed_by": null,
-      "note": "API control traverses all 123 events with explicit page totals/cursors; browser controls show an acknowledged review still waiting and resolved review paused, with observed effects and exports. Independent review should judge pending/failure visibility and pagination against this exact criterion, not infer it from suite totals."
+      "evidence": [
+        "docs/reviews/MATRIX-ui-rows-claude.md",
+        "tests/web/test_workroom.py",
+        "tests/browser/workroom.cjs",
+        "tests/browser/fixture_server.py",
+        "docs/receipts/S5-global-review-ui-codex.json",
+        "docs/receipts/S5-comparison-ui-codex.json",
+        "docs/receipts/S5-bundle-replay-ui-codex.json",
+        "docs/reviews/UI-criterion-candidates-codex.md",
+        "docs/reviews/UI-88579f2-global-review-replay-claude.md",
+        "docs/reviews/UI-3b60280-comparison-ui-claude.md",
+        "docs/reviews/UI-5b7bc98-bundle-replay-claude.md"
+      ],
+      "reviewed_by": "seat 1/3 (independent of the implementer seat 2/3): docs/reviews/MATRIX-ui-rows-claude.md, requirement text mapped to named assertions; browser workflows reproduced by the reviewer",
+      "note": "PASSED by seat 1/3 at main 534c0cf: acknowledged review still shows waiting_review; unstarted runs read 'recorded · not started'; typed failures are error statuses; pagination reports total/count/next_cursor per page with the complete ordered sequence and refuses limit=0; the endpoint slices the full sorted list without filtering. Named limit: the pagination control uses a stub service's events; no-hiding rests on the unfiltered slice plus completeness, not on a seeded failed event in a real paginated run."
     },
     {
       "id": "LIVE-01",
