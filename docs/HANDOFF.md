@@ -12,25 +12,26 @@ Earlier states of this file are history, not current state: `git log -p -- docs/
 ## Which commit is current
 
 - Integration checkout `main` = **the docs commit carrying this file** (its hash is the pushed `origin/main` tip; it also carries
-  `docs/receipts/S5-study-execution-ui-merge.json`). Its parent chain is `0f8b6f7` ← `ec2f5c8` ← `ba3c3e0` ← `8ef7d31` ←
-  `94413e1` ← `637b4ee` ← `84a3468` ← `a97365c`.
+  `docs/receipts/S5-study-missingness-wording-merge.json`). Its parent chain is `72bcce7` ← `f2871b2` ← `8d3f16b` ←
+  `0f8b6f7` ← `ec2f5c8` ← `ba3c3e0` ← `8ef7d31` ← `94413e1`.
   Every lane unit on `main` was merged `--no-ff` after review at a named commit with both sibling verdicts
   on the board: seat 1/3's runtime lane through `19d6d28` (study trial driver, `peb study run|get|preview`,
   `study.start`/`study.get`/`study.preview`; earlier the terminal cockpit `200fb48`, `comparison.get` `f5e0ac9`,
-  `evidence.replay` `bf7f9ad`, global `reviews.list` `43835f8`); seat 2/3's workroom lane through `7a6b056`
-  (product through the study execution cockpit `64e4290` and the study coordinator `753e94d`; bundle replay `5b7bc98`;
+  `evidence.replay` `bf7f9ad`, global `reviews.list` `43835f8`); seat 2/3's workroom lane through `3a9d325`
+  (product through the missingness wording `9a57144`, the study execution cockpit `64e4290` and the study coordinator
+  `753e94d`; bundle replay `5b7bc98`;
   comparison `3b60280`; global review and replay `88579f2`; study-plan cockpit `68eeb15`; families `8d7b27a`; planner
   `3ac411e`; release checker `368d413`; cockpit `4ab23b6` and bindings `7440330`; matrix promotions `4d42729`); seat
-  3/3's boundary lane through `41ef915` (review receipts; product: bundle reader `94442bb`, export projections `11551d3`,
+  3/3's boundary lane through `e707038` (review receipts; product: bundle reader `94442bb`, export projections `11551d3`,
   `874336e` reviews and TX-02/03).
   Merge receipts: `docs/receipts/*.json`, latest `S6-reviews-list-merge`, `S6-global-review-ui-merge`,
   `S6-comparison-seam-merge`, `S6-comparison-ui-merge`, `S6-reader-and-seam-merge`, `S6-bundle-replay-ui-merge`,
-  `S6-tui-merge`, `S5-study-coordinator-merge`, `S5-study-driver-merge`, `S5-study-execution-ui-merge`; per-tip suite
-  counts in `docs/receipts/main-tip-suite-log.json`.
+  `S6-tui-merge`, `S5-study-coordinator-merge`, `S5-study-driver-merge`, `S5-study-execution-ui-merge`,
+  `S5-study-missingness-wording-merge`; per-tip suite counts in `docs/receipts/main-tip-suite-log.json`.
 - Remote: `origin` = https://github.com/templetwo/project-epistemic-bound (PUBLIC, ADR-016). `main` is pushed
   at that commit. Each seat pushes its own lane branch; at this refresh every lane copy on origin is current
-  (`build/claude-core` at the previous main tip `ba3c3e0`, `build/codex-workroom` at `7a6b056`, `build/grok-boundary`
-  at `41ef915`), and every lane commit named here is reachable from `origin/main`. No tag has been applied (see "What
+  (`build/claude-core` at the previous main tip `8d3f16b`, `build/codex-workroom` at `3a9d325`, `build/grok-boundary`
+  at `e707038`), and every lane commit named here is reachable from `origin/main`. No tag has been applied (see "What
   was actually tested").
 
 ## What exists (software)
@@ -201,8 +202,8 @@ separate, unfavorable, recorded observation.
 
 1. The first scripted study on the operator root at Anthony's direction (`peb study plan` → `peb study run … --confirm`,
    or the cockpit), and a hosted study only after its own preregistration on the Stack and Anthony's explicit go
-   (`peb study preview` first; `--confirm-hosted`). Seat 2/3's bounded follow-up: the coordinator's `not_started` rows
-   after a stop should carry a reason of their own rather than the stopping trial's.
+   (`peb study preview` first; `--confirm-hosted`). (Seat 2/3's wording follow-up landed at `f2871b2`: undispatched rows
+   carry `not_started` with the study's stop cause separate.)
 2. Matrix promotions row by row: a named reviewer from another seat plus evidence per
    `docs/acceptance-matrix.json`, then `scripts/check_release.py` at the merged tree; the receipt is the record.
 3. Seat 3/3: TX-02/TX-03/STOP-02 hardening cases (crash-after-commit, concurrent appenders,

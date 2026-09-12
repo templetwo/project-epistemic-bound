@@ -178,6 +178,28 @@
       "skipped": 0,
       "tests": 699,
       "tip": "0f8b6f7"
+    },
+    {
+      "errors": 0,
+      "failed": 0,
+      "measured_at_local": "2026-09-12T02:37-0400",
+      "passed": 699,
+      "receipt": "docs-only commit (UI review, receipt, HANDOFF, tip log); product tree = 0f8b6f7",
+      "ruff": "All checks passed",
+      "skipped": 0,
+      "tests": 699,
+      "tip": "8d3f16b"
+    },
+    {
+      "errors": 0,
+      "failed": 0,
+      "measured_at_local": "2026-09-12T02:47-0400",
+      "passed": 699,
+      "receipt": "docs/receipts/S5-study-missingness-wording-merge.json (merges f2871b2 + 72bcce7; f2871b2 has the same product tree)",
+      "ruff": "All checks passed",
+      "skipped": 0,
+      "tests": 699,
+      "tip": "72bcce7"
     }
   ]
 }

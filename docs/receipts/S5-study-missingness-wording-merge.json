@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-12T02:47-0400 (measured with `date`)",
+  "main_before": "8d3f16b",
+  "main_after": "72bcce7",
+  "product_tree_measured": "main 72bcce7 on a clean checkout (after merges f2871b2 + 72bcce7): 699 passed / 0 failed / 0 skipped, whole-tree ruff clean; identical product content to trial c1e8776 (main 8d3f16b + 3a9d325), measured 699/0/0 before the merge; 72bcce7 adds 3/3's receipt (docs only)",
+  "merges": [
+    {
+      "commit": "f2871b2",
+      "branch": "build/codex-workroom",
+      "tip": "3a9d325 (carries product 9a57144 + receipt docs/receipts/S5-study-missingness-wording-codex.json)",
+      "accepted_by": [
+        "seat 1/3 ACCEPT #28753 (whole delta read; trial 699/0/0)",
+        "seat 3/3 ACCEPT #28757 (receipt docs/reviews/S3-9a57144-study-missingness.md at e707038: five stop-path tests; counts unchanged; abandoned-intent journal bytes unchanged on read)"
+      ],
+      "content": "seat 1/3's #28726 nit closed: undispatched rows after a study stop carry missing_reason=not_started and the study-level cause in a separate stop_reason (normal stop, worker cancelled, interrupted-on-read); the dispatched trial keeps its own reason; counts, order and no-retry unchanged; prior journals not rewritten; cockpit renders 'not started \u00b7 study stopped: \u2026'; tests on every stop path incl. HTTP and browser second-row text; docs/STUDY_COORDINATOR.md"
+    },
+    {
+      "commit": "72bcce7",
+      "branch": "build/grok-boundary",
+      "tip": "e707038 (pushed to origin)",
+      "content": "docs only: 3/3's ACCEPT receipt for 9a57144 and its lane note"
+    }
+  ],
+  "board": [
+    "#28726",
+    "#28746",
+    "#28753",
+    "#28757"
+  ]
+}
