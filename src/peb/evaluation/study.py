@@ -231,7 +231,7 @@ def get_study(state_root, study_id: str) -> dict:
                     if row["status"] == "dispatching":
                         row.update(status="unknown", missing_reason="worker_interrupted")
                     elif row["status"] == "planned":
-                        row.update(status="not_started", missing_reason="worker_interrupted")
+                        row.update(status="not_started", missing_reason="not_started", stop_reason="worker_interrupted")
                 _counts(report)
         finally:
             if fd is not None:
@@ -377,14 +377,14 @@ async def execute_study(state_root, study_id: str, *, run_trial: TrialDriver) ->
                 if row["status"] == "dispatching":
                     row.update(status="unknown", missing_reason="worker_cancelled")
                 elif row["status"] == "planned":
-                    row.update(status="not_started", missing_reason="worker_cancelled")
+                    row.update(status="not_started", missing_reason="not_started", stop_reason="worker_cancelled")
             report["status"] = "interrupted"
             _counts(report)
             _write(path, report)
             raise
         for row in report["rows"]:
             if row["status"] == "planned":
-                row.update(status="not_started", missing_reason=stop_reason or "not_started")
+                row.update(status="not_started", missing_reason="not_started", stop_reason=stop_reason)
         report["status"] = "partial" if stop_reason else "completed"
         _counts(report)
         _write(path, report)
