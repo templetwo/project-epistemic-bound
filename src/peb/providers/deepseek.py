@@ -78,6 +78,7 @@ class DeepSeekProvider:
                                        "prompt_tokens": None, "completion_tokens": None,
                                        "prompt_cache_hit_tokens": None, "prompt_cache_miss_tokens": None,
                                        "thinking_requested": self.thinking, "thinking_effective": None,
+                                       "reasoning_tokens": None,  # usage.completion_tokens_details.reasoning_tokens, summed when reported
                                        "refused_before_send": 0, "credential_reflected": 0}
 
     def __repr__(self) -> str:  # the key is never shown, only whether one is present
@@ -205,7 +206,9 @@ class DeepSeekProvider:
         usage = data.get("usage") if isinstance(data.get("usage"), dict) else None
         self._bump(usage)
         # Effective thinking: DeepSeek returns reasoning_content when thinking ran. Record what actually happened.
-        effective = "enabled" if choice["message"].get("reasoning_content") else "disabled"
+        reasoning = choice["message"].get("reasoning_content")
+        reasoning = reasoning if isinstance(reasoning, str) and reasoning else None
+        effective = "enabled" if reasoning else "disabled"
         self._usage["thinking_effective"] = effective if self._usage["thinking_effective"] in (None, effective) else "mixed"
         if not isinstance(content, str):
             return _err(request, "transport", "content is not a string")
@@ -213,11 +216,11 @@ class DeepSeekProvider:
             return _err(request, "model_id_mismatch", f"resolved={resolved!r}")
         if finish == "length":
             # Truncated: keep the bytes for the record; the runtime never parses an errored response.
-            return ModelResponse(model_requested=request.model, model_resolved=resolved, content=content,
+            return ModelResponse(model_requested=request.model, model_resolved=resolved, content=content, reasoning=reasoning,
                                  finish_reason="length", prompt_tokens=_int_or_none((usage or {}).get("prompt_tokens")),
                                  completion_tokens=_int_or_none((usage or {}).get("completion_tokens")), duration_ms=None,
                                  error="truncated")
-        return ModelResponse(model_requested=request.model, model_resolved=resolved, content=content,
+        return ModelResponse(model_requested=request.model, model_resolved=resolved, content=content, reasoning=reasoning,
                              finish_reason="stop" if finish == "stop" else "unknown",
                              prompt_tokens=_int_or_none((usage or {}).get("prompt_tokens")),
                              completion_tokens=_int_or_none((usage or {}).get("completion_tokens")), duration_ms=None, error=None)
@@ -230,6 +233,10 @@ class DeepSeekProvider:
             self._usage["responses_without_usage"] += 1
             return
         self._usage["responses_with_usage"] += 1
+        details = usage.get("completion_tokens_details")
+        rt = _int_or_none(details.get("reasoning_tokens")) if isinstance(details, dict) else None
+        if rt is not None:
+            self._usage["reasoning_tokens"] = (self._usage["reasoning_tokens"] or 0) + rt
         for k in fields:
             v = _int_or_none(usage.get(k))
             if v is None:

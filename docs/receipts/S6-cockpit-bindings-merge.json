@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-11T22:43-0400 (measured with `date`)",
+  "main_before": "d0f878d",
+  "merges": [
+    {
+      "commit": "27d4995",
+      "branch": "build/codex-workroom",
+      "tip": "744033077481afd25f9625e4938f0c6a94337f0f",
+      "reviewed_by": "seat 1/3 (docs/reviews/UI-7440330-cockpit-bindings-claude.md); 3/3 deferred (#28153)",
+      "content": "cockpit bindings for run.create/run.step/run.begin and commitment.accept/revise; hosted lifecycle refused at the web layer; bounded hosted launch keeps the preview token; thinking bound into the token; rates informational; 28 HTTP tests; browser harness; docs/WORKROOM.md; receipts + 2/3's review of 7f53445"
+    }
+  ],
+  "trial": "trial/int-cockpit2-7440330 (c3cee33) = 491 passed / 0 skipped / 0 failed; peb serve boot check passed",
+  "clean_checkout_suite": "see the board post naming this receipt",
+  "board": [
+    "#28152",
+    "#28153"
+  ]
+}

@@ -29,6 +29,13 @@ class Operation(StrEnum):
     demo_run = "demo.run"
     run_start = "run.start"
     run_preview = "run.preview"
+    # BUILD_SPEC §15 separate lifecycle operations (ADR-018): create records the run with NO network and NO
+    # inference; step executes at most one decision + its permitted effect; begin runs the bounded loop.
+    run_create = "run.create"
+    run_step = "run.step"
+    run_begin = "run.begin"
+    commitment_accept = "commitment.accept"
+    commitment_revise = "commitment.revise"
     profiles_list = "profiles.list"
     runs_list = "runs.list"
     run_get = "run.get"
@@ -85,6 +92,7 @@ class RunStartPayload(StrictModel):
     task: Literal["conceal-error-basic"] = "conceal-error-basic"
     max_model_calls: int = Field(default=16, ge=1, le=64)
     max_output_tokens: int | None = Field(default=None, ge=64, le=32768)
+    thinking: Literal["enabled", "disabled"] = "enabled"  # hosted thinking mode; ignored by Ollama (ADR-017 addendum 2)
     confirm: Literal[True]
 
 
@@ -99,6 +107,7 @@ class RunPreviewPayload(StrictModel):
     task: Literal["conceal-error-basic"] = "conceal-error-basic"
     max_model_calls: int = Field(default=16, ge=1, le=64)
     max_output_tokens: int | None = Field(default=None, ge=64, le=32768)
+    thinking: Literal["enabled", "disabled"] = "enabled"
     input_rate: float | None = Field(default=None, gt=0)
     output_rate: float | None = Field(default=None, gt=0)
     rates_provenance: str | None = Field(default=None, min_length=1, max_length=500)
@@ -112,9 +121,44 @@ class RunPreviewPayload(StrictModel):
         return self
 
 
+class RunCreatePayload(StrictModel):
+    """`POST /api/runs` (§15): the `run.start` selection WITHOUT `confirm` — nothing paid or inferential happens
+    at create. Config is validated (task, profile runnable, limits, endpoint policy), the run is recorded in
+    status `created`, and the provider is NOT probed: no network at all. `run.step`/`run.begin` probe first."""
+
+    provider: Literal["ollama", "deepseek"]
+    model: str = Field(min_length=1, max_length=200)
+    profile: str = Field(min_length=1, max_length=64)
+    task: Literal["conceal-error-basic"] = "conceal-error-basic"
+    max_model_calls: int = Field(default=16, ge=1, le=64)
+    max_output_tokens: int | None = Field(default=None, ge=64, le=32768)
+    thinking: Literal["enabled", "disabled"] = "enabled"
+
+
+class ConfirmPayload(StrictModel):
+    """`run.step` / `run.begin`: the operation that can make a (possibly paid) model call needs the explicit
+    confirmation, exactly as `run.start` and `run.resume` do."""
+
+    confirm: Literal[True]
+
+
+class CommitmentAcceptPayload(StrictModel):
+    note: str = Field(default="", max_length=500)
+
+
+class CommitmentRevisePayload(StrictModel):
+    """Version-checked: `commitment_id` in the path names the EXACT current version; a superseded or withdrawn
+    id is refused (conflict). The prior text is preserved on the record (the new version names its predecessor)."""
+
+    text: str = Field(min_length=1, max_length=4000)
+    note: str = Field(default="", max_length=500)
+
+
 PAYLOADS: dict[Operation, type[StrictModel]] = {
     Operation.health_get: EmptyPayload, Operation.demo_run: DemoRunPayload, Operation.run_start: RunStartPayload,
     Operation.run_preview: RunPreviewPayload,
+    Operation.run_create: RunCreatePayload, Operation.run_step: ConfirmPayload, Operation.run_begin: ConfirmPayload,
+    Operation.commitment_accept: CommitmentAcceptPayload, Operation.commitment_revise: CommitmentRevisePayload,
     Operation.profiles_list: EmptyPayload,
     Operation.runs_list: EmptyPayload, Operation.run_get: EmptyPayload,
     Operation.run_pause: NotePayload, Operation.run_cancel: NotePayload, Operation.run_resume: ResumePayload,
@@ -123,6 +167,8 @@ PAYLOADS: dict[Operation, type[StrictModel]] = {
 }
 PATH_IDS: dict[Operation, tuple[str, ...]] = {
     Operation.health_get: (), Operation.demo_run: (), Operation.run_start: (), Operation.run_preview: (),
+    Operation.run_create: (), Operation.run_step: ("run_id",), Operation.run_begin: ("run_id",),
+    Operation.commitment_accept: ("run_id", "commitment_id"), Operation.commitment_revise: ("run_id", "commitment_id"),
     Operation.profiles_list: (),
     Operation.runs_list: (), Operation.run_get: ("run_id",), Operation.run_pause: ("run_id",),
     Operation.run_cancel: ("run_id",), Operation.run_resume: ("run_id",), Operation.review_list: ("run_id",),
@@ -243,7 +289,7 @@ class WorkroomService:
                                               task_id=body.task, max_model_calls=body.max_model_calls,
                                               endpoint=endpoint, inference_lock_path=self._inference_lock_path,
                                               transport=self._ollama_transport, provider_kind=body.provider,
-                                              max_output_tokens=body.max_output_tokens)
+                                              max_output_tokens=body.max_output_tokens, thinking=body.thinking)
         summary["outcome_columns"] = summarize_outcome_columns(summary)
         return summary
 
@@ -262,13 +308,66 @@ class WorkroomService:
                      "provenance": body.rates_provenance or "supplied by the operator; not verified by this software"}
         scope = outbound_scope(provider_kind=body.provider, endpoint=endpoint, model=body.model, profile_id=body.profile,
                                task_id=body.task, max_model_calls=body.max_model_calls,
-                               max_output_tokens=body.max_output_tokens, rates=rates)
+                               max_output_tokens=body.max_output_tokens, rates=rates, thinking=body.thinking)
         start_payload = {"provider": body.provider, "model": body.model, "profile": body.profile, "task": body.task,
                          "max_model_calls": body.max_model_calls, "max_output_tokens": body.max_output_tokens,
                          "confirm": True}
+        if "thinking" in body.model_fields_set:  # bound into the preview token only when the operator chose it explicitly
+            start_payload["thinking"] = body.thinking
         return {"preview": True, "endpoint": endpoint, **scope, "start_payload": start_payload,
                 "note": "no network call was made and nothing was written; a hosted run.start must be preceded by this "
                         "report for the identical start_payload"}
+
+    def _endpoint_for(self, provider: str) -> str:
+        from ..config import load_config
+
+        return self._endpoint if provider == "ollama" else load_config(self._state_root).deepseek_endpoint
+
+    async def _run_create(self, ids: dict[str, str], body: RunCreatePayload) -> dict[str, Any]:  # type: ignore[override]
+        """§15 `POST /api/runs`: validate config and record the run in status `created`. No probe, no model
+        call, no inference lock — nothing leaves this machine. The web layer must still gate a HOSTED create
+        behind its preview token (the paid calls come at step/begin)."""
+        from .bootstrap import create_model_run
+
+        return await create_model_run(self._state_root, model=body.model, profile_id=body.profile, task_id=body.task,
+                                      max_model_calls=body.max_model_calls, endpoint=self._endpoint_for(body.provider),
+                                      transport=self._ollama_transport, provider_kind=body.provider,
+                                      max_output_tokens=body.max_output_tokens, thinking=body.thinking)
+
+    async def _run_step(self, ids: dict[str, str], body: ConfirmPayload) -> dict[str, Any]:  # type: ignore[override]
+        """§15 `POST /api/runs/{id}/step`: at most ONE subject decision and its permitted effect, on a run in
+        status created or running (paused/waiting_review runs go through `run.resume`; terminal runs conflict).
+        Probes the configured provider first; holds the supervisor and inference locks."""
+        from ..config import load_config
+        from .bootstrap import step_run
+
+        return await step_run(self._state_root, ids["run_id"], ollama_endpoint=self._endpoint,
+                              deepseek_endpoint=load_config(self._state_root).deepseek_endpoint,
+                              inference_lock_path=self._inference_lock_path, transport=self._ollama_transport, max_steps=1)
+
+    async def _run_begin(self, ids: dict[str, str], body: ConfirmPayload) -> dict[str, Any]:  # type: ignore[override]
+        """§15 `POST /api/runs/{id}/start`: begin the bounded loop on a created (or running) run and run it to a
+        boundary — the same loop `run.start` runs after creating. Same locks, same probe-first rule."""
+        from ..config import load_config
+        from .bootstrap import step_run
+
+        return await step_run(self._state_root, ids["run_id"], ollama_endpoint=self._endpoint,
+                              deepseek_endpoint=load_config(self._state_root).deepseek_endpoint,
+                              inference_lock_path=self._inference_lock_path, transport=self._ollama_transport, max_steps=None)
+
+    def _commitment_accept(self, ids: dict[str, str], body: CommitmentAcceptPayload) -> dict[str, Any]:  # type: ignore[override]
+        """§15 `POST /api/runs/{id}/commitments/{cid}/accept`: the operator accepts a task-scoped PROPOSED
+        undertaking. Records `commitment_accepted`; changes no grant and no policy (§9.3)."""
+        from .bootstrap import accept_commitment
+
+        return accept_commitment(self._state_root, ids["run_id"], ids["commitment_id"], note=body.note)
+
+    def _commitment_revise(self, ids: dict[str, str], body: CommitmentRevisePayload) -> dict[str, Any]:  # type: ignore[override]
+        """§15 `POST /api/runs/{id}/commitments/{cid}/revise`: operator-authorized, version-checked supersession
+        that preserves the prior text on the record. No authority expansion is possible (a Commitment carries none)."""
+        from .bootstrap import revise_commitment
+
+        return revise_commitment(self._state_root, ids["run_id"], ids["commitment_id"], body.text, note=body.note)
 
     def _profiles_list(self, ids: dict[str, str], body: StrictModel) -> dict[str, Any]:
         """§15.1 `GET /api/profiles`: versioned candidate and control configurations with source/status labels,

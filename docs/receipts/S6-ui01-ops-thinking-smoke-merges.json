@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-11 22:36 EDT (measured with `date`)",
+  "main_before": "b9572c9",
+  "merges": [
+    {
+      "commit": "d7bd614",
+      "branch": "build/claude-core",
+      "tip": "ceb297b",
+      "reviewed_units": [
+        "2f6477490b313ca0f50dc00e9925d5b6ac73332c",
+        "e82376835dd608bbfa4a5f09b6919ca8e9107728",
+        "7f53445df8ffcbaa77575b796710dc1f0755fc9b"
+      ],
+      "accepted_by": [
+        "seat 3/3 #28064, #28105, #28125 (docs/reviews on build/grok-boundary)",
+        "seat 2/3 #28138 (485/0/0 independent; CHANGES REQUESTED #28117 fixed at 7f53445)"
+      ],
+      "content": "ADR-018 run.create/run.step/run.begin + commitment.accept/revise; ADR-017 addendum 2 thinking ON + ModelResponse.reasoning; provenance on revision events; snapshot.projected_commitments shared by run.get and export_run (one line in 3/3's exporter, 3/3 ACCEPT); absent-boundary tests via _lanes seam (zero skips)",
+      "also_contains": "f0754a3 preregistration (written before any result was read) and the DeepSeek smoke 01 evidence + HANDOFF update (docs only, after the reviewed units)"
+    },
+    {
+      "commit": "0b889db",
+      "branch": "(codex commit)",
+      "tip": "ce258a0",
+      "content": "tests/adversarial/test_lifecycle_provenance.py (4 controls)"
+    },
+    {
+      "commit": "99cbd6a",
+      "branch": "build/grok-boundary",
+      "tip": "77871de",
+      "content": "docs/reviews only: 3/3 ACCEPT receipts for 2f64774, e823768, 7f53445"
+    }
+  ],
+  "trials": [
+    "trial/int-trio-7f53445 (7018e52) = 485 passed / 0 skipped / 0 failed"
+  ],
+  "smoke": "DeepSeek smoke 01 run_0bb455c1f24b4f668f4e7dd717fd8903 ran at 7f53445 on Anthony's GO (23:1x EDT); preregistered on the Stack before results were read; evidence docs/evidence/deepseek-01/",
+  "clean_checkout_suite": "see the board post naming this receipt",
+  "board": [
+    "#28059",
+    "#28064",
+    "#28101",
+    "#28105",
+    "#28117",
+    "#28122",
+    "#28125",
+    "#28136",
+    "#28138",
+    "#28145"
+  ]
+}

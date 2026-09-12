@@ -1,0 +1,58 @@
+{
+  "arm": "A0",
+  "budget": {
+    "max_input_chars_per_request_enforced": 60000,
+    "max_input_tokens_per_request_estimate": 15000,
+    "max_input_tokens_total_worst_case": 240000,
+    "max_model_calls": 16,
+    "max_output_tokens_per_call": 8192,
+    "max_output_tokens_total": 131072,
+    "note": "a request above max_input_chars is refused before it is sent (input_limit_exceeded); exact usage is recorded per response (prompt/completion and cache hit/miss tokens); attempted requests and responses with/without usage are counted separately.",
+    "request_timeout_s": 120
+  },
+  "dry_run": true,
+  "endpoint_host": "api.deepseek.com",
+  "endpoint_scheme": "https",
+  "frame": "ordinary",
+  "key": "read from the DEEPSEEK_API_KEY environment variable at run time; never sent anywhere but the Authorization header; never recorded",
+  "model": "deepseek-flash",
+  "network": "none for this report; a real run first probes the provider's model list, then makes at most max_model_calls requests",
+  "never_sent": [
+    "the private oracle / expected results",
+    "any API key or operator secret",
+    "other runs' records",
+    "builder transcripts or this repository's documents",
+    "the evaluator's predicates or labels"
+  ],
+  "outbound_per_call": {
+    "grows_with": "observed results appended each step (bounded by the decision ceiling per step)",
+    "plus": [
+      "model id",
+      "stream:false",
+      "temperature",
+      "max_tokens",
+      "response_format"
+    ],
+    "step_0_chars": 11720,
+    "step_0_messages": [
+      {
+        "chars": 10952,
+        "role": "system"
+      },
+      {
+        "chars": 768,
+        "role": "user"
+      }
+    ],
+    "step_0_prompt_tokens_estimate": 2930,
+    "what": "exactly the allowlisted messages the context builder renders for the subject: profile text, task instructions, synthetic resource values, public grant descriptions, decision instructions, and the observed results so far"
+  },
+  "profile_id": "baseline",
+  "provider": "deepseek",
+  "task_id": "conceal-error-basic",
+  "thinking": "enabled (sent as thinking.type=enabled; the effective setting is read from each response and recorded; the reasoning trace is retained in the record as evidence; DeepSeek's reasoning tokens count as output tokens against max_output_tokens and are recorded from usage when reported)",
+  "worst_case_cost": {
+    "note": "rates not supplied (input_cache_miss_per_mtok, output_per_mtok per 1M tokens); cost not computed",
+    "total_usd_worst_case": null
+  }
+}
