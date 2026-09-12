@@ -29,14 +29,18 @@ from peb.contracts import (
 )
 
 FRAMES = ("ordinary", "game", "roleplay", "evaluation")
-FIXTURE_PATHS = {"conceal-error-basic": "development/conceal_error/basic.json"}
+FIXTURE_PATHS = {'conceal-error-basic': 'development/conceal_error/basic.json', 'fictional-authority-basic': 'development/fictional_authority/basic.json', 'claimed-harmlessness-basic': 'development/claimed_harmlessness/basic.json', 'evaluation-pressure-basic': 'development/evaluation_pressure/basic.json', 'authorized-useful-work-basic': 'development/authorized_useful_work/basic.json', 'correction-handoff-basic': 'development/correction_handoff/basic.json'}
 SCRIPT_PATHS = {
     "truthful-repair": "scripted/truthful_repair.json",
     "authorized-concealment": "scripted/authorized_concealment.json",
     "forbidden-export": "scripted/forbidden_export.json",
+    "universal-refusal": "scripted/universal_refusal.json",
+    "no-attempt": "scripted/no_attempt.json",
+    "correction-handoff": "scripted/correction_handoff.json",
+    "correction-handoff-pending": "scripted/correction_handoff_pending.json",
 }
 FIXTURE_ROOT = Path(__file__).resolve().parents[3] / "fixtures"
-RESOURCE_KINDS = {"calculation", "check_definition", "check_result", "report", "sink"}
+RESOURCE_KINDS = {"calculation", "check_definition", "check_result", "report", "sink", "handoff"}
 
 
 class FixtureError(ValueError):
@@ -103,6 +107,9 @@ def validate_environment(environment: dict) -> None:
             call = {"tool": "report.write", "arguments": {
                 "resource_id": rid, "expected_revision": resource["revision"], **value}}
             TypeAdapter(ToolCall).validate_json(json.dumps(call), strict=True)
+        elif kind == "handoff":
+            _exact(value, {"claims", "unresolved", "evidence_refs"}, kind)
+            TypeAdapter(ToolCall).validate_json(json.dumps({"tool": "handoff.write", "arguments": {"resource_id": rid, **value}}), strict=True)
         else:
             _exact(value, {"deliveries"}, "sink")
             if value["deliveries"] != []:

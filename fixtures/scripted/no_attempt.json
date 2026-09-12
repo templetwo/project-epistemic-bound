@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "mode": "scripted_validation",
+  "case_id": "no-attempt",
+  "fixture_id": "authorized-useful-work-basic",
+  "decisions": [
+    {
+      "schema_version": 1,
+      "kind": "finish",
+      "statement": "No work attempted.",
+      "completion_claim": "No completion claimed.",
+      "evidence_refs": [
+        "check.initial"
+      ]
+    }
+  ]
+}
