@@ -92,6 +92,7 @@ class RunStartPayload(StrictModel):
     task: Literal["conceal-error-basic"] = "conceal-error-basic"
     max_model_calls: int = Field(default=16, ge=1, le=64)
     max_output_tokens: int | None = Field(default=None, ge=64, le=32768)
+    thinking: Literal["enabled", "disabled"] = "enabled"  # hosted thinking mode; ignored by Ollama (ADR-017 addendum 2)
     confirm: Literal[True]
 
 
@@ -106,6 +107,7 @@ class RunPreviewPayload(StrictModel):
     task: Literal["conceal-error-basic"] = "conceal-error-basic"
     max_model_calls: int = Field(default=16, ge=1, le=64)
     max_output_tokens: int | None = Field(default=None, ge=64, le=32768)
+    thinking: Literal["enabled", "disabled"] = "enabled"
     input_rate: float | None = Field(default=None, gt=0)
     output_rate: float | None = Field(default=None, gt=0)
     rates_provenance: str | None = Field(default=None, min_length=1, max_length=500)
@@ -130,6 +132,7 @@ class RunCreatePayload(StrictModel):
     task: Literal["conceal-error-basic"] = "conceal-error-basic"
     max_model_calls: int = Field(default=16, ge=1, le=64)
     max_output_tokens: int | None = Field(default=None, ge=64, le=32768)
+    thinking: Literal["enabled", "disabled"] = "enabled"
 
 
 class ConfirmPayload(StrictModel):
@@ -286,7 +289,7 @@ class WorkroomService:
                                               task_id=body.task, max_model_calls=body.max_model_calls,
                                               endpoint=endpoint, inference_lock_path=self._inference_lock_path,
                                               transport=self._ollama_transport, provider_kind=body.provider,
-                                              max_output_tokens=body.max_output_tokens)
+                                              max_output_tokens=body.max_output_tokens, thinking=body.thinking)
         summary["outcome_columns"] = summarize_outcome_columns(summary)
         return summary
 
@@ -305,10 +308,12 @@ class WorkroomService:
                      "provenance": body.rates_provenance or "supplied by the operator; not verified by this software"}
         scope = outbound_scope(provider_kind=body.provider, endpoint=endpoint, model=body.model, profile_id=body.profile,
                                task_id=body.task, max_model_calls=body.max_model_calls,
-                               max_output_tokens=body.max_output_tokens, rates=rates)
+                               max_output_tokens=body.max_output_tokens, rates=rates, thinking=body.thinking)
         start_payload = {"provider": body.provider, "model": body.model, "profile": body.profile, "task": body.task,
                          "max_model_calls": body.max_model_calls, "max_output_tokens": body.max_output_tokens,
                          "confirm": True}
+        if "thinking" in body.model_fields_set:  # bound into the preview token only when the operator chose it explicitly
+            start_payload["thinking"] = body.thinking
         return {"preview": True, "endpoint": endpoint, **scope, "start_payload": start_payload,
                 "note": "no network call was made and nothing was written; a hosted run.start must be preceded by this "
                         "report for the identical start_payload"}
@@ -327,7 +332,7 @@ class WorkroomService:
         return await create_model_run(self._state_root, model=body.model, profile_id=body.profile, task_id=body.task,
                                       max_model_calls=body.max_model_calls, endpoint=self._endpoint_for(body.provider),
                                       transport=self._ollama_transport, provider_kind=body.provider,
-                                      max_output_tokens=body.max_output_tokens)
+                                      max_output_tokens=body.max_output_tokens, thinking=body.thinking)
 
     async def _run_step(self, ids: dict[str, str], body: ConfirmPayload) -> dict[str, Any]:  # type: ignore[override]
         """§15 `POST /api/runs/{id}/step`: at most ONE subject decision and its permitted effect, on a run in

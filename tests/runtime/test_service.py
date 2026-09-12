@@ -140,6 +140,9 @@ def test_run_preview_is_the_same_endpoint_dry_run_and_touches_nothing(tmp_path, 
     priced = asyncio.run(svc.request("run.preview", {}, {**sel, "input_rate": 1.0, "output_rate": 2.0, "rates_provenance": "test"}))
     assert priced["worst_case_cost"]["total_usd_worst_case"] == round((8 * 15_000 * 1.0 + 8 * 1024 * 2.0) / 1e6, 4)
     assert priced["worst_case_cost"]["rates_provenance"] == "test" and priced["start_payload"] == out["start_payload"]
+    assert out["thinking"].startswith("enabled") and "thinking" not in out["start_payload"]  # default: not bound unless chosen
+    chosen = asyncio.run(svc.request("run.preview", {}, {**sel, "thinking": "disabled"}))
+    assert chosen["thinking"].startswith("disabled") and chosen["start_payload"]["thinking"] == "disabled"
     local = asyncio.run(svc.request("run.preview", {}, {"provider": "ollama", "model": "mistral:7b-instruct", "profile": "baseline"}))
     assert local["endpoint"] == "http://127.0.0.1:1" and local["endpoint_host"] == "127.0.0.1" and local["key"].startswith("none")
     assert local["start_payload"]["max_model_calls"] == 16 and local["start_payload"]["confirm"] is True

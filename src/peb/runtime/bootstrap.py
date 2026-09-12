@@ -137,7 +137,7 @@ MODEL_LABEL = ("MODEL OBSERVATION — a fresh subject session of an explicitly c
 
 
 def _build_provider(provider_kind: str, *, endpoint: str, model: str, limits: Limits, transport: Any,
-                    max_input_chars: int | None = None):
+                    max_input_chars: int | None = None, thinking: str = "enabled"):
     """The two model providers, constructed the same way everywhere (CLI, service, dry run). Never a default model."""
     if provider_kind == "ollama":
         from ..providers.ollama import OllamaProvider
@@ -145,7 +145,7 @@ def _build_provider(provider_kind: str, *, endpoint: str, model: str, limits: Li
     if provider_kind == "deepseek":
         from ..providers.deepseek import DEFAULT_MAX_INPUT_CHARS, DeepSeekProvider
         return DeepSeekProvider(endpoint=endpoint, model=model, limits=limits, transport=transport,
-                                max_input_chars=max_input_chars or DEFAULT_MAX_INPUT_CHARS)
+                                max_input_chars=max_input_chars or DEFAULT_MAX_INPUT_CHARS, thinking=thinking)
     raise PebError(ErrorCode.invalid_input, f"unknown model provider {provider_kind!r}", {"providers": ["ollama", "deepseek"]})
 
 
@@ -170,7 +170,7 @@ async def compose_model_run(state_root: str | os.PathLike[str], *, model: str, p
                             max_model_calls: int, endpoint: str, frame: str = "ordinary",
                             transport: Any = None, provider_kind: str = "ollama",
                             max_output_tokens: int | None = None, max_input_chars: int | None = None,
-                            probe: bool = True) -> ComposedRun:
+                            probe: bool = True, thinking: str = "enabled") -> ComposedRun:
     """§20 `peb run --provider ollama|deepseek`: explicit model, explicit profile, real probe first, no fallback.
     `probe=False` (service `run.create`, ADR-018): validate config and record the run with NO network at all;
     the first `run.step`/`run.begin` probes before any model call."""
@@ -182,7 +182,7 @@ async def compose_model_run(state_root: str | os.PathLike[str], *, model: str, p
     profile = require_runnable(load_profile(profile_id))  # §16.2: a placeholder arm is not that arm
     limits = Limits(max_model_calls=max_model_calls, **({"max_output_tokens": max_output_tokens} if max_output_tokens else {}))
     provider = _build_provider(provider_kind, endpoint=endpoint, model=model, limits=limits, transport=transport,
-                               max_input_chars=max_input_chars)
+                               max_input_chars=max_input_chars, thinking=thinking)
     if probe:
         readiness = await provider.probe()
         if readiness["status"] != "ok":
@@ -249,14 +249,15 @@ async def run_scripted_demo(state_root: str | os.PathLike[str], case: str, **kw)
 async def run_model_observation(state_root: str | os.PathLike[str], *, model: str, profile_id: str, task_id: str,
                                 max_model_calls: int, endpoint: str, inference_lock_path: str | None = None,
                                 transport: Any = None, provider_kind: str = "ollama",
-                                max_output_tokens: int | None = None, max_input_chars: int | None = None) -> dict[str, Any]:
+                                max_output_tokens: int | None = None, max_input_chars: int | None = None,
+                                thinking: str = "enabled") -> dict[str, Any]:
     """§20 `peb run`. Holds the state-root supervisor lock and the MacBook-wide inference lock for the run."""
     from .locks import InferenceLock, SupervisorLock
 
     with SupervisorLock(state_root), InferenceLock(inference_lock_path):
         composed = await compose_model_run(state_root, model=model, profile_id=profile_id, task_id=task_id,
                                            provider_kind=provider_kind, max_output_tokens=max_output_tokens,
-                                           max_input_chars=max_input_chars,
+                                           max_input_chars=max_input_chars, thinking=thinking,
                                            max_model_calls=max_model_calls, endpoint=endpoint, transport=transport)
         rt, run, repo = composed.runtime, composed.run, composed.repo
         try:
@@ -420,7 +421,8 @@ BEGIN_LABEL = ("MODEL OBSERVATION — begun on a recorded run and run to a bound
 
 async def create_model_run(state_root: str | os.PathLike[str], *, model: str, profile_id: str, task_id: str,
                            max_model_calls: int, endpoint: str, transport: Any = None, provider_kind: str = "ollama",
-                           max_output_tokens: int | None = None, max_input_chars: int | None = None) -> dict[str, Any]:
+                           max_output_tokens: int | None = None, max_input_chars: int | None = None,
+                           thinking: str = "enabled") -> dict[str, Any]:
     """§15 `POST /api/runs` as its own operation (ADR-018): validate config (task, runnable profile, limits,
     endpoint policy, explicit model id) and RECORD the run. No probe, no model call, no inference lock: nothing
     leaves this machine. The first `run.step`/`run.begin` probes and then infers. The store's initial status is
@@ -432,7 +434,7 @@ async def create_model_run(state_root: str | os.PathLike[str], *, model: str, pr
         composed = await compose_model_run(state_root, model=model, profile_id=profile_id, task_id=task_id,
                                            provider_kind=provider_kind, max_output_tokens=max_output_tokens,
                                            max_input_chars=max_input_chars, max_model_calls=max_model_calls,
-                                           endpoint=endpoint, transport=transport, probe=False)
+                                           endpoint=endpoint, transport=transport, probe=False, thinking=thinking)
         run, repo = composed.run, composed.repo
         try:
             run_id = run.manifest.run_id
@@ -467,9 +469,11 @@ async def _reopen_model_run(repo: Any, run_id: str, *, ollama_endpoint: str, dee
     profile = load_profile(manifest.profile_id)
     endpoint = ollama_endpoint if manifest.provider_kind == ProviderKind.ollama else deepseek_endpoint
     max_in = manifest.settings.get("max_input_chars")
+    pinned_thinking = manifest.settings.get("thinking")  # pinned at create; a reopened run never changes it
     provider = _build_provider(str(manifest.provider_kind), endpoint=endpoint, model=str(manifest.model_requested),
                                limits=manifest.limits, transport=transport,
-                               max_input_chars=max_in if isinstance(max_in, int) and not isinstance(max_in, bool) else None)
+                               max_input_chars=max_in if isinstance(max_in, int) and not isinstance(max_in, bool) else None,
+                               thinking=str(pinned_thinking) if pinned_thinking in ("enabled", "disabled") else "enabled")
     readiness = await provider.probe()
     if readiness["status"] != "ok":
         raise PebError(ErrorCode.provider_unavailable, f"{manifest.provider_kind} provider not ready: {readiness['status']}", readiness)
@@ -744,7 +748,8 @@ class _MustNotBeCalled:
 
 def outbound_scope(*, provider_kind: str, endpoint: str, model: str, profile_id: str, task_id: str,
                    max_model_calls: int, max_output_tokens: int | None = None, frame: str = "ordinary",
-                   max_input_chars: int | None = None, rates: dict[str, Any] | None = None) -> dict[str, Any]:
+                   max_input_chars: int | None = None, rates: dict[str, Any] | None = None,
+                   thinking: str = "enabled") -> dict[str, Any]:
     """What would leave this machine for one run, and the maximum budget — computed WITHOUT any network call and
     without touching the operator's state root (a temporary root is composed and discarded). This is the report
     Anthony sees before any paid request (ADR-017)."""
@@ -818,7 +823,9 @@ def outbound_scope(*, provider_kind: str, endpoint: str, model: str, profile_id:
                     "with/without usage are counted separately.",
         },
         "worst_case_cost": cost,
-        "thinking": "disabled (sent as thinking.type=disabled; the effective setting is read from each response and recorded)"
+        "thinking": (f"{thinking} (sent as thinking.type={thinking}; the effective setting is read from each response and "
+                     "recorded; the reasoning trace is retained in the record as evidence; DeepSeek's reasoning tokens "
+                     "count as output tokens against max_output_tokens and are recorded from usage when reported)")
                     if provider_kind == "deepseek" else "n/a",
         "network": "none for this report; a real run first probes the provider's model list, then makes at most max_model_calls requests",
         "key": ("read from the DEEPSEEK_API_KEY environment variable at run time; never sent anywhere but the Authorization "

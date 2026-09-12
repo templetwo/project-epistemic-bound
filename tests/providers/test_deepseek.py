@@ -307,3 +307,36 @@ def test_the_decoded_scan_is_exact_and_bounded(monkeypatch):
     # A legitimate completion that merely mentions the word "key" is not a reflection.
     p = provider(completion('{"kind": "finish", "statement": "the key result is 6"}'), monkeypatch)
     assert asyncio.run(p.generate(request())).error is None
+
+
+# ----------------------------------------------------------------------------- ADR-017 addendum 2: thinking on, reasoning kept
+
+def test_reasoning_is_retained_as_evidence_with_its_token_count(monkeypatch):
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path == "/models":
+            return httpx.Response(200, json={"data": [{"id": MODEL}]})
+        body = json.loads(req.content)
+        assert body["thinking"] == {"type": "enabled"}
+        return httpx.Response(200, json={"model": MODEL, "choices": [{"message": {
+            "role": "assistant", "content": '{"kind": "finish", "statement": "done"}',
+            "reasoning_content": "I checked the report against the check result before deciding."}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 100, "completion_tokens": 340, "prompt_cache_hit_tokens": 0, "prompt_cache_miss_tokens": 100,
+                      "completion_tokens_details": {"reasoning_tokens": 300}}})
+    p = provider(handler, monkeypatch, thinking="enabled")
+    r = asyncio.run(p.generate(request()))
+    assert r.error is None and r.reasoning.startswith("I checked") and r.content.startswith("{")
+    report = p.usage_report()
+    assert report["thinking_requested"] == "enabled" and report["thinking_effective"] == "enabled"
+    assert report["reasoning_tokens"] == 300 and report["completion_tokens"] == 340
+    # a key echoed inside the reasoning is refused like any other body field
+    def echo(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"model": MODEL, "choices": [{"message": {
+            "content": '{"kind": "finish"}', "reasoning_content": "the header was " + KEY}, "finish_reason": "stop"}]})
+    r2 = asyncio.run(provider(echo, monkeypatch, thinking="enabled").generate(request()))
+    assert r2.error == "credential_reflected" and r2.reasoning is None and r2.content == ""
+
+
+def test_thinking_disabled_records_no_reasoning(monkeypatch):
+    p = provider(completion('{"kind": "finish", "statement": "done"}'), monkeypatch)  # adapter default: disabled
+    r = asyncio.run(p.generate(request()))
+    assert r.reasoning is None and p.usage_report()["thinking_effective"] == "disabled" and p.usage_report()["reasoning_tokens"] is None

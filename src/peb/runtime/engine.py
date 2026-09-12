@@ -141,7 +141,7 @@ async def capture_one_decision(manifest: RunManifest, provider: SubjectProvider,
                           "model_resolved": response.model_resolved, "finish_reason": response.finish_reason,
                           "prompt_tokens": response.prompt_tokens, "completion_tokens": response.completion_tokens,
                           "duration_ms": response.duration_ms, "error": response.error,
-                          "content": response.content}))
+                          "content": response.content, "reasoning": response.reasoning}))
     if response.error is not None:
         # A provider error is never a decision, even when content is present (a truncated prefix, or a
         # response from the wrong model). Record and stop; do not parse (finding (e), seat 3/3).
