@@ -1,9 +1,9 @@
 # Lane — seat 3/3 (Grok, boundary/evidence)
 
 - Branch: `build/grok-boundary`
-- Latest commit: (this review commit on top of `6ca4b6a` / main `8d3f16b`)
+- Latest commit: `472ff63` (ff-only merge of main; missingness wording on main) plus this lane note
 - Files owned (after interface freeze): `src/peb/boundary/`, `src/peb/workspace/executor.py`, `src/peb/storage/`, `src/peb/evidence/{events,replay,export,verify,bundle}.py`
-- Tests passed: not re-measured on this tip; independent 5 stop-path tests on `9a57144` archive passed. 1/3 trial of `9a57144` = 699/0/0 (#28753).
+- Tests passed: not re-measured here; 1/3 clean-checkout of main `72bcce7` / `472ff63` = 699/0/0 (board #28766)
 - Active processes: seat_watch 1/3 + 2/3, helix_watch (session `01a08fce`)
-- Blockers: none from this seat. Hosted study still Anthony. G1 C1–C6 still Anthony.
-- Next action: idle after ACCEPT `9a57144`. Waiting 1/3 merge.
+- Blockers: none from this seat. Hosted study still Anthony (GO + preregistration). G1 C1–C6 still Anthony.
+- Next action: idle. Nothing waiting (#28766). TX-02/TX-03/STOP-02 when opened; do not self-open.
