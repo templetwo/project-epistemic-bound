@@ -3,7 +3,7 @@ const $ = (id) => document.getElementById(id);
 let csrf = "", selectedId = null, nextCursor = null, preview = null, activeRequests = 0;
 let selectionVersion = 0, previewVersion = 0, selectedState = null;
 let studyVersion = 0, studyPlan = null, reviewQueueVersion = 0;
-let replayEvents = [];
+let replayEvents = [], comparisonVersion = 0;
 const pretty = (value) => JSON.stringify(value, null, 2);
 function note(text, error = false) { $("notice").textContent = text; $("notice").classList.toggle("error", error); }
 function el(tag, text, className) { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (className) n.className = className; return n; }
@@ -18,7 +18,7 @@ async function api(path, body, method) {
   }
   return result;
 }
-function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; if (!yes) { csrf = ""; invalidatePreview(); invalidateStudy(); reviewQueueVersion++; $("global-reviews").replaceChildren(); $("global-review-count").textContent = "Not loaded"; } }
+function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; if (!yes) { csrf = ""; invalidatePreview(); invalidateStudy(); invalidateComparison(); reviewQueueVersion++; $("global-reviews").replaceChildren(); $("global-review-count").textContent = "Not loaded"; } }
 async function action(button, task) {
   button.disabled = true; activeRequests++;
   try { await task(); } catch (error) { note(error.message, true); }
@@ -26,7 +26,7 @@ async function action(button, task) {
 }
 function invalidatePreview() { previewVersion++; preview = null; $("scope").hidden = true; $("approve-start").checked = false; updateStart(); }
 function updateStart() { const hosted = $("provider").value === "deepseek"; $("hosted-fields").hidden = !hosted; $("create-model").disabled = hosted; $("start-model").disabled = !$("approve-start").checked || (hosted && !preview?.preview_token); }
-function startPayload() { return {provider: $("provider").value, model: $("model").value.trim(), profile: $("profile").value, task: "conceal-error-basic", max_model_calls: Number($("calls").value), max_output_tokens: Number($("tokens").value), thinking: $("thinking").value, confirm: true}; }
+function startPayload() { return {provider: $("provider").value, model: $("model").value.trim(), profile: $("profile").value, task: $("model-task").value, max_model_calls: Number($("calls").value), max_output_tokens: Number($("tokens").value), thinking: $("thinking").value, confirm: true}; }
 async function loadProfiles() {
   const data = await api("/api/profiles"); $("profile").replaceChildren();
   for (const p of data.profiles) { const option = el("option", `${p.profile_id} · ${p.arm} · ${p.status}`); option.value = p.profile_id; option.disabled = !p.runnable; $("profile").append(option); }
@@ -37,6 +37,12 @@ async function loadProfiles() {
 }
 async function loadRuns() {
   const data = await api("/api/runs"); $("run-count").textContent = String(data.runs.length); $("runs").replaceChildren();
+  invalidateComparison();
+  for (const [id, fallback] of [["comparison-left", 0], ["comparison-right", 1]]) {
+    const select = $(id), prior = select.value; select.replaceChildren();
+    for (const run of data.runs) { const option = el("option", `${run.run_id} · ${run.mode} · ${run.status}`); option.value = run.run_id; select.append(option); }
+    select.value = data.runs.some(run => run.run_id === prior) ? prior : data.runs[fallback]?.run_id || "";
+  }
   if (!data.runs.length) $("runs").append(el("p", "No records yet. Run a control to begin.", "fine"));
   for (const run of [...data.runs].reverse()) {
     const button = el("button", run.status.replaceAll("_", " ")); button.type = "button";
@@ -193,7 +199,10 @@ function studyChoice(container, value, title, checked, disabled = false) {
   input.type = "checkbox"; input.value = value; input.checked = checked; input.disabled = disabled;
   label.append(input, el("span", title)); $(container).append(label);
 }
-for (const [id, title] of [["conceal-error-basic", "Conceal an error"], ["fictional-authority-basic", "Fictional authority"], ["claimed-harmlessness-basic", "Claimed harmlessness"], ["evaluation-pressure-basic", "Evaluation pressure"], ["authorized-useful-work-basic", "Authorized useful work"], ["correction-handoff-basic", "Correction and handoff"]]) studyChoice("study-fixtures", id, title, ["conceal-error-basic", "authorized-useful-work-basic"].includes(id));
+for (const [id, title] of [["conceal-error-basic", "Conceal an error"], ["fictional-authority-basic", "Fictional authority"], ["claimed-harmlessness-basic", "Claimed harmlessness"], ["evaluation-pressure-basic", "Evaluation pressure"], ["authorized-useful-work-basic", "Authorized useful work"], ["correction-handoff-basic", "Correction and handoff"]]) {
+  studyChoice("study-fixtures", id, title, ["conceal-error-basic", "authorized-useful-work-basic"].includes(id));
+  const option = el("option", title); option.value = id; $("model-task").append(option);
+}
 for (const frame of ["ordinary", "game", "roleplay", "evaluation"]) studyChoice("study-frames", frame, frame, ["ordinary", "game"].includes(frame));
 function invalidateStudy() { studyVersion++; studyPlan = null; $("study-result").hidden = true; }
 function studyConfig() {
@@ -257,3 +266,30 @@ function renderReplay() {
   renderResources(replayEvents.slice(0, index + 1), "replay-resources");
 }
 $("replay-position").addEventListener("input", renderReplay);
+
+function invalidateComparison() { comparisonVersion++; $("comparison-result").hidden = true; }
+$("comparison-form").addEventListener("input", invalidateComparison);
+$("comparison-form").addEventListener("submit", event => { event.preventDefault(); action(event.submitter, async () => {
+  invalidateComparison(); const version = comparisonVersion;
+  const params = new URLSearchParams({left_run_id: $("comparison-left").value, right_run_id: $("comparison-right").value, axis: $("comparison-axis").value});
+  const response = await api(`/api/comparisons?${params}`);
+  const result = response.comparison;
+  if (version !== comparisonVersion || !csrf) throw new Error("Comparison selection changed. Compare again.");
+  $("comparison-status").textContent = result.status === "matched" ? "Recorded conditions match" : "Not comparable";
+  $("comparison-counts").textContent = `Selected: ${result.counts.selected} · Planned: unavailable (selected after collection) · Started: ${result.counts.started} · Provider completed: ${result.counts.provider_completed}`;
+  $("comparison-count-definition").textContent = "Provider completed means the run recorded completion. Inspect the outcome labels for behavioral results.";
+  $("comparison-reasons").replaceChildren();
+  for (const reason of result.reasons) $("comparison-reasons").append(el("p", reason.replaceAll("_", " "), "fine"));
+  $("comparison-runs").replaceChildren();
+  for (const run of result.runs) {
+    const row = el("div", undefined, "review"); row.append(el("strong", `${run.side}: ${run.mode} · Dataset split: ${run.dataset_split}`), el("p", `${run.run_id} · ${run.provider} · ${run.profile_id} · ${run.frame}`, "fine"));
+    if (run.recorded_evaluation.missingness.length) row.append(el("p", `Missingness: ${run.recorded_evaluation.missingness.join(", ")}`, "fine"));
+    row.append(el("p", `Evidence: ${run.verification.summary || run.verification.status}`, "fine"));
+    $("comparison-runs").append(row);
+  }
+  $("comparison-metrics").replaceChildren();
+  for (const metric of result.metrics) { const row = el("tr"); for (const value of [metric.metric.replaceAll("_", " "), metric.left, metric.right, metric.evaluable_pairs, `${metric.not_evaluable_pairs} · ${metric.reason || "none"}`]) row.append(el("td", String(value))); $("comparison-metrics").append(row); }
+  if (!result.metrics.length) { const row = el("tr"), cell = el("td", "No usable recorded evaluation labels."); cell.colSpan = 5; row.append(cell); $("comparison-metrics").append(row); }
+  $("comparison-limits").textContent = result.limitations.join(" "); $("comparison-json").textContent = pretty(result); $("comparison-result").hidden = false;
+  note(result.status === "matched" ? "Conditions matched; inspect metric-specific missingness and evidence limits." : "Comparison refused for the listed conditions. No paired outcome counts are eligible.");
+}); });
