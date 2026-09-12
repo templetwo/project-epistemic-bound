@@ -93,7 +93,7 @@ def test_expired_session_is_not_usable():
 
 def paid_payload():
     return {"provider": "deepseek", "model": "test-model", "profile": "baseline", "task": "conceal-error-basic",
-            "max_model_calls": 2, "max_output_tokens": 128, "confirm": True}
+            "max_model_calls": 2, "max_output_tokens": 128, "thinking": "enabled", "confirm": True}
 
 
 @pytest.mark.parametrize("alter", ["missing", "changed", "expired", "reuse"])
@@ -114,21 +114,25 @@ def test_hosted_start_requires_fresh_exact_single_use_preview(alter):
         elif alter == "expired":
             now[0] = 301
         elif alter == "reuse":
-            assert (await client.post("/api/runs", json=submitted, headers=headers)).status_code == 200
-        response = await client.post("/api/runs", json=submitted, headers=headers)
+            assert (await client.post("/api/runs/observe", json=submitted, headers=headers)).status_code == 200
+        response = await client.post("/api/runs/observe", json=submitted, headers=headers)
         assert response.status_code == 409
         assert sum(c[0] == "run.start" for c in service.calls) == (1 if alter == "reuse" else 0)
     asyncio.run(exercise(service, scenario, now=now))
 
 
-def test_unpriced_hosted_preview_cannot_authorize_start():
+def test_unpriced_hosted_preview_can_authorize_exact_start():
     service = Service()
     service.price = None
 
     async def scenario(client, headers):
         response = await client.post("/api/runs/preview", json=paid_payload(), headers=headers)
-        assert response.json()["preview_token"] is None
-        assert response.json()["hosted_start_ready"] is False
+        data = response.json()
+        assert data["preview_token"] and data["hosted_start_ready"]
+        assert data["cost_available"] is False
+        started = await client.post("/api/runs/observe", json={**paid_payload(), "preview_token": data["preview_token"]}, headers=headers)
+        assert started.status_code == 200
+        assert service.calls[-1][0] == "run.start"
     asyncio.run(exercise(service, scenario))
 
 
@@ -215,7 +219,7 @@ def test_slow_start_does_not_block_pause_route():
         service = Slow()
 
         async def interact(client, headers):
-            pending = asyncio.create_task(client.post("/api/runs", json={"provider": "ollama"}, headers=headers))
+            pending = asyncio.create_task(client.post("/api/runs/observe", json={"provider": "ollama"}, headers=headers))
             await asyncio.wait_for(service.started.wait(), 2)
             paused = await asyncio.wait_for(client.post(f"/api/runs/{RUN}/pause", json={}, headers=headers), 2)
             assert paused.status_code == 200 and not pending.done()
@@ -223,3 +227,82 @@ def test_slow_start_does_not_block_pause_route():
             assert (await pending).status_code == 200
         await exercise(service, interact)
     asyncio.run(scenario())
+
+
+def test_preview_token_binds_thinking_mode():
+    service = Service()
+
+    async def scenario(client, headers):
+        preview = (await client.post("/api/runs/preview", json=paid_payload(), headers=headers)).json()
+        changed = {**paid_payload(), "thinking": "disabled", "preview_token": preview["preview_token"]}
+        response = await client.post("/api/runs/observe", json=changed, headers=headers)
+        assert response.status_code == 409
+        assert not any(c[0] == "run.start" for c in service.calls)
+    asyncio.run(exercise(service, scenario))
+
+
+@pytest.mark.parametrize("route", ["/api/runs", f"/api/runs/{RUN}/step", f"/api/runs/{RUN}/start"])
+def test_hosted_separate_lifecycle_cannot_bypass_preview_gate(route):
+    service = Service()
+    service.provider = "deepseek"
+
+    async def scenario(client, headers):
+        response = await client.post(route, json={"provider": "deepseek"} if route == "/api/runs" else {"confirm": True}, headers=headers)
+        assert response.status_code == 409
+        assert not any(c[0] in {"run.create", "run.step", "run.begin"} for c in service.calls)
+    asyncio.run(exercise(service, scenario))
+
+
+def test_http_local_create_step_begin_reaches_real_observed_completion(state_root, tmp_path):
+    from peb.runtime.service import WorkroomService
+    from peb.workspace.fixtures import load_script
+    from tests.integration.test_model_run import EP, MODEL, fake_ollama
+
+    transport, provider = fake_ollama(load_script("truthful-repair"))
+    service = WorkroomService(state_root, ollama_endpoint=EP, inference_lock_path=tmp_path / "inference.lock", ollama_transport=transport)
+
+    async def scenario(client, headers):
+        created = await client.post("/api/runs", json={"provider": "ollama", "model": MODEL, "profile": "baseline", "max_model_calls": 16}, headers=headers)
+        assert created.status_code == 200, created.text
+        rid = created.json()["run_id"]
+        assert created.json()["started"] is False and provider["i"] == 0
+        step = await client.post(f"/api/runs/{rid}/step", json={"confirm": True}, headers=headers)
+        assert step.status_code == 200 and step.json()["steps_taken"] == 1 and provider["i"] == 1
+        assert step.json()["evaluation"] is None
+        begun = await client.post(f"/api/runs/{rid}/start", json={"confirm": True}, headers=headers)
+        assert begun.status_code == 200 and begun.json()["status"] == "completed"
+        saved = (await client.get(f"/api/runs/{rid}")).json()
+        evaluations = [e for e in saved["run"]["events"] if e["event_type"] == "evaluation_recorded"]
+        assert len(evaluations) == 1
+        assert evaluations[0]["payload"]["evaluation"]["behavior_labels"]["useful_completion"] == "yes"
+        assert (await client.post(f"/api/runs/{rid}/step", json={"confirm": True}, headers=headers)).status_code == 409
+    asyncio.run(exercise(service, scenario))
+
+
+def test_http_commitment_edits_survive_reopen_and_export(state_root, tmp_path):
+    import json
+    from pathlib import Path
+
+    from peb.contracts import Actor, CommitmentKind
+    from peb.runtime.bootstrap import _append_event, compose_scripted_run
+    from peb.runtime.service import WorkroomService
+
+    composed = compose_scripted_run(state_root, "truthful-repair")
+    rid = composed.run.manifest.run_id
+    original = composed.runtime.ledger.propose(rid, composed.run.task.task_id, "Report failures.", kind=CommitmentKind.undertaking, origin=Actor.operator,
+        append=lambda et, actor, p: _append_event(composed.repo, rid, et, actor, p))
+    composed.repo.close()
+
+    async def scenario(client, headers):
+        path = f"/api/runs/{rid}/commitments/{original.commitment_id}"
+        accepted = await client.post(path + "/accept", json={}, headers=headers)
+        assert accepted.status_code == 200 and accepted.json()["authority"]["grants_unchanged"]
+        changed = await client.post(path + "/revise", json={"text": "Report failures and repairs."}, headers=headers)
+        assert changed.status_code == 200 and changed.json()["authority"]["grants_unchanged"]
+        assert (await client.post(path + "/revise", json={"text": "stale"}, headers=headers)).status_code == 409
+        saved = (await client.get(f"/api/runs/{rid}")).json()["run"]["commitments"]
+        assert {c["status"] for c in saved} == {"accepted", "superseded"}
+        assert all(c["origin"] == "operator" for c in saved)
+        exported = (await client.post(f"/api/runs/{rid}/export", json={"out": str(tmp_path / "export")}, headers=headers)).json()
+        assert json.loads((Path(exported["exported"]) / "commitments.json").read_text()) == saved
+    asyncio.run(exercise(WorkroomService(state_root), scenario))

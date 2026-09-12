@@ -16,9 +16,30 @@ fs.mkdirSync(output,{recursive:true});
  if(await page.locator('#events img,#events script').count())throw Error('hostile DOM created');
  await page.selectOption('#case','truthful-repair');await page.getByRole('button',{name:'Run scripted control'}).click();await page.locator('#notice').filter({hasText:'Scripted control recorded'}).waitFor();
  if(!await page.locator('#outcomes').innerText().then(t=>t.includes('yes')))throw Error('no observed success');
+
+ if(process.env.PEB_TEST_LIFECYCLE){
+  await page.locator('.model-panel > summary').click();
+  await page.selectOption('#provider','deepseek'); await page.fill('#model','browser-preview-only');
+  if(await page.inputValue('#thinking') !== 'enabled') throw Error('thinking default is not enabled');
+  await page.click('#preview'); await page.locator('#scope').waitFor({state:'visible'});
+  await page.check('#approve-start');
+  if(!await page.isEnabled('#start-model')) throw Error('missing rates blocked authorized hosted preview');
+  await page.selectOption('#thinking','disabled');
+  if(await page.isEnabled('#start-model')) throw Error('changed thinking kept prior authorization');
+  await page.click('#preview'); await page.locator('#scope').waitFor({state:'visible'});
+  if(!(await page.locator('#scope-text').innerText()).includes('disabled')) throw Error('thinking absent from scope');
+  // No hosted launch is clicked. Local lifecycle uses the fixture's MockTransport.
+  await page.selectOption('#provider','ollama'); await page.fill('#model','qwen3.5:9b-q4_K_M');
+  await page.click('#create-model'); await page.locator('#notice').filter({hasText:'Run recorded. No model call made.'}).waitFor();
+  if(!(await page.locator('#run-status').innerText()).includes('not started')) throw Error('create was presented as started');
+  await page.click('#step'); await page.locator('#notice').filter({hasText:'Model calls this operation: 1.'}).waitFor();
+  await page.click('#begin'); await page.locator('#notice').filter({hasText:'Observed status: completed.'}).waitFor();
+  if(await page.isEnabled('#step') || await page.isEnabled('#begin')) throw Error('terminal lifecycle controls remained enabled');
+  if(!(await page.locator('#outcomes').innerText()).includes('yes')) throw Error('lifecycle completion not observed');
+ }
  await page.screenshot({path:path.join(output,'desktop.png'),fullPage:false});
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(output,'mobile.png'),fullPage:false});
  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);if(overflow)throw Error('mobile horizontal overflow');
- console.log(JSON.stringify({hostile_text_inert:true,actual_demo_visible:true,mobile_no_overflow:true,page_errors:errors}));
+ console.log(JSON.stringify({hostile_text_inert:true,actual_demo_visible:true,local_lifecycle_checked:Boolean(process.env.PEB_TEST_LIFECYCLE),thinking_preview_checked:Boolean(process.env.PEB_TEST_LIFECYCLE),mobile_no_overflow:true,page_errors:errors}));
  if(errors.length)throw Error(errors.join(';'));await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});
