@@ -22,7 +22,7 @@ from peb.config import DEFAULT_STATE_ROOT
 
 PROTECTED_RELATIVE = ("peb.sqlite", "peb.sqlite-wal", "peb.sqlite-shm", "peb.sqlite-journal",
                       "keys/development_local_hmac.key", "operator.secret", "supervisor.lock", "inference.lock")
-PROTECTED_DIRS = ("keys",)  # every file under these directories is fingerprinted individually (3/3, #27878)
+PROTECTED_DIRS = ("keys", "studies")  # journals and execution locks join the key inventory (3/3, #28567)
 
 
 def _fingerprint(path: Path) -> tuple[bool, int, str] | None:
