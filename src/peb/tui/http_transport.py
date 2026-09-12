@@ -150,10 +150,7 @@ class HttpWorkroomTransport:
             response = await self._client.get(path, params=params)
         except httpx.HTTPError as e:  # a read may be retried by the caller with backoff
             raise TransportError(0, "provider_unavailable", f"workroom unreachable: {type(e).__name__}") from e
-        body = _body(response)
-        if response.status_code != 200:
-            raise _typed(response, body)
-        return body
+        return _ok(response, path)
 
     async def _post(self, path: str, payload: dict[str, Any], *, operation: str) -> dict[str, Any]:
         if self._csrf is None:
@@ -161,22 +158,39 @@ class HttpWorkroomTransport:
         headers = {"origin": self.base_url, CSRF_HEADER: self._csrf}
         try:
             response = await self._client.post(path, json=payload, headers=headers)
-        except httpx.TimeoutException as e:
-            raise UncertainOutcome(operation) from e  # sent, no answer: the workroom may have applied it
         except httpx.HTTPError as e:
-            raise TransportError(0, "provider_unavailable", f"workroom unreachable: {type(e).__name__}") from e
-        body = _body(response)
-        if response.status_code != 200:
-            raise _typed(response, body)
-        return body
+            # Timeout, reset, protocol error, connection dropped — once a mutation left this process its outcome is
+            # unknown (2/3's #28469). Nothing here can tell "never sent" from "sent, answer lost"; the honest state
+            # is UNKNOWN and the caller refetches. Reads are the retryable path, never mutations.
+            raise UncertainOutcome(operation) from e
+        try:
+            return _ok(response, operation)
+        except TransportError as e:
+            if e.code == "internal" and e.status == 500 and response.status_code == 200:
+                raise UncertainOutcome(operation) from e  # a malformed 200 after a mutation: applied or not, unknown
+            raise
 
 
 def _body(response: httpx.Response) -> dict[str, Any]:
+    """The envelope as a dict, or {} when the body is not a JSON object (the status decides what that means)."""
     try:
         value = response.json()
     except (json.JSONDecodeError, ValueError):
         return {}
     return value if isinstance(value, dict) else {}
+
+
+def _ok(response: httpx.Response, what: str) -> dict[str, Any]:
+    """A 200 must carry a JSON object; anything else is a malformed answer, never an empty success (2/3's #28469)."""
+    if response.status_code != 200:
+        raise _typed(response, _body(response))
+    try:
+        value = response.json()
+    except (json.JSONDecodeError, ValueError):
+        raise TransportError(500, "internal", f"{what}: the workroom answered 200 with a body that is not JSON") from None
+    if not isinstance(value, dict):
+        raise TransportError(500, "internal", f"{what}: the workroom answered 200 with a JSON {type(value).__name__}, not an object")
+    return value
 
 
 def _typed(response: httpx.Response, body: dict[str, Any]) -> TransportError:

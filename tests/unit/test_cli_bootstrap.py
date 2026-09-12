@@ -100,7 +100,8 @@ SECTION_20 = {"doctor", "demo", "serve", "providers", "run", "verify", "export",
               "study", "runs", "pause", "resume", "cancel"}
 # §20: "match them exactly or record a reviewed interface amendment before divergence".
 # Additions are listed here WITH their amendment; anything else is a divergence the test catches.
-RECORDED_ADDITIONS = {"review": "ADR-015 (§13 review route: list/ack/allow/deny a held proposal without the web UI)"}
+RECORDED_ADDITIONS = {"review": "ADR-015 (§13 review route: list/ack/allow/deny a held proposal without the web UI)",
+                      "tui": "ADR-019 (terminal cockpit: an authenticated client of the loopback web seam; --attach URL or --serve)"}
 
 
 def test_parser_registers_every_section_20_command_and_only_recorded_additions():
@@ -196,3 +197,89 @@ def test_study_plan_is_real_bounded_and_never_overwrites(state_root: Path, capsy
     monkeypatch.setattr(builtins, "__import__", no_planner)
     rc = main(["study", "plan", "--config", "config/studies/framing_pilot.json"])
     assert rc == 2 and json.loads(capsys.readouterr().err)["error"]["code"] == "not_implemented"
+
+
+def test_tui_attaches_to_loopback_only_and_never_takes_the_secret_as_an_argument(state_root: Path, capsys):
+    """ADR-019: `peb tui` refuses a non-loopback or non-http URL before anything runs; there is no --secret option."""
+    for url in ("http://example.com:8787", "https://127.0.0.1:8787", "http://127.0.0.1"):
+        rc = main(["tui", "--attach", url])
+        err = json.loads(capsys.readouterr().err)
+        assert rc == 2 and err["error"]["code"] == "invalid_input"
+    parser = build_parser()
+    tui = next(a for a in parser._subparsers._group_actions[0].choices.values() if a.prog.endswith(" tui"))
+    assert not any("secret" in opt for action in tui._actions for opt in action.option_strings)
+    rc = main(["tui", "--serve", "--host", "10.0.0.5"])  # argparse accepts it; cmd_tui refuses a non-loopback host before serving
+    assert rc == 2 and json.loads(capsys.readouterr().err)["error"]["code"] == "invalid_input"
+
+
+class _FakeServer:
+    def __init__(self, pid: int = 4242):
+        self.pid, self.terminated, self.killed, self.exited = pid, False, False, False
+
+    def poll(self):
+        return 0 if self.exited else None
+
+    def terminate(self):
+        self.terminated = True; self.exited = True
+
+    def wait(self, timeout=None):
+        return 0
+
+    def kill(self):
+        self.killed = True
+
+
+def test_tui_serve_forwards_the_resolved_state_root_to_the_child_over_any_inherited_root(tmp_path, monkeypatch):
+    """2/3's #28502 P1: `--state-root TEMP tui --serve` must run the child on TEMP, in argv AND env, even when the parent
+    inherited a different PEB_STATE_ROOT."""
+    from contextlib import contextmanager
+
+    from peb import cli
+
+    monkeypatch.setenv("PEB_STATE_ROOT", str(tmp_path / "inherited"))
+    captured = {}
+
+    def fake_popen(argv, **kw):
+        captured["argv"], captured["env"] = argv, kw["env"]
+        return _FakeServer()
+
+    @contextmanager
+    def fake_connect(address, timeout=None):
+        captured["connect"] = address
+        yield object()
+
+    server = cli._spawn_workroom("127.0.0.1", 8799, tmp_path / "explicit", popen=fake_popen, connect=fake_connect, sleep=lambda _s: None)
+    code = captured["argv"][2]
+    assert "'--state-root', " + repr(str(tmp_path / "explicit")) in code and "'serve', '--host', '127.0.0.1', '--port', '8799'" in code
+    assert captured["env"]["PEB_STATE_ROOT"] == str(tmp_path / "explicit") and captured["connect"] == ("127.0.0.1", 8799)
+    assert isinstance(server, _FakeServer)
+
+
+def test_tui_quit_always_detaches_a_started_child_workroom_and_never_terminates_it():
+    """2/3's #28511: an inventory is an observation, not an interlock — quit reports, never stops."""
+    from peb import cli
+
+    origin = "http://127.0.0.1:8787"
+    for runs, confirmed in ([{"run_id": "run_x", "status": "running"}], True), ([{"run_id": "run_y", "status": "completed"}], True), ([], False), ([], True):
+        server = _FakeServer()
+        notice = cli._after_quit(server, runs, origin, confirmed=confirmed)
+        assert notice["pid"] == 4242 and notice["workroom_left_running"] == origin and "kill 4242" in notice["stop"]
+        assert not server.terminated and not server.killed
+    assert cli._after_quit(_FakeServer(), [{"run_id": "run_x", "status": "running"}], origin)["in_flight_at_quit"] == ["run_x"]
+    assert "unconfirmed" in cli._after_quit(_FakeServer(), [], origin, confirmed=False)["in_flight_at_quit"]
+    assert cli._after_quit(None, [{"run_id": "run_x", "status": "running"}], origin) is None  # --attach mode: nothing was started here
+
+
+def test_tui_serve_end_to_end_with_fakes_uses_the_explicit_root_and_reports_the_in_flight_run(tmp_path, monkeypatch, capsys):
+    from peb import cli
+
+    root = tmp_path / "explicit"; root.mkdir(); (root / "operator.secret").write_text("s" * 64)
+    monkeypatch.setenv("PEB_STATE_ROOT", str(tmp_path / "inherited"))
+    seen = {}
+    server = _FakeServer(pid=777)
+    monkeypatch.setattr(cli, "_spawn_workroom", lambda host, port, state_root, **kw: seen.update(root=state_root) or server)
+    monkeypatch.setattr(cli, "_run_cockpit", lambda origin, secret: seen.update(origin=origin, secret_len=len(secret)) or ([{"run_id": "run_live", "status": "waiting_review"}], True))
+    rc = main(["--state-root", str(root), "tui", "--serve", "--port", "8791"])
+    out = json.loads(capsys.readouterr().out)
+    assert rc == 0 and seen["root"] == root and seen["origin"] == "http://127.0.0.1:8791" and seen["secret_len"] == 64
+    assert out["in_flight_at_quit"] == ["run_live"] and out["pid"] == 777 and not server.terminated
