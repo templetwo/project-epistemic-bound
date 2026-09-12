@@ -16,7 +16,7 @@ from typing import Any
 
 from . import SCHEMA_VERSION, __version__
 from .config import AppConfig, load_config
-from .errors import ErrorCode, NotImplementedYet, PebError
+from .errors import ErrorCode, PebError
 
 # ----------------------------------------------------------------------------- doctor
 
@@ -249,6 +249,95 @@ def cmd_study_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _read_plan_file(path_str: str) -> dict:
+    """A plan file has its OWN bound (`runtime.study.PLAN_FILE_MAX_BYTES`, 4 MiB — every supported schedule fits with
+    room): the decision ceiling is for subject output, not schedules (2/3's #28655: a valid 480-trial plan is 196 KB).
+    The read is bounded BEFORE parsing; strict JSON (no duplicate keys, no NaN); an object."""
+    from pathlib import Path
+
+    from .contracts import strict_json_loads
+    from .runtime.study import PLAN_FILE_MAX_BYTES
+
+    path = Path(path_str)
+    if not path.is_file():
+        raise PebError(ErrorCode.invalid_input, "study plan file not found", {"plan": str(path)})
+    with path.open("rb") as fh:
+        raw = fh.read(PLAN_FILE_MAX_BYTES + 1)
+    if len(raw) > PLAN_FILE_MAX_BYTES:
+        raise PebError(ErrorCode.invalid_input, f"study plan file exceeds {PLAN_FILE_MAX_BYTES} bytes; not parsed",
+                       {"plan": str(path), "limit_bytes": PLAN_FILE_MAX_BYTES})
+    try:
+        plan = strict_json_loads(raw.decode("utf-8"), ceiling_bytes=PLAN_FILE_MAX_BYTES)
+    except (ValueError, UnicodeDecodeError) as e:
+        raise PebError(ErrorCode.invalid_input, "study plan is not strict JSON", {"plan": str(path), "reason": str(e)[:200]}) from None
+    if not isinstance(plan, dict):
+        raise PebError(ErrorCode.invalid_input, "study plan must be a JSON object", {"plan": str(path)})
+    return plan
+
+
+def cmd_study_preview(args: argparse.Namespace) -> int:
+    """`peb study preview <study-id> --plan FILE --max-model-calls N [--input-rate --output-rate --rates-provenance]`:
+    the pre-launch scope of the whole plan (outbound data and maximum budget per unique condition, summed) with NO
+    network call and NO state change — what an operator sees before a hosted `peb study run … --confirm-hosted`."""
+    from .runtime.study import preview_study
+
+    cfg = load_config(args.state_root)
+    plan = _read_plan_file(args.plan)
+    if plan.get("study_id") != args.study_id:
+        raise PebError(ErrorCode.invalid_input, "the typed study id does not match the plan file",
+                       {"typed": str(args.study_id)[:80], "plan": str(plan.get("study_id"))[:80]})
+    rates = None
+    if (args.input_rate is None) != (args.output_rate is None):
+        raise PebError(ErrorCode.invalid_input, "--input-rate and --output-rate must be supplied together (USD per 1M tokens)")
+    if args.input_rate is not None:
+        rates = {"input_cache_miss_per_mtok": args.input_rate, "output_per_mtok": args.output_rate,
+                 "provenance": args.rates_provenance or "supplied on the command line; not verified by this software"}
+    out = preview_study(plan, max_model_calls=args.max_model_calls, ollama_endpoint=cfg.ollama_endpoint,
+                        deepseek_endpoint=cfg.deepseek_endpoint, rates=rates)
+    print(json.dumps(out, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_study_run(args: argparse.Namespace) -> int:
+    """§20 `peb study run <study-id> --plan FILE --max-model-calls N --confirm [--confirm-hosted]` (board #28563/#28565):
+    seat 2/3's coordinator admits ONE execution of the displayed plan (exact rebuild equality; explicit cap covering
+    the ceiling; duplicate → conflict before any driver call) and dispatches this seat's trial driver in plan order;
+    every trial is a fresh recorded run. The typed study id must match the plan file. Exit 0 only when the journal
+    says `completed`; a partial study exits 1 with the journal printed. Nothing is retried."""
+    import asyncio
+
+    from .runtime.study import bind_trial_driver, coordinator
+
+    cfg = load_config(args.state_root)
+    module = coordinator()  # the lane rule first: an absent coordinator is not_implemented whatever the arguments
+    plan = _read_plan_file(args.plan)
+    if plan.get("study_id") != args.study_id:
+        raise PebError(ErrorCode.invalid_input, "the typed study id does not match the plan file",
+                       {"typed": str(args.study_id)[:80], "plan": str(plan.get("study_id"))[:80]})
+    if not args.confirm:
+        raise PebError(ErrorCode.invalid_input, "explicit --confirm is required: a plan is a schedule, not a launch")
+    config = plan.get("config")
+    provider = config.get("provider") if isinstance(config, dict) else None
+    if provider == "deepseek" and not args.confirm_hosted:
+        raise PebError(ErrorCode.invalid_input, "hosted study refused: --confirm-hosted is required for a deepseek plan "
+                       "(paid calls); nothing was created", {"provider": "deepseek"})
+    driver = bind_trial_driver(cfg.state_root, ollama_endpoint=cfg.ollama_endpoint, deepseek_endpoint=cfg.deepseek_endpoint,
+                               confirm_hosted=bool(args.confirm_hosted))
+    report = asyncio.run(module.run_study(cfg.state_root, plan, max_model_calls=args.max_model_calls, confirm=True,
+                                          run_trial=driver))
+    print(json.dumps(report, indent=2, sort_keys=True))
+    return 0 if report.get("status") == "completed" else 1
+
+
+def cmd_study_get(args: argparse.Namespace) -> int:
+    """`peb study get <study-id>`: the durable journal, read-only; an abandoned execution reads as `interrupted`."""
+    from .runtime.study import coordinator
+
+    cfg = load_config(args.state_root)
+    print(json.dumps(coordinator().get_study(cfg.state_root, args.study_id), indent=2, sort_keys=True))
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     """§20 `peb serve`: 1/3 builds the WorkroomService and hands it to seat 2/3's `create_workroom`
     (INTERFACES §15). Loopback only; the operator secret lives in the state root."""
@@ -429,13 +518,6 @@ def _set_status_cmd(status_name: str):
 
 # ----------------------------------------------------------------------------- stubs
 
-def _stub(what: str):
-    def run(_: argparse.Namespace) -> int:
-        raise NotImplementedYet(what)
-
-    return run
-
-
 def cmd_verify(args: argparse.Namespace) -> int:
     from .evidence.verify import verify_run
     from .storage.repository import SqliteRepository
@@ -585,12 +667,24 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--config", required=True)
     sp.add_argument("--out", default=None, help="write the plan to a NEW file (never overwrites an existing plan)")
     sp.set_defaults(fn=cmd_study_plan)
-    sr = st.add_parser("run", help="execute a planned study under an explicit budget")
-    sr.add_argument("study_id")
-    sr.add_argument("--provider", required=True, choices=["scripted", "ollama"])
-    sr.add_argument("--model")
-    sr.add_argument("--max-model-calls", type=int, required=True)
-    sr.set_defaults(fn=_stub("peb study run"))
+    sr = st.add_parser("run", help="execute a displayed plan under an explicit budget; every trial is a fresh recorded run")
+    sr.add_argument("study_id", help="the plan's study_id, typed by the operator; must match --plan")
+    sr.add_argument("--plan", required=True, help="the plan file written by `peb study plan --out` (provider and model are in it)")
+    sr.add_argument("--max-model-calls", type=int, required=True, help="explicit total decision-call cap; must cover the plan's ceiling")
+    sr.add_argument("--confirm", action="store_true", help="explicit launch confirmation; a plan alone starts nothing")
+    sr.add_argument("--confirm-hosted", action="store_true", help="additionally required for a hosted (deepseek) plan: paid calls")
+    sr.set_defaults(fn=cmd_study_run)
+    sg = st.add_parser("get", help="read a study's durable journal (rows, results, counts); an abandoned run reads as interrupted")
+    sg.add_argument("study_id")
+    sg.set_defaults(fn=cmd_study_get)
+    spv = st.add_parser("preview", help="the whole plan's outbound scope and maximum budget before a hosted run; no network, no state change")
+    spv.add_argument("study_id", help="the plan's study_id, typed by the operator; must match --plan")
+    spv.add_argument("--plan", required=True)
+    spv.add_argument("--max-model-calls", type=int, required=True, help="the cap you would pass to `study run`; must cover the plan's ceiling")
+    spv.add_argument("--input-rate", type=float, default=None, help="USD per 1M input tokens at the cache-MISS (peak) rate")
+    spv.add_argument("--output-rate", type=float, default=None, help="USD per 1M output tokens")
+    spv.add_argument("--rates-provenance", default=None, help="where the rates came from (recorded verbatim; not verified)")
+    spv.set_defaults(fn=cmd_study_preview)
 
     rl = sub.add_parser("runs", help="run inventory").add_subparsers(dest="runs_cmd", required=True)
     rl.add_parser("list", help="list runs in the state root").set_defaults(fn=cmd_runs_list)

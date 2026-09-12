@@ -38,6 +38,14 @@ class Operation(StrEnum):
     commitment_revise = "commitment.revise"
     # EVAL-02: a bounded reproducible study schedule from an explicit config; planning opens no store or provider.
     study_plan = "study.plan"
+    # EVAL-02 execution (board #28563/#28565): seat 2/3's durable coordinator (`evaluation.study`) admits ONE execution
+    # of a displayed plan under an explicit cap and confirmation and dispatches this seat's trial driver
+    # (`runtime.study.run_trial`) sequentially; every trial is a fresh recorded run. `study.get` reads the journal.
+    study_start = "study.start"
+    study_get = "study.get"
+    # The whole plan's pre-launch scope (2/3's #28658): `outbound_scope` per unique condition, summed; pure — no network,
+    # no store; the web layer binds its one-use ticket for a hosted study.start to the returned start_payload.
+    study_preview = "study.preview"
     # §15 global review view: one read-only queue across runs; resolution stays per run (review.resolve).
     reviews_list = "reviews.list"
     # Matched comparison of ONE operator-selected pair of recorded runs (seat 2/3's pure core behind the seam);
@@ -166,6 +174,39 @@ class StudyPlanPayload(StrictModel):
     config: dict[str, Any]
 
 
+class StudyStartPayload(StrictModel):
+    """`peb study run <study_id> --plan FILE --max-model-calls N --confirm [--confirm-hosted]`: the COMPLETE displayed
+    plan (the coordinator rebuilds it from its config and requires exact equality before any run exists), an explicit
+    total decision-call cap that must cover the plan's ceiling, and the explicit launch confirmation — a plan alone
+    starts nothing (seat 2/3's #28565). A hosted (paid) plan additionally needs `confirm_hosted`; the web layer must
+    still bind its one-use preview token to this exact plan and cap before a hosted start."""
+
+    plan: dict[str, Any]
+    max_model_calls: int = Field(ge=1, le=32768)
+    confirm: Literal[True]
+    confirm_hosted: bool = False
+
+
+class StudyPreviewPayload(StrictModel):
+    """`peb study preview <study_id> --plan FILE --max-model-calls N [--input-rate --output-rate --rates-provenance]`: the
+    displayed plan and the cap the operator would pass to `study.start`, optionally with rates (USD per 1M tokens; input =
+    cache-MISS peak) so the aggregate worst-case cost line is real. Never confirms anything."""
+
+    plan: dict[str, Any]
+    max_model_calls: int = Field(ge=1, le=32768)
+    input_rate: float | None = Field(default=None, gt=0)
+    output_rate: float | None = Field(default=None, gt=0)
+    rates_provenance: str | None = Field(default=None, min_length=1, max_length=500)
+
+    @model_validator(mode="after")
+    def _rates_come_together(self) -> StudyPreviewPayload:
+        if (self.input_rate is None) != (self.output_rate is None):
+            raise ValueError("input_rate and output_rate must be supplied together (USD per 1M tokens)")
+        if self.rates_provenance is not None and self.input_rate is None:
+            raise ValueError("rates_provenance without rates")
+        return self
+
+
 class ComparisonGetPayload(StrictModel):
     """`comparison.get`: two RECORDED runs chosen by the operator and the one axis allowed to differ. The service
     projects both runs, binds a verifier to each snapshot (`runtime.snapshot.project`) and hands snapshots + verifiers
@@ -218,7 +259,8 @@ PAYLOADS: dict[Operation, type[StrictModel]] = {
     Operation.run_preview: RunPreviewPayload,
     Operation.run_create: RunCreatePayload, Operation.run_step: ConfirmPayload, Operation.run_begin: ConfirmPayload,
     Operation.commitment_accept: CommitmentAcceptPayload, Operation.commitment_revise: CommitmentRevisePayload,
-    Operation.study_plan: StudyPlanPayload, Operation.reviews_list: EmptyPayload,
+    Operation.study_plan: StudyPlanPayload, Operation.study_start: StudyStartPayload, Operation.study_get: EmptyPayload,
+    Operation.study_preview: StudyPreviewPayload, Operation.reviews_list: EmptyPayload,
     Operation.comparison_get: ComparisonGetPayload, Operation.evidence_replay: ReplayPayload,
     Operation.profiles_list: EmptyPayload,
     Operation.runs_list: EmptyPayload, Operation.run_get: EmptyPayload,
@@ -230,7 +272,8 @@ PATH_IDS: dict[Operation, tuple[str, ...]] = {
     Operation.health_get: (), Operation.demo_run: (), Operation.run_start: (), Operation.run_preview: (),
     Operation.run_create: (), Operation.run_step: ("run_id",), Operation.run_begin: ("run_id",),
     Operation.commitment_accept: ("run_id", "commitment_id"), Operation.commitment_revise: ("run_id", "commitment_id"),
-    Operation.study_plan: (), Operation.reviews_list: (), Operation.comparison_get: (), Operation.evidence_replay: (),
+    Operation.study_plan: (), Operation.study_start: (), Operation.study_get: ("study_id",), Operation.study_preview: (),
+    Operation.reviews_list: (), Operation.comparison_get: (), Operation.evidence_replay: (),
     Operation.profiles_list: (),
     Operation.runs_list: (), Operation.run_get: ("run_id",), Operation.run_pause: ("run_id",),
     Operation.run_cancel: ("run_id",), Operation.run_resume: ("run_id",), Operation.review_list: ("run_id",),
@@ -437,6 +480,52 @@ class WorkroomService:
         from ..cli import build_study_plan
 
         return build_study_plan(body.config)
+
+    async def _study_start(self, ids: dict[str, str], body: StudyStartPayload) -> dict[str, Any]:  # type: ignore[override]
+        """Exactly `peb study run`: seat 2/3's coordinator admits ONE execution of this displayed plan (exact rebuild
+        equality, explicit cap covering the ceiling, `confirm: true`, duplicate study → conflict before any driver
+        call) and dispatches this seat's trial driver in plan order — each trial a fresh recorded run under the same
+        supervisor and inference locks as `run.start`, the study identity pinned at genesis. Returns the final
+        journal (`completed` / `partial`); progress during the call is readable through `study.get`. A hosted plan
+        is refused here without `confirm_hosted`; the driver refuses it again before any run is created.
+        `not_implemented` when the coordinator lane is absent."""
+        from ..config import load_config
+        from .study import bind_trial_driver, coordinator
+
+        module = coordinator()
+        config = body.plan.get("config")
+        if isinstance(config, dict) and config.get("provider") == "deepseek" and not body.confirm_hosted:
+            raise PebError(ErrorCode.invalid_input, "hosted study refused: `confirm_hosted: true` is required for a deepseek "
+                           "plan (paid calls); nothing was created", {"provider": "deepseek"})
+        driver = bind_trial_driver(self._state_root, ollama_endpoint=self._endpoint,
+                                   deepseek_endpoint=load_config(self._state_root).deepseek_endpoint,
+                                   transport=self._ollama_transport, inference_lock_path=self._inference_lock_path,
+                                   confirm_hosted=body.confirm_hosted)
+        return await module.run_study(self._state_root, body.plan, max_model_calls=body.max_model_calls,
+                                      confirm=body.confirm, run_trial=driver)
+
+    def _study_get(self, ids: dict[str, str], body: StrictModel) -> dict[str, Any]:  # type: ignore[override]
+        """The study's durable journal, read-only (rows, per-trial results, counts, per-metric eligibility); an
+        abandoned execution (journal `running`, lock free) is exposed as `interrupted`, never resumed. Unknown study
+        → invalid_input; `not_implemented` when the coordinator lane is absent."""
+        from .study import coordinator
+
+        return coordinator().get_study(self._state_root, ids["study_id"])
+
+    def _study_preview(self, ids: dict[str, str], body: StudyPreviewPayload) -> dict[str, Any]:  # type: ignore[override]
+        """Exactly `peb study preview`: the plan validated by the coordinator's rule (exact rebuild), the cap by the
+        coordinator's rule (covers the ceiling), then `outbound_scope` per unique fixture/profile/frame condition with the
+        plan's actual provider, model, thinking and limits, summed over planned trials. No network, no store, nothing
+        written; a scripted plan is refused (nothing leaves the machine). The web layer binds its one-use ticket for a
+        hosted `study.start` to the returned `start_payload` (plan, cap, confirm, confirm_hosted)."""
+        from .study import preview_study
+
+        rates = None
+        if body.input_rate is not None and body.output_rate is not None:
+            rates = {"input_cache_miss_per_mtok": body.input_rate, "output_per_mtok": body.output_rate,
+                     "provenance": body.rates_provenance or "supplied by the operator; not verified by this software"}
+        return preview_study(body.plan, max_model_calls=body.max_model_calls, ollama_endpoint=self._endpoint,
+                             deepseek_endpoint=self._endpoint_for("deepseek"), rates=rates)
 
     def _comparison_get(self, ids: dict[str, str], body: ComparisonGetPayload) -> dict[str, Any]:  # type: ignore[override]
         """One operator-selected pair, compared by seat 2/3's pure core from two detached snapshots. The store stays

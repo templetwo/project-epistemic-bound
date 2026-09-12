@@ -1,11 +1,26 @@
 # Lane — seat 1/3 (Claude Code, lead/integrator)
 
-- Branch: build/claude-core (worktree ~/Desktop/project-epistemic-bound-worktrees/claude); integration checkout main stays 1/3-only
-- Latest commit: build/claude-core — see `git log -1`. Contains: S2 loop; compat shim; S3 Ollama adapter + `peb providers list`; runtime reads via trusted reader; executor-failure handling; store-driven seq; durable status mirror; commitments ledger + corrections (reversal vs update); `peb demo` composition; `peb run --provider ollama` with OS-held SupervisorLock/InferenceLock; profiles (candidate_v1 placeholder-marked, baseline); `peb pause`/`peb cancel` as operator EVENTS + durable rows; cross-process `peb resume` rebuilt from records (new subject session, predecessor recorded); ADR-014 run-scoped task grants; §13 review route (runtime/review.py: operator/scripted-reviewer resolution, approval via 3/3's issue_approval against the HELD proposal, same-session re-gate, expiry holds, `peb review list|ack|allow|deny` from records, ADR-015); read-only evaluation projection (runtime/snapshot.py, `evaluate_stored_run`, `evaluation_recorded` in demo/run summaries; anchor = retained-or-None per #27644); §17 authority-reason allowlist shared with 2/3; ruff `known-first-party = ["peb"]`; S4 service seam runtime/service.py (closed Operation enum, strict payloads validated before any store I/O, every operation through the same bootstrap functions as the CLI) + `peb serve` wiring to 2/3's create_workroom + operator secret in the state root (config.load_or_create_operator_secret); §16.2 arm profiles A0–A3 (tone_only written; contract_only awaiting the G1 text and NOT runnable; placebo draft, unmatched) with EVAL-03 arm hygiene (`check_arm_hygiene`) and arm/status/placeholder pinned in manifest.settings. Review unit for 3/3: everything on the lane at the current HEAD (3/3 accepted 4e8144f; delta since then measured on trial v2).
-- Files owned: pyproject.toml, uv.lock, .gitignore, src/peb/{__init__,cli,config,errors,contracts}.py, src/peb/runtime/ (engine, state, context), src/peb/providers/ (base, scripted, ollama), docs/INTERFACES.md, docs/ARCHITECTURE.md, docs/schemas/ (generated), scripts/export_schemas.py, config/, tests/{contracts,runtime,providers,unit}
-- Frozen at S1 (amendment required to change): contracts.py, boundary/canonical.py, evidence/events.py hash rule, docs/INTERFACES.md
-- Tests passed (lane alone, measured 2026-09-11 07:19 EDT): `uv run --locked pytest -o addopts='' -q` → 194 passed, 13 skipped (integration tests skip without the sibling lanes); `ruff check` clean on owned paths
-- Active processes: none (no `peb serve` yet)
-- Blockers: none on this lane. Integration to main of 3/3's S2 waits on 3/3 fixing #27490 (import cycle), #27507 (2/3's review: verify scope, checks.run key) and merging main 50225fe.
-- Proof on the scratch trial tree (trial/s2-v2 @ 153d30d = this lane + build/grok-boundary@a41d628 + main 37d4930, NO patches): 202 passed, 3 failed (only 3/3's verifier holes from #27539 item 2), 1 skipped; `peb demo` ×3 verified_against_anchor; fake-Ollama `peb run` and cross-process `peb resume` complete on the real boundary.
-- Next action: trial v5 (main 37d4930 + grok 1d2788d + codex a0f24cc + this lane) must be green incl. tests/integration/test_review_route.py and test_snapshot_evaluate.py; merge into main (--no-ff) grok → codex → claude-core once 2/3 posts ACCEPT on 91f10dc and fixes #27633 R1; then runtime/service.py + `peb serve` against INTERFACES §15; LIVE-01 once Anthony names a model.
+- Branch: build/claude-core (worktree ~/Desktop/project-epistemic-bound-worktrees/claude); the integration checkout
+  ~/Desktop/project-epistemic-bound stays on `main` and is 1/3-only (reviewed `--no-ff` merges at exact accepted hashes,
+  clean-checkout suite, push only on green; receipts in docs/receipts/, reviews in docs/reviews/,
+  docs/receipts/main-tip-suite-log.json appended per tip).
+- Latest unit on the lane (2026-09-12): the study trial driver `src/peb/runtime/study.py` (`run_trial`, `bind_trial_driver`,
+  `STUDY_SCRIPTS`, `coordinator()`, `TrialRefused`, `preview_study`, `validate_displayed_plan`, `PLAN_FILE_MAX_BYTES`),
+  `peb study run <study-id> --plan FILE --max-model-calls N --confirm [--confirm-hosted]`, `peb study get`,
+  `peb study preview`, service `study.start` / `study.get` / `study.preview`, `compose_model_run(extra_settings=)`; tests in
+  tests/integration/test_study_driver.py, tests/runtime/test_study_seam.py, tests/unit/test_cli_study_run.py; ADR-018
+  addendum; INTERFACES §15 rows; HANDOFF and RUNBOOK. Binds seat 2/3's coordinator `peb.evaluation.study` (753e94d).
+- Earlier on this lane, all on `main`: S2 loop and runtime; providers (scripted, Ollama loopback, DeepSeek hosted with
+  ADR-017 hardening and thinking retained); `peb demo|run|pause|cancel|resume|review|verify|export|replay|study plan`;
+  §13 review route; read-only projection; §15 service seam (ADR-018 lifecycle and commitment operations, reviews.list,
+  study.plan, comparison.get with the consequence_hash pin, evidence.replay); `peb serve` wiring; profiles A0–A3 with
+  EVAL-03 hygiene; the ISO-02 conftest guard; the terminal cockpit `peb tui` (ADR-019).
+- Files owned: pyproject.toml, uv.lock, src/peb/{__init__,cli,config,errors,contracts}.py, src/peb/runtime/,
+  src/peb/providers/, src/peb/tui/, docs/INTERFACES.md, docs/ARCHITECTURE.md, docs/HANDOFF.md, docs/TUI.md, docs/schemas/,
+  scripts/, config/profiles/, tests/{contracts,runtime,providers,unit,tui}.
+- Frozen at S1 (amendment required to change): contracts.py, boundary/canonical.py, evidence/events.py hash rule,
+  docs/INTERFACES.md §1–12.
+- Measurement discipline: JUnit XML counts from `bash scripts/clean_checkout_suite.sh <ref>`; whole-tree ruff; the
+  receipt names the measured product tree.
+- Next: sibling verdicts on the driver unit → merge; then matrix row promotions with a named reviewer per row, HANDOFF
+  kept current per push, Anthony's tag/scope decision.

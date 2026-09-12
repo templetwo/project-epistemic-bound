@@ -64,19 +64,20 @@ def test_peb_console_script_help_and_doctor_start(state_root: Path):
     assert report["storage"]["status"] == "ok"
 
 
-@pytest.mark.parametrize(
-    "argv",
-    [
-        ["study", "run", "study-x", "--provider", "scripted", "--max-model-calls", "1"],
-    ],
-)
-def test_unbuilt_commands_fail_with_not_implemented(state_root: Path, capsys, argv):
-    rc = main(argv)
-    err = capsys.readouterr().err
-    assert rc == 2
-    envelope = json.loads(err)
-    assert envelope["error"]["code"] == "not_implemented"
-    assert "not implemented" in envelope["error"]["message"]
+def test_study_run_without_the_coordinator_lane_fails_not_implemented(state_root: Path, capsys, monkeypatch):
+    """The S0 promise kept: a command whose lane is absent fails `not_implemented`, whatever its arguments, and
+    creates nothing. The absent coordinator (seat 2/3's peb.evaluation.study) is simulated so the check holds on
+    every checkout, merged or not."""
+    import sys
+
+    monkeypatch.setitem(sys.modules, "peb.evaluation.study", None)
+    for argv in (["study", "run", "study-x", "--plan", "nope.json", "--max-model-calls", "1", "--confirm"],
+                 ["study", "get", "study-x"]):
+        rc = main(argv)
+        envelope = json.loads(capsys.readouterr().err)
+        assert rc == 2 and envelope["error"]["code"] == "not_implemented"
+        assert "not implemented" in envelope["error"]["message"]
+    assert not state_root.exists()
 
 
 def test_runs_list_is_empty_then_lists_seeded_run(state_root: Path, capsys):

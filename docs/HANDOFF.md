@@ -36,12 +36,16 @@ Earlier states of this file are history, not current state: `git log -p -- docs/
   corrections ledger; scripted, Ollama (loopback only) and DeepSeek providers; `peb demo`, `peb run`
   (`--provider ollama|deepseek`, `--thinking enabled|disabled` default enabled, `--dry-run` prints the
   pre-approval scope without a call), `peb pause`/`cancel`/`resume`, `peb review list|ack|allow|deny`
-  (§13, ADR-015), `peb study plan --config [--out NEW]` (EVAL-02 planning; `peb study run` still fails
-  `not_implemented`), profiles A0–A3 with EVAL-03 hygiene, and `WorkroomService` (§15) with 21 closed
-  operations: health.get, demo.run, profiles.list, runs.list, run.get, run.preview, run.create, run.start,
-  run.begin, run.step, run.pause, run.cancel, run.resume, commitment.accept, commitment.revise, review.list,
-  review.resolve, reviews.list (global, read-only), study.plan, evidence.verify, evidence.export (ADR-018 and
-  addenda). Task ids are validated against the closed fixture registry.
+  (§13, ADR-015), `peb study plan --config [--out NEW]` (EVAL-02 planning), `peb study run <study-id> --plan FILE
+  --max-model-calls N --confirm [--confirm-hosted]`, `peb study get` and `peb study preview` (EVAL-02 execution: seat
+  2/3's durable coordinator `evaluation.study` + this seat's trial driver `runtime.study.run_trial`, every trial a
+  fresh recorded run; the whole plan's pre-launch scope before a hosted study; ADR-018 addendum;
+  docs/STUDY_COORDINATOR.md), profiles A0–A3 with EVAL-03 hygiene, and `WorkroomService` (§15) with 26 closed
+  operations: health.get, demo.run, profiles.list, runs.list, run.get, run.preview, run.create, run.start, run.begin,
+  run.step, run.pause, run.cancel, run.resume, commitment.accept, commitment.revise, review.list, review.resolve,
+  reviews.list (global, read-only), study.plan, study.preview, study.start, study.get, comparison.get,
+  evidence.replay, evidence.verify, evidence.export (ADR-018 and addenda). Task ids are validated against the closed
+  fixture registry.
 - The DeepSeek hosted provider (ADR-017 and addenda): https only, host pinned to `api.deepseek.com`, the key
   read only from `DEEPSEEK_API_KEY` and sent only in the Authorization header, every response body scanned raw
   and as decoded JSON for the key (→ `credential_reflected`), malformed shapes → typed failures, no fallback and
@@ -164,9 +168,11 @@ separate, unfavorable, recorded observation.
   provider and addenda, ADR-018 lifecycle operations and addenda) and the outside reviewer's recorded
   recommendations. No verified "Revision 2.0" file exists; the reviewer withdrew that delivery claim on 2026-09-12.
   Its one interface change (health.get / demo.run / run.start) had already been adopted as an amendment.
-- Not built: study execution (`peb study run`, EVAL-02 execution); TX-02/TX-03/STOP-02 hardening cases beyond the partial
-  evidence recorded on the matrix. Built since the 23:4x refresh: the global review queue, recorded replay, matched
-  comparison and bundle replay in the browser cockpit; the shared bundle reader; the terminal cockpit.
+- Not built: the browser cockpit's binding of `study.start` / `study.get` (seat 2/3); a hosted (deepseek) study has never
+  been run — only scripted studies have executed, on temporary roots; TX-02/TX-03/STOP-02 hardening cases beyond the
+  partial evidence recorded on the matrix. Built since the 23:4x refresh: the global review queue, recorded replay,
+  matched comparison and bundle replay in the browser cockpit; the shared bundle reader; the terminal cockpit; bounded
+  study execution (coordinator + trial driver + `peb study run|get` + `study.start`/`study.get`).
 
 ## Where evidence lives
 
@@ -181,9 +187,9 @@ separate, unfavorable, recorded observation.
 
 ## Next bounded item
 
-1. Seat 2/3: the global review queue view against `reviews.list` (now on `main`) → hash → 1/3 review → merge;
-   then bounded study execution (`peb study run`, no provider default, every trial a real run with records)
-   and the replay/matched-frame views.
+1. Seat 2/3: bind `study.start` / `study.get` in the browser cockpit (hosted preview token bound to the exact plan and
+   cap; progress read from the journal; ambiguous submissions inspected, never relaunched); then the first scripted
+   study on the operator root at Anthony's direction, and a hosted study only after its own preregistration.
 2. Matrix promotions row by row: a named reviewer from another seat plus evidence per
    `docs/acceptance-matrix.json`, then `scripts/check_release.py` at the merged tree; the receipt is the record.
 3. Seat 3/3: TX-02/TX-03/STOP-02 hardening cases (crash-after-commit, concurrent appenders,

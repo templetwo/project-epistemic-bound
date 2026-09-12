@@ -108,6 +108,29 @@ reviews block resume until resolved or recorded expired, even when paused.
 Scripted runs do not support cross-process resume; create a fresh control instead.
 See [ADR-015](decisions/ADR-015-review-resolution-and-peb-review.md).
 
+## Execute a planned study (EVAL-02)
+
+```bash
+# 1. Display the schedule (no model, no store): exact trial count, call/token ceilings, study_id.
+uv run --locked peb --state-root STATE study plan --config config/studies/framing_pilot.json --out ./plan.json
+# 2. Execute it: the typed study id must match the plan; the cap must cover the plan's ceiling; --confirm is explicit.
+uv run --locked peb --state-root STATE study run '<study-id>' --plan ./plan.json --max-model-calls 128 --confirm
+# 3. Read the journal at any time (also after a crash: an abandoned execution reads as interrupted, never resumed).
+uv run --locked peb --state-root STATE study get '<study-id>'
+# Before a hosted (deepseek) plan: the whole plan's outbound scope and worst-case budget, no network, nothing written.
+uv run --locked peb --state-root STATE study preview '<study-id>' --plan ./plan.json --max-model-calls 128 \
+  --input-rate <USD per 1M input tokens, cache-miss> --output-rate <USD per 1M output tokens> --rates-provenance '<source>'
+```
+
+Provider and model come from the plan. A scripted plan (`provider: scripted`) runs each fixture's registered scripted
+control under the planned A0..A3 profile text and every planned frame — instrument verification, labelled
+`scripted_validation`, never model behaviour. A `deepseek` plan additionally requires `--confirm-hosted` and pays for
+every trial; nothing is retried. Every trial is a fresh recorded run (`peb runs list` shows them; `peb verify`,
+`peb export` and `peb replay` work on each), with `study_id`, `trial_id`, `pair_id` and `condition_hash` pinned in its
+manifest. The journal lives at `STATE/studies/<study-id>.json`; a study id is content-addressed, so the same plan cannot be
+executed twice — display a new plan with a new seed for an intentional replication. See docs/STUDY_COORDINATOR.md and the
+ADR-018 addendum.
+
 ## Current limits
 
 The integrated suite measured 299 passed and 2 skips. This does not complete

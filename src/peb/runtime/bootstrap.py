@@ -192,10 +192,12 @@ async def compose_model_run(state_root: str | os.PathLike[str], *, model: str, p
                             max_model_calls: int, endpoint: str, frame: str = "ordinary",
                             transport: Any = None, provider_kind: str = "ollama",
                             max_output_tokens: int | None = None, max_input_chars: int | None = None,
-                            probe: bool = True, thinking: str = "enabled") -> ComposedRun:
+                            probe: bool = True, thinking: str = "enabled",
+                            extra_settings: dict[str, str | int | bool] | None = None) -> ComposedRun:
     """§20 `peb run --provider ollama|deepseek`: explicit model, explicit profile, real probe first, no fallback.
     `probe=False` (service `run.create`, ADR-018): validate config and record the run with NO network at all;
-    the first `run.step`/`run.begin` probes before any model call."""
+    the first `run.step`/`run.begin` probes before any model call. `extra_settings` are additional genesis pins
+    (the study driver's study/trial/pair/condition identities); the ACTUAL provider settings always win a key."""
     from ..providers.ollama import response_schema_for_decisions
     from .profiles import load_profile, require_runnable
 
@@ -215,7 +217,7 @@ async def compose_model_run(state_root: str | os.PathLike[str], *, model: str, p
                        preaction_protocol=profile.preaction_protocol, fixture_id=task_id, frame=frame, limits=limits,
                        response_schema=response_schema_for_decisions(), case="model",
                        profile_status=profile.status, profile_placeholder=profile.placeholder, arm=profile.arm,
-                       extra_settings=settings)
+                       extra_settings={**(extra_settings or {}), **settings})
 
 
 async def run_scripted_demo(state_root: str | os.PathLike[str], case: str, **kw) -> dict[str, Any]:

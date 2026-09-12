@@ -14,7 +14,8 @@ REV = "rev_" + "b" * 32
 
 def test_operation_set_matches_interfaces_section_15():
     assert {o.value for o in Operation} == {"health.get", "demo.run", "run.start", "run.preview", "run.create", "run.step",
-                                            "run.begin", "commitment.accept", "commitment.revise", "study.plan", "reviews.list", "comparison.get", "evidence.replay",
+                                            "run.begin", "commitment.accept", "commitment.revise", "study.plan", "study.start", "study.get", "study.preview",
+                                            "reviews.list", "comparison.get", "evidence.replay",
                                             "profiles.list", "runs.list",
                                             "run.get", "run.pause", "run.cancel", "run.resume", "review.list",
                                             "review.resolve", "evidence.verify", "evidence.export"}
@@ -37,6 +38,12 @@ def test_operation_set_matches_interfaces_section_15():
     ("run.create", {"provider": "ollama", "model": "m", "profile": "baseline", "confirm": True}),  # create never confirms
     ("run.create", {"provider": "ollama", "profile": "baseline"}),                                   # no model, ever
     ("run.create", {"provider": "ollama", "model": "m", "profile": "baseline", "input_rate": 1.0}),   # rates are preview-only
+    ("study.start", {"plan": {}, "max_model_calls": 1}),                                             # no confirm, ever
+    ("study.start", {"plan": {}, "max_model_calls": 1, "confirm": False}),
+    ("study.start", {"plan": {}, "max_model_calls": 0, "confirm": True}),                            # the cap is explicit and positive
+    ("study.start", {"plan": [], "max_model_calls": 1, "confirm": True}),                            # the plan is an object
+    ("study.start", {"plan": {}, "max_model_calls": 1, "confirm": True, "run_trial": "x"}),          # nothing injectable
+    ("study.start", {"plan": {}, "max_model_calls": 1, "confirm": True, "confirm_hosted": "yes"}),
 ])
 def test_launch_payloads_are_strict(op, payload):
     with pytest.raises(PebError) as e:
