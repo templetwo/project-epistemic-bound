@@ -3,7 +3,38 @@
   "kind": "main_tip_suite_log",
   "note": "Append-only. Each pushed main tip with the clean-checkout suite measured AT THAT TIP by seat 1/3 (scripts/clean_checkout_suite.sh <tip>: git archive, uv sync --locked, whole-tree ruff, pytest with JUnit XML; counts read from the XML). Reproduce: git clone https://github.com/templetwo/project-epistemic-bound && bash scripts/clean_checkout_suite.sh <tip>.",
   "tips": [
-    {"tip": "62c3250", "measured_at_local": "2026-09-11T23:50-0400", "ruff": "All checks passed", "tests": 562, "passed": 562, "failed": 0, "errors": 0, "skipped": 0, "receipt": "docs/receipts/S6-reviews-list-merge.json"},
-    {"tip": "22a0359", "measured_at_local": "2026-09-11T23:59-0400", "ruff": "All checks passed", "tests": 564, "passed": 564, "failed": 0, "errors": 0, "skipped": 0, "receipt": "docs/receipts/S6-global-review-ui-merge.json"}
+    {
+      "tip": "62c3250",
+      "measured_at_local": "2026-09-11T23:50-0400",
+      "ruff": "All checks passed",
+      "tests": 562,
+      "passed": 562,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "receipt": "docs/receipts/S6-reviews-list-merge.json"
+    },
+    {
+      "tip": "22a0359",
+      "measured_at_local": "2026-09-11T23:59-0400",
+      "ruff": "All checks passed",
+      "tests": 564,
+      "passed": 564,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "receipt": "docs/receipts/S6-global-review-ui-merge.json"
+    },
+    {
+      "tip": "c1c8d9a",
+      "measured_at_local": "2026-09-12T00:08-0400",
+      "ruff": "All checks passed",
+      "tests": 564,
+      "passed": 564,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "receipt": "docs-only reconciliation commit; product tree = 22a0359"
+    }
   ]
 }

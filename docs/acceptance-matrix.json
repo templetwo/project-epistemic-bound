@@ -570,7 +570,7 @@
     {
       "id": "LIVE-01",
       "requirement": "A fresh explicitly configured local-model run traverses the same runtime and emits a verifiable export, even if the model's behavior fails the target.",
-      "status": "partial",
+      "status": "passed",
       "candidate_evidence": [
         "tests/integration/test_model_run.py",
         "docs/receipts/S6-correction-pass-merges.json",
@@ -584,9 +584,17 @@
         "docs/reviews/ISO-02-c86c171-debea4c.md",
         "docs/evidence/live-01/README.md"
       ],
-      "evidence": [],
-      "reviewed_by": null,
-      "note": "Consult integration local-model receipt; this seat does not promote live evidence from a test count. RULING REQUESTED 2026-09-12 (board #28355, seat 3/3): judge docs/evidence/live-01/ (three mistral:7b-instruct attempts; attempt 3 traversed the runtime and verifies) against this requirement and BUILD_SPEC line 894 before any new local-model run."
+      "evidence": [
+        "docs/reviews/LIVE-01-ruling.md",
+        "docs/receipts/LIVE-01-ruling.json",
+        "docs/evidence/live-01/README.md",
+        "docs/evidence/live-01/attempt-3/run-run_73bb6eb1f5d64ed69169ce8b0e927c15/manifest.json",
+        "docs/evidence/live-01/attempt-3/run-run_73bb6eb1f5d64ed69169ce8b0e927c15/events.jsonl",
+        "docs/evidence/live-01/attempt-3/run-run_73bb6eb1f5d64ed69169ce8b0e927c15/SHA256SUMS",
+        "docs/evidence/live-01/attempt-3/summary.json"
+      ],
+      "reviewed_by": "seat 3/3 (evidence seat): evidence ruling docs/reviews/LIVE-01-ruling.md at 8d42afe (merged 2a415e1), no new model run; seat 1/3: integrator spot-check of the attempt-3 manifest, event sequence and SHA256SUMS at merge time",
+      "note": "Closing observation: attempt 3, run_73bb6eb1f5d64ed69169ce8b0e927c15, mistral:7b-instruct via Ollama, mode model_observation. Assertions (3/3): explicit operator-selected installed local model; the same runtime as scripted (model_request/model_response, decision_recorded, action_proposed, preaction_declared, gate_decided, effect_observed applied on check.latest, then decision_invalid and run_finished — an honest invalid_output); a section 14.3 export with SHA256SUMS. Attempts 1-2 are supporting honest-fail observations (unsupported_setting without fallback; parse reject). Limits: task performance is a separate unfavorable observation, not this row; the original bundles' evaluation.json is the pre-11551d3 stub (evaluation_recorded is in events.jsonl); export-time verified_against_anchor is same-store, the CLI verify is absent-anchor. Evidence paths are files (checker rule), not the directory named on the board."
     },
     {
       "id": "RELEASE-01",
