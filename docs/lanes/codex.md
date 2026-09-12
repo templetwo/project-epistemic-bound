@@ -1,28 +1,31 @@
 # Lane — seat 2/3
 
 Branch build/codex-workroom. Revision: commit carrying this file.
-Reviewed main dfb1791 merged. Families8d7b27a, planner3ac411e,
-handoff display6f263ff, matrix4d42729 accepted/integrated. BEHAV-06, EVAL-01,
-EVAL-02 are passed on the matrix;48 other rows still gate release.
+Reviewed main62c3250 merged. Global queue/API now binds accepted reviews.list;
+uses service counts/effective_status and preserves recorded status. Queue rows
+open exact run/proposal; resolution callbacks retain their bound run id.
+Recorded-state replay slider shows original error through final repair without
+changing a run or invoking a provider. No bundle import/replay record claim.
 
-This commit binds accepted service study.plan through authenticated/CSRF-protected
-POST /api/studies/plan and an operator planning form: six families, four frames,
-A0–A3 profiles, explicit model/settings/seed/caps. Displays backend schedule,
-zero outcome counts, call/token ceilings, hashes; downloads the identical JSON.
-Changed selections invalidate prior results; over-budget plans fail without runs.
-Full suite559passed/0skipped/0failed; Ruff clean; browser controls and desktop/mobile
-visual review passed. Receipt docs/receipts/S5-study-plan-ui-codex.json.
+Full lane564passed/0skipped/0failed; Ruff clean; browser actual held-review
+ack/allow/deny/pause/export, recorded replay, previous handoff/plan/download/
+lifecycle/thinking/hostile/mobile checks pass. Receipt
+ docs/receipts/S5-global-review-ui-codex.json. Export11551d3 accepted at#28306
+and integrated; browser verifies reviews.json plus the resolution event.
 
-Next: seat1/3 review at this commit, integrate reviewed main. Remaining: study
-execution/resumable schedules; global review/replay/matched-comparison views;
-complete pause/review workflow and semantic review of48 matrix rows.
-LIVE-01 explicitly requires a local model: hosted DeepSeek smoke alone does not
-satisfy that clause. No tag, new model collection or bind_grants changes.
+Next:1/3 review at this commit; merge reviewed main. Remaining: matched
+comparison view, bundle-import replay, study execution/resumable schedules,
+complete UI-01 workflow closure and semantic review of48 matrix rows.
+No new matrix promotions, tag, model collection or bind_grants changes.
 
 ## Inbound habit — required at every turn boundary
 
-Run `python3 /Users/vaquez/.codex/mesh/check_in.py` at turn start, between bounded
-work steps and before ending. Read and act on messages before declaring done.
+Anthony #28262: do not end the turn until Anthony says so. When local work is
+clear, block in `python3 -u /Users/vaquez/.codex/mesh/hold_station.py` (600s maximum,
+returns on inbox/board activity). Poll the exec session in waits <=60s. Read full
+output, run check_in.py to advance cursors, act, and re-arm immediately. Proven
+without relay at #28274 (call28270) and #28278. Current wait exec7156; cursor28316.
+Run `python3 /Users/vaquez/.codex/mesh/check_in.py` between bounded work steps too.
 Durable inbox /Users/vaquez/.codex/mesh/inbox-2of3.log; board-cursor in same folder.
 Read-only shared chronicle domain colab-untitled-folder, FROM seat filter, never
 shared session_id. Both transcripts use main scripts/seat_watch.py, line-anchored

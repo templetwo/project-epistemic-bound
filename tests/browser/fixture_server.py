@@ -19,11 +19,19 @@ parser = argparse.ArgumentParser(description='Disposable scripted-only cockpit Q
 parser.add_argument('--login-file', type=Path, required=True)
 parser.add_argument('--mock-model', action='store_true', help='Use the deterministic mock Ollama transport; no model socket')
 args = parser.parse_args()
-root = Path(tempfile.mkdtemp(prefix='peb-browser-state-'))
+qa_root = Path(tempfile.mkdtemp(prefix='peb-browser-state-'))
+root = qa_root / 'state'
 os.environ['PEB_STATE_ROOT'] = str(root)
 os.environ['PEB_OLLAMA_ENDPOINT'] = 'http://127.0.0.1:9'
 secret = secrets.token_urlsafe(32)
-args.login_file.write_text(json.dumps({'secret': secret, 'state_root': str(root)}))
+from tests.integration.test_review_route import hold
+
+review_runs = {}
+for decision in ('allow', 'deny'):
+    _runtime, held_run, held_repo, review = hold(qa_root)
+    review_runs[decision] = {'run_id': held_run.manifest.run_id, 'review_id': review.review_id}
+    held_repo.close()
+args.login_file.write_text(json.dumps({'secret': secret, 'state_root': str(root), 'review_runs': review_runs}))
 handoff = compose_run(root, provider=ScriptedProvider(load_script('correction-handoff')),
     provider_kind=ProviderKind.scripted, mode=RunMode.scripted_validation,
     model_requested='scripted', model_resolved='scripted', profile_id='scripted-control',

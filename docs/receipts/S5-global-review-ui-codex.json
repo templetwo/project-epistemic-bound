@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "kind": "software_verification_receipt",
+  "base": "main62c3250 merged into build/codex-workroom plus this UI change",
+  "command": "uv run --locked pytest -q --junitxml=/private/tmp/astra-final-review-ui.xml",
+  "exit_code": 0,
+  "tests": {
+    "passed": 564,
+    "skipped": 0,
+    "failed": 0
+  },
+  "junit_sha256": "f09a79d795cfc63b2f6f03491faf369335c28294c0afb3b8b87e9a3575821735",
+  "ruff": "uv run --locked ruff check .: exit0",
+  "browser": {
+    "command": "PEB_TEST_LIFECYCLE=1 PEB_TEST_REVIEWS=1 node tests/browser/workroom.cjs LOGIN_FILE OUTPUT_DIRECTORY",
+    "exit_code": 0,
+    "global_review_workflow_checked": true,
+    "acknowledgement_preserves_hold": true,
+    "allow_applies_repair_and_pauses": true,
+    "deny_preserves_unrepaired_state_and_pauses": true,
+    "review_resolution_in_exported_events": true,
+    "other_existing_controls": "hostile text, handoff labels, study plan/download/no-run, local lifecycle, thinking preview, mobile overflow",
+    "page_errors": [],
+    "state": "fresh temporary root; real scripted held reviews and mock Ollama; no model socket",
+    "recorded_replay_checked": true,
+    "recorded_reviews_json_verified": true,
+    "visual_review": "390px queue screenshot inspected"
+  },
+  "limits": [
+    "Global listing is read-only; resolution stays on the exact per-run route",
+    "Recorded-state replay only; no bundle import, model invocation or new replay record",
+    "Full UI-01, matched comparisons and study execution remain open; no matrix promotion"
+  ]
+}

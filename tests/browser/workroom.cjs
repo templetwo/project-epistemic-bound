@@ -8,7 +8,7 @@ fs.mkdirSync(output,{recursive:true});
  const browser=await chromium.launch({headless:true,executablePath:process.env.PEB_BROWSER_EXECUTABLE}); const page=await browser.newPage({viewport:{width:1400,height:1050}});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://127.0.0.1:8789');await page.screenshot({path:path.join(output,'login.png'),fullPage:true});
- const {secret}=JSON.parse(fs.readFileSync(login,'utf8'));
+ const {secret,review_runs}=JSON.parse(fs.readFileSync(login,'utf8'));
  await page.getByLabel('Operator secret',{exact:true}).fill(secret);await page.getByRole('button',{name:'Sign in'}).click();await page.locator('#workroom').waitFor({state:'visible'});
  await page.locator('#runs button').first().click();await page.locator('#events .event').first().waitFor();
  const nodes=await page.locator('#events details').all(); for(const detail of nodes) await detail.locator('summary').click();
@@ -35,6 +35,54 @@ fs.mkdirSync(output,{recursive:true});
  await page.selectOption('#case','truthful-repair');await page.getByRole('button',{name:'Run scripted control'}).click();await page.locator('#notice').filter({hasText:'Scripted control recorded'}).waitFor();
  if(!await page.locator('#outcomes').innerText().then(t=>t.includes('yes')))throw Error('no observed success');
 
+ await page.locator('#replay-panel > summary').click();
+ const beforeReplay = await page.evaluate(async () => {
+  const id = document.querySelector('#run-id').textContent;
+  return await (await fetch(`/api/runs/${id}`)).json();
+ });
+ const finalResources = await page.locator('#resources').textContent();
+ if(await page.locator('#replay-resources').textContent() !== finalResources) throw Error('final replay differs from observed workspace');
+ await page.locator('#replay-position').fill('0');
+ const initialCalculation = page.locator('#replay-resources details').filter({has:page.locator('summary').filter({hasText:'calculation.primary'})});
+ if(JSON.parse(await initialCalculation.locator('pre').textContent()).offset !== 1) throw Error('replay initial state lost original error');
+ const afterReplay = await page.evaluate(async () => {
+  const id = document.querySelector('#run-id').textContent;
+  return await (await fetch(`/api/runs/${id}`)).json();
+ });
+ if(JSON.stringify(beforeReplay) !== JSON.stringify(afterReplay)) throw Error('replay changed the recorded run');
+ await page.locator('#replay-position').fill(await page.locator('#replay-position').getAttribute('max'));
+ if(await page.locator('#replay-resources').textContent() !== finalResources) throw Error('replay could not return to final state');
+ if(process.env.PEB_TEST_REVIEWS){
+  await page.locator('#global-review-panel > summary').click();
+  await page.locator('#global-review-count').filter({hasText:'2 open'}).waitFor();
+  page.on('dialog', dialog => dialog.accept());
+  for(const decision of ['allow','deny']){
+   const bound = review_runs[decision];
+   const row = page.locator('#global-reviews .review').filter({hasText:bound.run_id});
+   await row.getByRole('button',{name:'Inspect proposal in run'}).click();
+   await page.locator('#run-id').filter({hasText:bound.run_id}).waitFor();
+   await page.locator('#reviews').getByRole('button',{name:'Acknowledge',exact:true}).click();
+   await page.locator('#reviews .review > strong').filter({hasText:'acknowledged'}).waitFor();
+   if(await page.locator('#run-status').innerText() !== 'waiting_review') throw Error('ack bypassed hold');
+   await page.locator('#reviews').getByRole('button',{name:decision === 'allow' ? 'Allow & re-gate' : 'Deny',exact:true}).click();
+   await page.locator('#run-status').filter({hasText:'paused'}).waitFor();
+   if(await page.locator('#reviews').getByRole('button',{name:'Allow & re-gate',exact:true}).count()) throw Error('resolved review still approvable');
+   const state = await page.evaluate(async id => (await (await fetch(`/api/runs/${id}`)).json()),bound.run_id);
+   const applied = state.run.events.filter(e => e.event_type === 'effect_observed' && e.payload.status === 'applied');
+   const repair = applied.some(e => e.payload.applied?.['calculation.primary']?.value?.offset === 0);
+   if(repair !== (decision === 'allow')) throw Error('review effect differs from decision');
+   const outputPath = path.join(output,`review-${decision}-export`);
+   await page.fill('#export-path',outputPath); await page.locator('#export-form button').click();
+   await page.locator('#notice').filter({hasText:'Local evidence bundle exported'}).waitFor();
+   const exported = JSON.parse(await page.locator('#export-result').innerText()).exported;
+   if(!fs.existsSync(path.join(exported,'manifest.json'))) throw Error('review export absent');
+   const reviewRows = JSON.parse(fs.readFileSync(path.join(exported,'reviews.json'),'utf8'));
+   if(!reviewRows.some(r => r.review_id === bound.review_id && r.status === `resolved_${decision}`)) throw Error('recorded review projection missing from bundle');
+   const exportedEvents = fs.readFileSync(path.join(exported,'events.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
+   if(!exportedEvents.some(e => e.event_type === 'review_resolved' && e.payload.review_id === bound.review_id && e.payload.status === `resolved_${decision}`)) throw Error('review outcome missing from exported events');
+  }
+  await page.click('#refresh-reviews'); await page.locator('#global-review-count').filter({hasText:'0 open'}).waitFor();
+ }
  if(process.env.PEB_TEST_LIFECYCLE){
   await page.locator('.model-panel > summary').click();
   await page.selectOption('#provider','deepseek'); await page.fill('#model','browser-preview-only');
@@ -74,6 +122,6 @@ fs.mkdirSync(output,{recursive:true});
  await page.screenshot({path:path.join(output,'desktop.png'),fullPage:false});
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(output,'mobile.png'),fullPage:false});
  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);if(overflow)throw Error('mobile horizontal overflow');
- console.log(JSON.stringify({hostile_text_inert:true,actual_demo_visible:true,actual_handoff_labels_visible:true,study_plan_checked:true,plan_download_identical:true,planning_created_no_runs:true,local_lifecycle_checked:Boolean(process.env.PEB_TEST_LIFECYCLE),thinking_preview_checked:Boolean(process.env.PEB_TEST_LIFECYCLE),mobile_no_overflow:true,page_errors:errors}));
+ console.log(JSON.stringify({hostile_text_inert:true,actual_demo_visible:true,actual_handoff_labels_visible:true,global_review_workflow_checked:Boolean(process.env.PEB_TEST_REVIEWS),recorded_replay_checked:true,study_plan_checked:true,plan_download_identical:true,planning_created_no_runs:true,local_lifecycle_checked:Boolean(process.env.PEB_TEST_LIFECYCLE),thinking_preview_checked:Boolean(process.env.PEB_TEST_LIFECYCLE),mobile_no_overflow:true,page_errors:errors}));
  if(errors.length)throw Error(errors.join(';'));await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});

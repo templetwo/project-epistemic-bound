@@ -333,3 +333,47 @@ def test_study_plan_http_uses_real_planner_and_never_starts_a_run(tmp_path):
         assert (await client.post("/api/studies/plan", json=body, headers=headers)).status_code == 401
 
     asyncio.run(exercise(WorkroomService(root, ollama_endpoint="http://127.0.0.1:9"), scenario))
+
+
+@pytest.mark.parametrize("decision", ["allow", "deny"])
+def test_global_review_queue_resolves_exact_run_and_leaves_observed_pause(tmp_path, decision):
+    from peb.runtime.service import WorkroomService
+    from tests.integration.test_review_route import hold, offset
+
+    _runtime, run, repo, review = hold(tmp_path)
+    _other_runtime, other_run, other_repo, other_review = hold(tmp_path)
+    rid = run.manifest.run_id
+    other_rid = other_run.manifest.run_id
+
+    async def scenario(client, headers):
+        response = await client.get("/api/reviews")
+        assert response.status_code == 200, response.text
+        rows = response.json()["reviews"]
+        assert {r["review_id"] for r in rows} == {review.review_id, other_review.review_id}
+        assert all(r["run_id"] in {rid, other_rid} and r["status"] == "pending" for r in rows)
+        assert (await client.get("/api/reviews?unexpected=1")).status_code == 400
+        path = f"/api/runs/{rid}/reviews/{review.review_id}/resolve"
+        assert (await client.post(path, json={"decision": decision})).status_code == 403
+        wrong = await client.post(f"/api/runs/{other_rid}/reviews/{review.review_id}/resolve", json={"decision": decision}, headers=headers)
+        assert wrong.status_code in {400, 409}
+        assert offset(repo, rid) == offset(other_repo, other_rid) == 1
+        acknowledged = await client.post(path, json={"decision": "ack"}, headers=headers)
+        assert acknowledged.status_code == 200 and acknowledged.json()["review"]["status"] == "acknowledged"
+        assert acknowledged.json()["status"] == "waiting_review" and offset(repo, rid) == 1
+        resolved = await client.post(path, json={"decision": decision}, headers=headers)
+        assert resolved.status_code == 200 and resolved.json()["status"] == "paused"
+        assert resolved.json()["executed"] is (decision == "allow")
+        assert offset(repo, rid) == (0 if decision == "allow" else 1)
+        assert offset(other_repo, other_rid) == 1
+        assert (await client.post(path, json={"decision": decision}, headers=headers)).status_code == 409
+        queue = (await client.get("/api/reviews")).json()["reviews"]
+        assert next(r for r in queue if r["review_id"] == other_review.review_id)["status"] == "pending"
+        assert next(r for r in queue if r["review_id"] == review.review_id)["status"] == f"resolved_{decision}"
+        await client.post("/api/auth/logout", json={}, headers=headers)
+        assert (await client.get("/api/reviews")).status_code == 401
+
+    try:
+        asyncio.run(exercise(WorkroomService(tmp_path / "state", ollama_endpoint="http://127.0.0.1:9"), scenario))
+    finally:
+        repo.close()
+        other_repo.close()
