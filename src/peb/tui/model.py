@@ -205,8 +205,9 @@ class CockpitState:
             if run_id is not None and run_id != view.run_id:
                 return resync(f"event {seq} names another run")
             if previous is None:
-                if page.cursor != 0 or event.get("prev_hash") is not None:
-                    return resync(f"first event {seq} is not a genesis (cursor {page.cursor}, prev_hash present)")
+                # The initial prefix must be the ACTUAL genesis (2/3's #28526): cursor 0, seq 0, run_created, no prev_hash.
+                if page.cursor != 0 or seq != 0 or event.get("event_type") != "run_created" or event.get("prev_hash") is not None:
+                    return resync(f"first event is not the genesis (cursor {page.cursor}, seq {seq}, type {event.get('event_type')})")
             else:
                 if seq != previous.get("seq", -1) + 1:
                     return resync(f"seq {seq} does not follow {previous.get('seq')}")
