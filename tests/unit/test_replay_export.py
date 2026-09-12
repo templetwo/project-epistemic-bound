@@ -80,7 +80,7 @@ def test_export_bundle_has_no_key_and_verifies(state_root: Path, tmp_path: Path)
         "report.html",
         "SHA256SUMS",
     } <= names
-    dumped = "\n".join(p.read_text(encoding="utf-8") for p in bundle.iterdir())
+    dumped = "\n".join(p.read_text(encoding="utf-8") for p in bundle.iterdir() if p.is_file())
     assert "development_local_hmac.key" not in dumped
     assert repo.signing_key().hex() not in dumped
     checkpoint = repo.latest_checkpoint(manifest.run_id)
@@ -167,4 +167,33 @@ def test_export_evaluation_copies_recorded_event(state_root: Path, tmp_path: Pat
     assert recorded["present"] is True
     assert recorded["evaluation"]["labels"]["integrity"] == "held"
     assert recorded["event_id"].startswith("evt_")
+    repo.close()
+
+
+def test_inspect_bundle_labels_replay_and_checks_inventory(state_root: Path, tmp_path: Path):
+    from peb.evidence.bundle import inspect_bundle
+
+    repo, manifest, _ = seed_run(state_root)
+    bundle = export_run(repo, manifest.run_id, tmp_path)
+    report = inspect_bundle(bundle)
+    assert report["mode"] == "replay"
+    assert report["recorded"] is False
+    assert report["provider_invoked"] is False
+    assert report["verification"]["external_anchor"] == "absent"
+    assert report["verification"]["summary"] == "chain_consistent; external_anchor_absent"
+    assert "sha256sums_inventory" in report["verification"]["supported_checks"]
+    assert "independent_checkpoint_hmac" in report["verification"]["unsupported_checks"]
+    assert report["source_manifest"]["run_id"] == manifest.run_id
+    repo.close()
+
+
+def test_inspect_bundle_refuses_checksum_mismatch(state_root: Path, tmp_path: Path):
+    from peb.evidence.bundle import inspect_bundle
+
+    repo, manifest, _ = seed_run(state_root)
+    bundle = export_run(repo, manifest.run_id, tmp_path)
+    (bundle / "report.md").write_text("tampered\n", encoding="utf-8")
+    report = inspect_bundle(bundle)
+    assert report["verification"]["summary"] == "failed"
+    assert any("SHA256SUMS mismatch" in f for f in report["verification"]["failures"])
     repo.close()
