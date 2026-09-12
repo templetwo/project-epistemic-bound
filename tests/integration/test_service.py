@@ -244,3 +244,30 @@ def test_commitment_accept_and_revise_are_operator_records_visible_everywhere(tm
     finally:
         repo.close()
     assert call(svc, "evidence.verify", {"run_id": rid}, {})["verification"]["chain_consistent"] is True
+
+
+def test_operator_provenance_and_export_agree_with_run_get(tmp_path):
+    """Seat 2/3's #28117: (1) an operator undertaking revised must still read origin=operator after a reopen;
+    (2) evidence.export's commitments.json must be the same projection run.get shows (event-derived status and
+    origin, unmatched table rows kept), not the executor's insert-only table."""
+    import json as _json
+    from pathlib import Path
+
+    from peb.runtime.bootstrap import _append_event
+
+    c = compose_scripted_run(tmp_path / "state", "truthful-repair")
+    rid, task_id = c.run.manifest.run_id, c.run.task.task_id
+    undertaking = c.runtime.ledger.operator_undertaking(rid, task_id, "Operator: report the check result as it is.",
+                                                        append=lambda et, a, p: _append_event(c.repo, rid, et, a, p))
+    c.repo.close()
+    svc = WorkroomService(tmp_path / "state")
+    rev = call(svc, "commitment.revise", {"run_id": rid, "commitment_id": undertaking.commitment_id},
+               {"text": "Operator: report the check result as it is, with its revision number."})
+    assert rev["commitment"]["origin"] == "operator" and rev["commitment"]["status"] == "accepted"
+    shown = {x["commitment_id"]: x for x in call(svc, "run.get", {"run_id": rid})["run"]["commitments"]}
+    assert shown[rev["commitment"]["commitment_id"]]["origin"] == "operator"  # provenance survives the record
+    assert shown[undertaking.commitment_id]["status"] == "superseded" and shown[undertaking.commitment_id]["origin"] == "operator"
+    exported = call(svc, "evidence.export", {"run_id": rid}, {"out": str(tmp_path / "exports")})
+    records = _json.loads((Path(exported["exported"]) / "commitments.json").read_text())
+    by_id = {r["commitment_id"]: r for r in records}
+    assert set(by_id) == set(shown) and all(by_id[k]["status"] == shown[k]["status"] and by_id[k]["origin"] == shown[k]["origin"] for k in shown)

@@ -110,8 +110,13 @@ def commitments_from_events(run_id: str, task_id: str, events: list[StoredEvent]
     for ev in events:
         p = ev.payload
         if ev.event_type == EventType.commitment_proposed:
+            # Origin: the event's own, else (for an older revision event without one) the predecessor's, else subject.
+            origin = p.get("origin")
+            if not origin and p.get("predecessor_id"):
+                prior_for_origin = next((x for x in ledger if x.commitment_id == p["predecessor_id"]), None)
+                origin = str(prior_for_origin.origin) if prior_for_origin is not None else None
             c = Commitment(commitment_id=p["commitment_id"], kind=CommitmentKind(p.get("kind", "undertaking")),
-                           origin=Actor(p.get("origin", "subject")), run_id=run_id, task_id=task_id,
+                           origin=Actor(origin or "subject"), run_id=run_id, task_id=task_id,
                            text=str(p.get("text") or ""), status=CommitmentStatus.proposed,
                            predecessor_id=p.get("predecessor_id"),
                            revision_authorized_by=Actor(ev.actor) if p.get("revision") else None, created_at=ev.ts)

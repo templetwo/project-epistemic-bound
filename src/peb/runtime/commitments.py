@@ -132,6 +132,9 @@ class CommitmentLedger:
         append(EventType.commitment_proposed, authorized_by,
                {"commitment_id": new.commitment_id, "kind": str(new.kind), "text": new_text,
                 "predecessor_id": old.commitment_id, "revision": True,
+                # Provenance survives the record: an operator undertaking revised is still the operator's
+                # (seat 2/3's #28117: the rebuild defaulted a revision's origin to subject).
+                "origin": str(new.origin),
                 # The record carries the inherited status so a rebuild from events agrees with this ledger
                 # (an operator-authorized revision of an ACCEPTED undertaking stays accepted).
                 "status": str(new.status)})

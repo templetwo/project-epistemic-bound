@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..boundary.canonical import DOMAIN_SNAPSHOT, digest
-from ..contracts import Checkpoint, ReadOnlyRun, VerificationResult
+from ..contracts import Checkpoint, Commitment, ReadOnlyRun, VerificationResult
 from ..errors import ErrorCode, PebError
 from .reconstruct import commitments_from_events, corrections_from_events, reviews_from_events
 
@@ -31,21 +31,25 @@ class SnapshotMismatch(PebError):
         super().__init__(ErrorCode.evidence_failure, message, detail)
 
 
+def projected_commitments(repo: Any, run_id: str) -> list[Commitment]:
+    """THE commitment projection every reader shares (run.get, exports, verify inputs): status and origin from the
+    event chain (`commitments_from_events`), plus any executor-table row with no event, kept as stored so an anomaly
+    is displayed, not hidden. Seat 2/3's #28117: the exporter read the insert-only table and disagreed with run.get."""
+    events = repo.events(run_id)
+    manifest = repo.manifest(run_id)
+    commitments = commitments_from_events(run_id, manifest.task_id, events)
+    seen = {c.commitment_id for c in commitments}
+    return commitments + [c for c in repo.commitments(run_id) if c.commitment_id not in seen]
+
+
 def read_only_run(repo: Any, run_id: str) -> ReadOnlyRun:
     """Everything from records: genesis manifest, events, receipts, commitments; corrections and reviews
     are rebuilt from the event chain (the ledger is in-memory in S3 — DEFERRED migration 0003)."""
     if not repo.run_exists(run_id):
         raise PebError(ErrorCode.invalid_input, "unknown run_id", {"run_id": run_id})
     events = repo.events(run_id)
-    manifest = repo.manifest(run_id)
-    # Commitment STATUS comes from the event chain (accept/revise are recorded events; the executor's table is
-    # insert-only and holds the subject's proposals as first persisted). A table row with no event is kept as
-    # stored so an anomaly is displayed, not hidden.
-    commitments = commitments_from_events(run_id, manifest.task_id, events)
-    seen = {c.commitment_id for c in commitments}
-    commitments += [c for c in repo.commitments(run_id) if c.commitment_id not in seen]
-    return ReadOnlyRun(manifest=manifest, events=events, receipts=repo.receipts(run_id),
-                       commitments=commitments, corrections=corrections_from_events(events),
+    return ReadOnlyRun(manifest=repo.manifest(run_id), events=events, receipts=repo.receipts(run_id),
+                       commitments=projected_commitments(repo, run_id), corrections=corrections_from_events(events),
                        reviews=reviews_from_events(run_id, events))
 
 

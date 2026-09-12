@@ -89,7 +89,9 @@ processing ability. something to consider if we are running with thought off. yo
 
 - DeepSeek subject runs default to `thinking: enabled` (`peb run --thinking`, service `thinking` on run.start /
   run.preview / run.create). The setting is pinned in the manifest at create, honoured unchanged when a run is
-  reopened (`run.step` / `run.begin` / resume), and the EFFECTIVE setting is still read back from each response.
+  reopened (`run.step` / `run.begin`), and the EFFECTIVE setting is still read back from each response. Hosted
+  resume remains `not_implemented` (`resume_run` supports Ollama only), so thinking-on-resume is not a tested hosted
+  feature (seat 2/3's docs correction, #28117).
   A run with thinking off measures a capped subject, not the model; that is the wrong instrument for this study.
 - `ModelResponse.reasoning` (additive, optional; schemas regenerated): the provider's reasoning trace is retained in
   the `model_response` event as evidence beside the decision. It is never parsed as a decision, and it is scanned
