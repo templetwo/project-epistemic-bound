@@ -12,23 +12,26 @@ Earlier states of this file are history, not current state: `git log -p -- docs/
 ## Which commit is current
 
 - Integration checkout `main` = **the docs commit carrying this file** (its hash is the pushed `origin/main` tip; it also carries
-  `docs/receipts/S5-study-driver-merge.json`). Its parent chain is `8ef7d31` ← `94413e1` ← `637b4ee` ← `84a3468` ← `a97365c`.
+  `docs/receipts/S5-study-execution-ui-merge.json`). Its parent chain is `0f8b6f7` ← `ec2f5c8` ← `ba3c3e0` ← `8ef7d31` ←
+  `94413e1` ← `637b4ee` ← `84a3468` ← `a97365c`.
   Every lane unit on `main` was merged `--no-ff` after review at a named commit with both sibling verdicts
   on the board: seat 1/3's runtime lane through `19d6d28` (study trial driver, `peb study run|get|preview`,
   `study.start`/`study.get`/`study.preview`; earlier the terminal cockpit `200fb48`, `comparison.get` `f5e0ac9`,
-  `evidence.replay` `bf7f9ad`, global `reviews.list` `43835f8`); seat 2/3's workroom lane through `eb7b184`
-  (product through the study coordinator `753e94d`; bundle replay `5b7bc98`; comparison `3b60280`; global review and
-  replay `88579f2`; study-plan cockpit `68eeb15`; families `8d7b27a`; planner `3ac411e`; release checker `368d413`;
-  cockpit `4ab23b6` and bindings `7440330`; matrix promotions `4d42729`); seat 3/3's boundary lane through `e34a084`
-  (review receipts; product: bundle reader `94442bb`, export projections `11551d3`, `874336e` reviews and TX-02/03).
+  `evidence.replay` `bf7f9ad`, global `reviews.list` `43835f8`); seat 2/3's workroom lane through `7a6b056`
+  (product through the study execution cockpit `64e4290` and the study coordinator `753e94d`; bundle replay `5b7bc98`;
+  comparison `3b60280`; global review and replay `88579f2`; study-plan cockpit `68eeb15`; families `8d7b27a`; planner
+  `3ac411e`; release checker `368d413`; cockpit `4ab23b6` and bindings `7440330`; matrix promotions `4d42729`); seat
+  3/3's boundary lane through `41ef915` (review receipts; product: bundle reader `94442bb`, export projections `11551d3`,
+  `874336e` reviews and TX-02/03).
   Merge receipts: `docs/receipts/*.json`, latest `S6-reviews-list-merge`, `S6-global-review-ui-merge`,
   `S6-comparison-seam-merge`, `S6-comparison-ui-merge`, `S6-reader-and-seam-merge`, `S6-bundle-replay-ui-merge`,
-  `S6-tui-merge`, `S5-study-coordinator-merge`, `S5-study-driver-merge`; per-tip suite counts in
-  `docs/receipts/main-tip-suite-log.json`.
+  `S6-tui-merge`, `S5-study-coordinator-merge`, `S5-study-driver-merge`, `S5-study-execution-ui-merge`; per-tip suite
+  counts in `docs/receipts/main-tip-suite-log.json`.
 - Remote: `origin` = https://github.com/templetwo/project-epistemic-bound (PUBLIC, ADR-016). `main` is pushed
-  at that commit. Each seat pushes its own lane branch; at this refresh origin's lane copies lag the local
-  lanes (`build/codex-workroom` at `4e49acd`, `build/grok-boundary` at `d1a8719`), but every lane commit named
-  here is reachable from `origin/main`. No tag has been applied (see "What was actually tested").
+  at that commit. Each seat pushes its own lane branch; at this refresh every lane copy on origin is current
+  (`build/claude-core` at the previous main tip `ba3c3e0`, `build/codex-workroom` at `7a6b056`, `build/grok-boundary`
+  at `41ef915`), and every lane commit named here is reachable from `origin/main`. No tag has been applied (see "What
+  was actually tested").
 
 ## What exists (software)
 
@@ -70,11 +73,15 @@ Earlier states of this file are history, not current state: `git log -p -- docs/
   ack/allow/deny) each one attempt then refetch; `--serve` starts the existing `peb serve` as a child on the resolved state
   root and quitting DETACHES (the workroom keeps serving; the stop command is printed). Nothing under `peb.tui` imports the
   store, a provider, the monitor or the executor.
-- The web workroom (seat 2/3, `src/peb/web/`, `peb serve` on 127.0.0.1): cockpit bound to the service for
-  health, demo, run preview/create/step/begin, commitment accept/revise, per-run review list/resolve, study
-  plan (`POST /api/studies/plan`) and evidence verify/export. Hosted (paid) lifecycle is refused at the web
-  layer except a bounded observe route that keeps the priced one-use preview token. The global review queue
-  view against `reviews.list` is on 2/3's lane, in review. UI-01/02/03 are partial.
+- The web workroom (seat 2/3, `src/peb/web/`, `peb serve` on 127.0.0.1; `docs/WORKROOM.md`): cockpit bound to the service
+  for health, demo, run preview/create/step/begin, commitment accept/revise, per-run review list/resolve, the global
+  review queue (`reviews.list`), recorded replay, matched comparison (`comparison.get`), bundle replay
+  (`evidence.replay`), study plan (`POST /api/studies/plan`), study execution (`POST /api/studies/start`,
+  `GET /api/studies/{id}`, `POST /api/studies/preview` — a 4 MiB body bound on the study routes only; a hosted study needs
+  a session-bound, five-minute, one-use ticket over the exact normalized plan + cap + confirmations; progress read from
+  the durable journal; a lost launch response is followed by reads, never a second launch; no resume or retry control)
+  and evidence verify/export. Hosted (paid) run lifecycle is refused at the web layer except a bounded observe route
+  that keeps the priced one-use preview token. UI-01/02/03 were promoted to passed at `e8a3cfa` on seat 1/3's ruling.
 - Fixtures and evaluation (`fixtures/`, `src/peb/workspace/fixtures.py`, `src/peb/evaluation/`): six scenario
   families (conceal-error, fictional-authority, claimed-harmlessness, evaluation-pressure,
   authorized-useful-work, correction-handoff; each `-basic`) with 46 scripted controls and the
@@ -172,11 +179,12 @@ separate, unfavorable, recorded observation.
   provider and addenda, ADR-018 lifecycle operations and addenda) and the outside reviewer's recorded
   recommendations. No verified "Revision 2.0" file exists; the reviewer withdrew that delivery claim on 2026-09-12.
   Its one interface change (health.get / demo.run / run.start) had already been adopted as an amendment.
-- Not built: the browser cockpit's binding of `study.start` / `study.get` (seat 2/3); a hosted (deepseek) study has never
-  been run — only scripted studies have executed, on temporary roots; TX-02/TX-03/STOP-02 hardening cases beyond the
-  partial evidence recorded on the matrix. Built since the 23:4x refresh: the global review queue, recorded replay,
-  matched comparison and bundle replay in the browser cockpit; the shared bundle reader; the terminal cockpit; bounded
-  study execution (coordinator + trial driver + `peb study run|get` + `study.start`/`study.get`).
+- Not run: a hosted (deepseek) study — only scripted studies have executed, on temporary roots (a hosted study was
+  previewed through the cockpit, never launched). Not built: TX-02/TX-03/STOP-02 hardening cases beyond the partial
+  evidence recorded on the matrix; no study resume (an interrupted study is inspected, never continued). Built since the
+  23:4x refresh: the global review queue, recorded replay, matched comparison and bundle replay in the browser cockpit;
+  the shared bundle reader; the terminal cockpit; bounded study execution end to end (coordinator + trial driver +
+  `peb study run|get|preview` + `study.start`/`study.get`/`study.preview` + the browser cockpit's execution view).
 
 ## Where evidence lives
 
@@ -191,9 +199,10 @@ separate, unfavorable, recorded observation.
 
 ## Next bounded item
 
-1. Seat 2/3: bind `study.start` / `study.get` in the browser cockpit (hosted preview token bound to the exact plan and
-   cap; progress read from the journal; ambiguous submissions inspected, never relaunched); then the first scripted
-   study on the operator root at Anthony's direction, and a hosted study only after its own preregistration.
+1. The first scripted study on the operator root at Anthony's direction (`peb study plan` → `peb study run … --confirm`,
+   or the cockpit), and a hosted study only after its own preregistration on the Stack and Anthony's explicit go
+   (`peb study preview` first; `--confirm-hosted`). Seat 2/3's bounded follow-up: the coordinator's `not_started` rows
+   after a stop should carry a reason of their own rather than the stopping trial's.
 2. Matrix promotions row by row: a named reviewer from another seat plus evidence per
    `docs/acceptance-matrix.json`, then `scripts/check_release.py` at the merged tree; the receipt is the record.
 3. Seat 3/3: TX-02/TX-03/STOP-02 hardening cases (crash-after-commit, concurrent appenders,

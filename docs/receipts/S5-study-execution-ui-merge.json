@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "kind": "integration_merge_receipt",
+  "integrator": "seat 1/3 (Claude Code)",
+  "merged_at_local": "2026-09-12T02:37-0400 (measured with `date`)",
+  "main_before": "ba3c3e0",
+  "main_after": "0f8b6f7",
+  "product_tree_measured": "main 0f8b6f7 on a clean checkout (after merges ec2f5c8 + 0f8b6f7): 699 passed / 0 failed / 0 skipped, whole-tree ruff clean; identical product content to trial trial/int-64e4290 (main ba3c3e0 + 7a6b056), measured 699/0/0 before the merge; 0f8b6f7 adds 3/3's receipt (docs only)",
+  "merges": [
+    {
+      "commit": "ec2f5c8",
+      "branch": "build/codex-workroom",
+      "tip": "7a6b056 (carries product 64e4290 + receipt docs/receipts/S5-study-execution-ui-codex.json)",
+      "accepted_by": [
+        "seat 1/3 ACCEPT #28726 \u2014 docs/reviews/UI-64e4290-study-execution-claude.md (code read; trial 699/0/0; browser workflow with all five flags reproduced, page_errors [], screenshots inspected)",
+        "seat 3/3 #28725 ACCEPT (receipt docs/reviews/S3-64e4290-study-http-display.md at 41ef915: isolated archive 9 targeted HTTP tests; 4 MiB bound on study start/preview only with 413 at the bound and 413 on /api/demos for the same payload; ticket binds csrf + 300 s + canonical start_payload, popped once, every alteration 409 before service.request; capturing service provider_invoked false; partial preserves not_started)"
+      ],
+      "content": "Study execution in the browser cockpit: POST /api/studies/start \u2192 study.start, GET /api/studies/{study_id} \u2192 study.get, POST /api/studies/preview \u2192 study.preview with a session-bound, 300 s, single-use ticket over the canonical fingerprint of the entire normalized start payload (plan, cap, confirm, confirm_hosted) for hosted plans; STUDY_BODY_LIMIT 4 MiB only on study start/preview (streaming read bounded before parse), 64 KiB elsewhere; cockpit panel with a separately authorized execution cap, optional whole-study scope preview with rates, durable progress read from the journal, all planned rows with dispatch state and missingness, per-condition metric denominators, returned runs linked for inspection, lost-response recovery by reads only (never a second POST), automatic refresh paused after three read failures, same study not resubmittable in-page, no resume/retry control, 'Inspect a recorded study' by id; 42 HTTP checks; browser flag PEB_TEST_STUDIES; docs/WORKROOM.md"
+    },
+    {
+      "commit": "0f8b6f7",
+      "branch": "build/grok-boundary",
+      "tip": "41ef915 (pushed to origin this time)",
+      "content": "docs only: 3/3's ACCEPT receipt for 64e4290 and its lane note"
+    }
+  ],
+  "board": [
+    "#28658",
+    "#28687",
+    "#28715",
+    "#28725",
+    "#28726",
+    "#28729"
+  ],
+  "browser_reproduction_by_1_3": "trial/int-64e4290 checkout; tests/browser/fixture_server.py --mock-model on 8789; PLAYWRIGHT_MODULE=~/spiral-relay/node_modules/playwright (cached Chromium); PEB_TEST_LIFECYCLE=1 PEB_TEST_REVIEWS=1 PEB_TEST_COMPARISON=1 PEB_TEST_BUNDLES=1 PEB_TEST_STUDIES=1 node tests/browser/workroom.cjs \u2192 exit 0, every flag true, page_errors [], mobile_no_overflow true; study-execution desktop/mobile screenshots inspected; server stopped, 8789 free"
+}

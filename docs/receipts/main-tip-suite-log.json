@@ -156,6 +156,28 @@
       "skipped": 0,
       "tests": 690,
       "tip": "8ef7d31"
+    },
+    {
+      "errors": 0,
+      "failed": 0,
+      "measured_at_local": "2026-09-12T02:28-0400",
+      "passed": 690,
+      "receipt": "docs-only commit (driver receipt, HANDOFF, tip log, review correction); product tree = 94413e1",
+      "ruff": "All checks passed",
+      "skipped": 0,
+      "tests": 690,
+      "tip": "ba3c3e0"
+    },
+    {
+      "errors": 0,
+      "failed": 0,
+      "measured_at_local": "2026-09-12T02:37-0400",
+      "passed": 699,
+      "receipt": "docs/receipts/S5-study-execution-ui-merge.json (merges ec2f5c8 + 0f8b6f7; ec2f5c8 has the same product tree)",
+      "ruff": "All checks passed",
+      "skipped": 0,
+      "tests": 699,
+      "tip": "0f8b6f7"
     }
   ]
 }
