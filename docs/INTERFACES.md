@@ -236,6 +236,7 @@ Does not prove: any authorization, any effect, any behavior. No `gate_decided` o
 | `run.get` | `run_id` | `{}` | `{"run": ReadOnlyRun(json), "status", "reviews", "held": [proposal ids]}` |
 | `run.pause` / `run.cancel` | `run_id` | `{"note"?}` | `{"status", "event": {seq, type, event_id}}` |
 | `run.resume` | `run_id` | `{"model"?, "confirm": true}` | summary as `peb resume` (Ollama runs only; scripted → `not_implemented`) |
+| `reviews.list` | — | `{}` | §15 global review view: every run's reviews in ONE store open — run_id, run_status, review_id, status, `effective_status` (the runtime's timeout rule applied read-only: an open review past its deadline shows `expired`), `open`, conflict, recipient_role, opened_at, deadline_at, `held`, and the per-run `resolve` ids; sorted open-first by deadline. Listing records nothing; resolution stays `review.resolve` per run (ADR-018 addendum) |
 | `review.list` | `run_id` | `{}` | `{"reviews": [ReviewRequest…]}` |
 | `review.resolve` | `run_id`, `review_id` | `{"decision": "ack"|"allow"|"deny", "note"?}` | as `resolve_review_from_records` |
 | `evidence.verify` | `run_id` | `{"checkpoint"?: Checkpoint}` | `VerificationResult` (checkpoint retained by the operator or absent) |
