@@ -21,7 +21,7 @@ from textual.content import Content
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Input, Label, RichLog, Static, TabbedContent, TabPane
 
-from .model import CockpitState
+from .model import CockpitState, format_usage, inspect_event
 from .sanitize import display
 from .transport import (
     OPERATOR_BEHAVIOUR,
@@ -71,6 +71,67 @@ class PromptScreen(ModalScreen[str | None]):
         self.dismiss(None)
 
 
+class ReviewPickScreen(ModalScreen[dict | None]):
+    """Choose the EXACT review to act on (outside reviewer, pass 2, item 1): every open review of the selected run is
+    listed; ↑/↓ moves, Enter chooses, Escape cancels. Nothing is sent from here."""
+
+    BINDINGS: ClassVar[list[Binding]] = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, run_id: str, decision: str, reviews: list[dict[str, Any]]) -> None:
+        super().__init__()
+        self._run_id, self._decision, self._reviews = run_id, decision, reviews
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="review-pick"):
+            yield Label(Content(display(f"{self._decision.upper()} — choose the exact review on {self._run_id} "
+                                        f"({len(self._reviews)} open): ↑/↓ then Enter · Escape cancels", one_line=True)),
+                        id="review-pick-title", markup=False)
+            yield DataTable(id="review-table", cursor_type="row")
+
+    def on_mount(self) -> None:
+        table = self.query_one("#review-table", DataTable)
+        table.add_columns("review", "status", "conflict", "proposal", "deadline")
+        for r in self._reviews:
+            table.add_row(*_cells(_short(r.get("review_id", ""), 20), display(r.get("status", ""), one_line=True),
+                                  _short(r.get("conflict", ""), 24), _short(r.get("proposal_id", ""), 20),
+                                  _short(str(r.get("deadline_at", ""))[11:19], 8)), key=str(r.get("review_id", "")))
+        table.focus()
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        key = str(event.row_key.value) if event.row_key is not None else None
+        self.dismiss(next((r for r in self._reviews if str(r.get("review_id")) == key), None))
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class ReviewConfirmScreen(ModalScreen[bool]):
+    """The chosen review's recorded context before allow/deny/ack: its run and current state, the proposal, the
+    pre-action declaration, the claimed grant's actual scope, the gate's decision so far, and what (if anything)
+    changed. `y` sends exactly this decision for exactly this review; `n` / Escape cancels. The backend re-validates
+    independently; the cockpit re-reads the target right before sending and refuses if it changed."""
+
+    BINDINGS: ClassVar[list[Binding]] = [Binding("y", "confirm", "Send"), Binding("n", "cancel", "Cancel"),
+                                         Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, title: str, context: str) -> None:
+        super().__init__()
+        self._title, self._context_text = title, context
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="review-confirm"):
+            yield Label(Content(display(self._title, one_line=True)), id="review-confirm-title", markup=False)
+            yield Static(Content(display(self._context_text, max_chars=6000)), id="review-context", markup=False)
+            yield Label(Content("y = send exactly this decision for exactly this review · n / Escape = cancel · one attempt, never retried"),
+                        id="review-confirm-hint", markup=False)
+
+    def action_confirm(self) -> None:
+        self.dismiss(True)
+
+    def action_cancel(self) -> None:
+        self.dismiss(False)
+
+
 class CockpitApp(App[None]):
     """`peb tui`. One transport, one state, a polling worker, and keys that map onto closed operations."""
 
@@ -83,6 +144,12 @@ class CockpitApp(App[None]):
     #overview { height: auto; padding: 0 1; }
     #prompt { width: 80; height: auto; border: round $accent; padding: 1 2; background: $surface; }
     PromptScreen { align: center middle; }
+    #review-pick { width: 100; height: auto; max-height: 20; border: round $accent; padding: 1 2; background: $surface; }
+    #review-table { height: auto; max-height: 12; }
+    ReviewPickScreen { align: center middle; }
+    #review-confirm { width: 110; height: auto; max-height: 36; border: round $warning; padding: 1 2; background: $surface; }
+    #review-context { height: auto; max-height: 28; overflow-y: auto; }
+    ReviewConfirmScreen { align: center middle; }
     RichLog { height: 6; border-top: solid $panel; }
     """
     BINDINGS: ClassVar[list[Binding]] = [
@@ -111,6 +178,7 @@ class CockpitApp(App[None]):
         self.clock = clock
         self._poll = poll
         self._rendered_events = 0
+        self._inspect_index: int | None = None  # the event row the inspector shows; re-rendered as the chain grows
         self._last_health = self._last_runs = self._last_reviews = -1e9
         self._local_time = True
         self._stopping = False
@@ -128,6 +196,8 @@ class CockpitApp(App[None]):
                 with TabbedContent(id="tabs"):
                     with TabPane("Events", id="tab-events"):
                         yield DataTable(id="events", cursor_type="row")
+                    with TabPane("Inspect", id="tab-inspect"):
+                        yield Static("select an event in the Events tab", id="inspect", markup=False)
                     with TabPane("Permissions", id="tab-permissions"):
                         yield Static("", id="permissions", markup=False)
                     with TabPane("Commitments", id="tab-commitments"):
@@ -250,16 +320,14 @@ class CockpitApp(App[None]):
         run = view.snapshot.get("run") or {}
         manifest = run.get("manifest") or {}
         settings = manifest.get("settings") or {}
-        usage = view.usage
-        fmt = lambda v: "—" if v is None else str(v)
         overview = "\n".join([
             f"run {display(view.run_id, one_line=True)}   status {display(view.status, one_line=True)}   activity {view.activity}",
             (f"provider {display(manifest.get('provider_kind'), one_line=True)} · model requested {display(manifest.get('model_requested'), one_line=True)}"
              f" · resolved {display(manifest.get('model_resolved') or '—', one_line=True)} · artifact digest — not recorded"),
             (f"profile {display(manifest.get('profile_id'), one_line=True)} ({display(settings.get('arm', '?'), one_line=True)})"
              f" · task {display(manifest.get('task_id'), one_line=True)} · frame {display(settings.get('frame', '?'), one_line=True)}"),
-            (f"calls {view.model_calls} / {display((manifest.get('limits') or {}).get('max_model_calls', '?'), one_line=True)}"
-             f" · tokens in {fmt(usage['prompt'])} / out {fmt(usage['completion'])} / reasoning {fmt(usage['reasoning'])}"),
+            f"calls {view.model_calls} / {display((manifest.get('limits') or {}).get('max_model_calls', '?'), one_line=True)}",
+            format_usage(view.usage),
         ])
         self._set("overview", overview)
         # events: append only what is new since the last render (resync clears)
@@ -269,6 +337,8 @@ class CockpitApp(App[None]):
             table.add_row(*_cells(str(event.get("seq", "")), display(ts[11:19], one_line=True), display(event.get("event_type", ""), one_line=True),
                                   display(event.get("actor", ""), one_line=True), _short(event.get("event_hash", ""), 10)))
         self._rendered_events = len(view.events)
+        if self._inspect_index is not None:
+            self._set("inspect", inspect_event(view, self._inspect_index))
         grants = run.get("grants") or []
         self._set("permissions", "\n".join(
             f"{display(g.get('tool'), one_line=True):18} {'APPROVAL' if g.get('requires_approval') else 'ALLOWED':8} "
@@ -305,6 +375,12 @@ class CockpitApp(App[None]):
 
     # -- selection ----------------------------------------------------------------------------------
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        if event.data_table.id == "events":
+            view = self.state.selected
+            if view is not None and event.cursor_row is not None:
+                self._inspect_index = int(event.cursor_row)
+                self._set("inspect", inspect_event(view, self._inspect_index))
+            return
         if event.data_table.id != "runs" or event.row_key is None:
             return
         run_id = str(event.row_key.value)
@@ -312,6 +388,8 @@ class CockpitApp(App[None]):
             return
         self.state.select(run_id)
         self._rendered_events = 0
+        self._inspect_index = None
+        self._set("inspect", "select an event in the Events tab")
         self.query_one("#events", DataTable).clear()
         self._set("overview", f"loading {display(run_id, one_line=True)}…")
         self.run_worker(self._refresh_selected_now(), exclusive=True, group="select")
@@ -389,11 +467,21 @@ class CockpitApp(App[None]):
         except TransportError as e:
             self.log_line(f"verify: refused ({e.code}) {display(e.message, one_line=True)}")
             return
-        if self.state.apply_verification(generation, body, self.clock()):
-            self.log_line(f"verify {rid}: {display((body.get('verification') or {}).get('summary', '?'), one_line=True)}")
-            self.state.derive_alerts(self.clock())
-            self.render_selected()
-            self.render_alerts()
+        identity = self.state.apply_verification(generation, body, self.clock())
+        if identity == "stale":
+            return
+        summary = display((body.get('verification') or {}).get('summary', '?'), one_line=True)
+        note = {"bound": "bound to the verifier's head", "unbound": "UNBOUND — the verifier reported no head identity",
+                "wrong_run": "UNBOUND — the verifier answered for another run",
+                "mismatch": "the verifier's head hash differs from the view's at the same seq — view resynced"}[identity]
+        self.log_line(f"verify {rid}: {summary} · {note}")
+        if identity == "mismatch":
+            self._rendered_events = 0
+            self.query_one("#events", DataTable).clear()
+            await self._refresh_selected_now()
+        self.state.derive_alerts(self.clock())
+        self.render_selected()
+        self.render_alerts()
 
     async def action_export(self) -> None:
         rid = self._selected_id()
@@ -441,17 +529,81 @@ class CockpitApp(App[None]):
                                       f"head seq {head.count - 1 if head.count else '—'} · status {view.status}. This terminates the run; it does not delete evidence. "
                                       f"Type the final 6 run-id characters to confirm.", rid[-6:], must_equal=rid[-6:]), after)
 
+    # -- reviews: choose the exact review, see its recorded context, confirm, re-read, send once -----
+    def _review_context(self, view: Any, review: dict[str, Any]) -> str:
+        """What the record holds for this review: the run and its current state, the review itself, and the linked
+        decision story (proposal, declaration, claimed grant's scope, gate so far, effect so far) from the cached chain."""
+        rid = view.run_id
+        held = (view.snapshot or {}).get("held") or {}
+        review_id = str(review.get("review_id"))
+        lines = [
+            f"RUN {rid} · stored status {display(view.status, one_line=True)} · activity {view.activity} · head seq {view.head.count - 1 if view.head.count else '—'}",
+            (f"REVIEW {review_id} · status {display(review.get('status'), one_line=True)} · conflict {display(review.get('conflict', '—'), one_line=True)}"
+             f" · deadline {display(review.get('deadline_at', '—'), one_line=True)}{' · HELD proposal' if review_id in held else ''}"),
+        ]
+        proposal_id = review.get("proposal_id") or held.get(review_id)
+        index = None
+        if proposal_id is not None:
+            for i, ev in enumerate(view.events):
+                p = ev.get("payload") if isinstance(ev.get("payload"), dict) else {}
+                if ev.get("event_type") == "action_proposed" and p.get("proposal_id") == proposal_id:
+                    index = i
+                    break
+        lines.append(inspect_event(view, index) if index is not None else
+                     "no proposal event for this review is in the cached chain (refresh, or the review was opened without a proposal)")
+        lines.append("Acknowledgement grants no authority. Allow re-gates the HELD proposal against current grants and state; deny records the refusal. "
+                     "The backend validates independently of this screen.")
+        return "\n".join(lines)
+
+    async def _send_review(self, rid: str, review_id: str, decision: str, shown_review_status: str, shown_run_status: str) -> None:
+        """Re-read the target RIGHT BEFORE sending; if the review's status or the run's status differs from what the
+        operator was SHOWN when confirming, nothing is sent and the change is named — the cockpit never silently
+        switches targets."""
+        try:
+            fresh = await self.transport.get_run(rid)
+        except TransportError as e:
+            self.log_line(f"review {decision} {review_id}: could not re-read the run ({e.code}); nothing sent")
+            return
+        generation = self.state.generation
+        if self.state.selected and self.state.selected.run_id == rid:
+            self.state.apply_snapshot(generation, fresh, self.clock())
+        current = next((r for r in (fresh.get("reviews") or []) if str(r.get("review_id")) == review_id), None)
+        run_status = str(fresh.get("status", "unknown"))
+        if current is None or str(current.get("status")) != shown_review_status or run_status != shown_run_status:
+            was, now = display(shown_review_status, one_line=True), display(current.get("status") if current else "absent", one_line=True)
+            self.log_line(f"review {decision} {review_id}: target changed since confirmation (review {was} → {now}; run {shown_run_status} → {run_status}); nothing sent")
+            self.render_selected()
+            return
+        await self._mutate(f"review {decision} {review_id}", lambda: self.transport.resolve_review(rid, review_id, decision))
+
     async def _review(self, decision: str) -> None:
         rid = self._selected_id()
         view = self.state.selected
         if rid is None or view is None or view.snapshot is None:
             return
-        open_reviews = [r for r in (view.snapshot.get("reviews") or []) if r.get("status") in ("pending", "acknowledged")]
+        open_reviews = view.open_reviews()
         if not open_reviews:
             self.log_line(f"review {decision}: no open review on {rid}")
             return
-        review = open_reviews[0]
-        await self._mutate(f"review {decision}", lambda: self.transport.resolve_review(rid, str(review.get("review_id")), decision))
+        shown_run_status = view.status
+
+        def chosen(review: dict[str, Any] | None) -> None:
+            if review is None:
+                self.log_line(f"review {decision}: cancelled at selection; nothing sent")
+                return
+            review_id = str(review.get("review_id"))
+            shown_review_status = str(review.get("status"))  # what the operator is shown, captured as a value
+            context = self._review_context(view, review)
+
+            def confirmed(ok: bool) -> None:
+                if not ok:
+                    self.log_line(f"review {decision} {review_id}: cancelled; nothing sent")
+                    return
+                self.run_worker(self._send_review(rid, review_id, decision, shown_review_status, shown_run_status), exclusive=True, group="mutate")
+
+            self.push_screen(ReviewConfirmScreen(f"{decision.upper()} review {review_id} on {rid}?", context), confirmed)
+
+        self.push_screen(ReviewPickScreen(rid, decision, open_reviews), chosen)
 
     async def action_review_ack(self) -> None:
         await self._review("ack")

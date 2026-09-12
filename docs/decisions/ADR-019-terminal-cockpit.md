@@ -77,3 +77,49 @@ typed error for a read and an unknown outcome for a mutation, never an empty suc
    total, contiguous `seq`, every `prev_hash` link inside and across the page boundary, a genesis with no previous hash
    at cursor 0, the run's own identity. A verification badge binds to the head the verifier reports having covered
    (`checked_events` equal to the cached count); any other result is UNBOUND on screen and in the alerts.
+   *(Superseded for the badge by addendum 3 below: the count rule bound the view's own hash; the badge now binds only
+   to an identity the verifier itself reports.)*
+
+## Addendum 2026-09-12 — pass 2 from the outside reviewer (relayed by Anthony; read at main 472ff63): five corrections
+
+The reviewer's five observations on `src/peb/tui/app.py` and `model.py` were all open at 472ff63 and are all closed in
+this addendum's commit, each with the tests the reviewer named.
+
+1. **Explicit review selection and confirmation.** `a`/`l`/`d` no longer act on `open_reviews[0]`. A chooser
+   (`ReviewPickScreen`) lists every open review of the selected run; the chosen review's confirmation
+   (`ReviewConfirmScreen`) shows the run and its current stored status and activity, the review's status, conflict,
+   deadline and held state, and the proposal's recorded story (statement, proposal, pre-action declaration, the claimed
+   grant's actual scope from the projection, the gate so far, the effect so far). `y` sends exactly that decision for
+   exactly that review. Right before sending, the cockpit re-reads the run and refuses — naming the change — if the
+   review's status or the run's status differs from what was shown; the target is never silently switched and an
+   uncertain outcome is never retried. The backend's independent validation is untouched. Tests: two open reviews with
+   the second chosen (only its id sent; both cancel paths send nothing); a review resolved elsewhere and a run status
+   change while the confirmation is open (nothing sent, logged).
+2. **Verification identity binding.** `apply_verification` no longer assigns the cached head hash when the counts
+   match. The seam's `evidence.verify` result gains an additive `verified_head` (`run_id`, `event_count`,
+   `head_hash`), computed in the service from the store's chain right after the verification and only when the count
+   read back equals `checked_events` (the chain is append-only, so equal counts there mean the same events); a raced
+   append yields `null`. The badge binds only to that identity: equal count with a different hash means the view was
+   not the store's chain (resync, badge says so); a wrong-run identity or a missing one is UNBOUND with the reason; a
+   head that advances afterwards is STALE. The browser passes the new field through unchanged (2/3's #28802).
+   Tests: equal counts with different hashes, a wrong-run response, a missing identity, a head that advances, an
+   earlier selection's response discarded — in the model and on screen.
+3. **Complete status mapping.** `TERMINAL` and an explicit `ACTIVITY` map cover every `RunStatus` (`created`,
+   `running`, `waiting_review`, `paused`, `completed`, `declined`, `failed`, `cancelled`/`canceled`, `interrupted`);
+   an unknown status renders as `UNKNOWN STATUS`, never as RUNNING by fall-through. Test: all nine statuses render
+   distinctly; `declined` and `interrupted` on screen.
+4. **Usage completeness.** `RunView.usage` reports each field's sum WITH coverage (`responses`, `<field>_reported`);
+   `format_usage` shows `PARTIAL (reported by k of n responses; n−k unreported)`, `— (unreported by n of n)`, or
+   `(reported by all n responses)`, always ending `reported by provider responses; not a bill`. Test: two responses,
+   only one reporting.
+5. **Event-detail inspector.** A new Inspect tab (`inspect_event`, pure and tested without Textual) follows the
+   highlighted event and links, by `proposal_id` and `step`, the public statement, the proposal, the pre-action
+   declaration, the claimed grant's actual scope, the gate's decision(s) and the observed effect with resource
+   revisions before → after; it says `NO EFFECT RECORDED` for a denied, held, read or allowed-but-unexecuted proposal
+   ("a proposal or an allow is not an executed effect"). Model content, retained reasoning and the subject's input are
+   never its feed; the private oracle and builder history are not in the projection. Tests: authorized concealment
+   (allowed and applied, revision 1 → 2) versus a blocked boundary crossing (denied, no effect) versus an allow with no
+   effect; response and request rows show no content.
+
+Also in this commit: `docs/TUI.md` gains attach/detach/stop, the review flow, the verification identity rule, the
+usage line and the inspector. Browser acceptance remains distinct from TUI acceptance; no matrix row changes here.

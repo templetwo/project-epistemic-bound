@@ -120,12 +120,19 @@ class FakeTransport:
         self._record("revise_commitment", run_id, commitment_id, text, note); return {}
 
     async def verify(self, run_id):
+        """The seam's shape: verification + the head identity the verifier covered (`verified_head`), which a test may
+        override with `verify_head_override` (a dict, or None to report no identity)."""
         self._record("verify", run_id)
         self.verify_checked = getattr(self, "verify_checked", None)
-        checked = self.verify_checked if self.verify_checked is not None else len(self.events_by_run[run_id])
+        events = self.events_by_run[run_id]
+        checked = self.verify_checked if self.verify_checked is not None else len(events)
+        if hasattr(self, "verify_head_override"):
+            head = self.verify_head_override
+        else:
+            head = {"run_id": run_id, "event_count": checked, "head_hash": events[checked - 1]["event_hash"]} if 0 < checked <= len(events) else None
         return {"run_id": run_id, "verification": {"chain_consistent": True, "summary": "chain_consistent; external_anchor_absent", "failures": [],
                                                   "checked_events": checked},
-                "anchor_provenance": "none_external_anchor_absent"}
+                "anchor_provenance": "none_external_anchor_absent", "verified_head": head}
 
     async def export(self, run_id, out):
         self._record("export", run_id, out); return {"exported": f"{out}/run-{run_id}"}

@@ -41,7 +41,7 @@ def test_viewing_writes_nothing_and_shows_recorded_not_started():
             await pilot.pause()
             assert app.state.selected and app.state.selected.run_id == "run_" + "a" * 32
             overview = app.rendered["overview"]
-            assert "RECORDED — NOT STARTED" in overview and "artifact digest — not recorded" in overview and "tokens in —" in overview
+            assert "RECORDED — NOT STARTED" in overview and "artifact digest — not recorded" in overview and "prompt — (no responses)" in overview
             evidence = app.rendered["evidence"]
             assert "not verified in this session" in evidence and "external anchor is not 'verified'" in evidence
             assert t.mutations() == []  # selection + refresh: reads only
@@ -69,7 +69,7 @@ def test_verify_pins_the_badge_and_a_new_head_marks_it_stale():
             evidence = app.rendered["evidence"]
             assert "STALE" in evidence and "seq 1" in evidence and "seq 2" in evidence
             assert app.query_one("#events", DataTable).row_count == 3
-            assert "tokens in 3 / out —" in app.rendered["overview"]
+            assert "prompt 3 (reported by all 1 responses)" in app.rendered["overview"] and "completion — (unreported by 1 of 1" in app.rendered["overview"]
 
     asyncio.run(scenario())
 
@@ -109,7 +109,9 @@ def test_controls_map_to_closed_operations_and_refetch_never_retry():
             app.query_one("#runs", DataTable).move_cursor(row=0); await pilot.pause()
             await app.refresh_all(); await pilot.pause()
             assert any(a.level == "action" for a in app.state.alerts)
-            await pilot.press("a"); await pilot.pause()
+            await pilot.press("a"); await pilot.pause()          # pick screen: the one open review
+            await pilot.press("enter"); await pilot.pause()      # chosen → confirmation with its recorded context
+            await pilot.press("y"); await pilot.pause(); await pilot.pause()
             assert ("resolve_review", (rid, "rev_1", "ack", "")) in t.calls
             await pilot.press("h"); await pilot.pause()
             assert ("pause_run", (rid, "")) in t.calls
@@ -241,5 +243,142 @@ def test_quit_reads_a_fresh_inventory_and_reports_when_it_cannot():
             t2.fail_reads = True
             await pilot.press("q"); await pilot.pause()
         assert not app2.inventory_confirmed and any("could not read the inventory" in line for line in app2.state.log)
+
+    asyncio.run(scenario())
+
+
+def _two_reviews(t: FakeTransport, rid: str) -> None:
+    t.add_run(rid, "waiting_review",
+              events=[event(0, "run_created", None, "supervisor"), event(1, "model_request", "h0"),
+                      event(2, "action_proposed", "h1", "supervisor", {"step": 0, "proposal_id": "prop_a", "tool": "workspace.write", "claimed_grant_id": "grant.write"}),
+                      event(3, "gate_decided", "h2", "reference_monitor", {"step": 0, "proposal_id": "prop_a", "outcome": "needs_approval", "reason": "approval_required"}),
+                      event(4, "review_opened", "h3", "supervisor", {"step": 0, "proposal_id": "prop_a", "review_id": "rev_a"}),
+                      event(5, "action_proposed", "h4", "supervisor", {"step": 1, "proposal_id": "prop_b", "tool": "sink.export", "claimed_grant_id": "grant.export"}),
+                      event(6, "gate_decided", "h5", "reference_monitor", {"step": 1, "proposal_id": "prop_b", "outcome": "needs_approval", "reason": "approval_required"}),
+                      event(7, "review_opened", "h6", "supervisor", {"step": 1, "proposal_id": "prop_b", "review_id": "rev_b"})],
+              reviews=[{"review_id": "rev_a", "proposal_id": "prop_a", "status": "pending", "conflict": "needs_approval", "deadline_at": "2026-09-12T01:00:00+00:00"},
+                       {"review_id": "rev_b", "proposal_id": "prop_b", "status": "pending", "conflict": "needs_approval", "deadline_at": "2026-09-12T01:05:00+00:00"}],
+              grants=[{"grant_id": "grant.write", "tool": "workspace.write", "resource_ids": ["report.primary"], "requires_approval": True,
+                       "public_description": "May rewrite the primary report after approval.", "policy_version": "p1", "revoked": False}])
+
+
+def test_review_actions_select_the_exact_review_and_confirm_with_its_recorded_context():
+    """Outside reviewer, pass 2, item 1: two open reviews; the operator chooses the SECOND; only that id is sent, after
+    a confirmation that shows the run, the proposal, the claimed grant's scope and the gate so far."""
+    async def scenario():
+        t = FakeTransport()
+        rid = "run_" + "e" * 32
+        _two_reviews(t, rid)
+        app = _app(t)
+        async with app.run_test(size=(140, 50)) as pilot:
+            await app.refresh_all(); await pilot.pause()
+            app.query_one("#runs", DataTable).move_cursor(row=0); await pilot.pause()
+            await app.refresh_all(); await pilot.pause()
+            await pilot.press("l"); await pilot.pause()
+            table = app.screen.query_one("#review-table", DataTable)
+            assert table.row_count == 2
+            await pilot.press("down"); await pilot.pause()
+            await pilot.press("enter"); await pilot.pause()
+            context = app.screen.query_one("#review-context", Static).render().plain
+            assert "REVIEW rev_b" in context and "PROPOSED: tool sink.export · claimed grant grant.export" in context
+            assert "AUTHORITY: claimed grant grant.export is NOT in this run's projection" in context
+            assert "GATE: NEEDS APPROVAL · reason approval_required" in context and "EFFECT: NO EFFECT RECORDED" in context
+            assert "stored status waiting_review · activity WAITING FOR REVIEW" in context
+            assert t.mutations() == []  # nothing sent before confirmation
+            await pilot.press("y"); await pilot.pause(); await pilot.pause()
+            assert [c for c in t.calls if c[0] == "resolve_review"] == [("resolve_review", (rid, "rev_b", "allow", ""))]
+            # cancelling at either screen sends nothing
+            await pilot.press("d"); await pilot.pause()
+            await pilot.press("escape"); await pilot.pause()
+            await pilot.press("d"); await pilot.pause()
+            await pilot.press("enter"); await pilot.pause()
+            await pilot.press("n"); await pilot.pause()
+            assert t.mutations().count("resolve_review") == 1 and any("cancelled" in line for line in app.state.log)
+
+    asyncio.run(scenario())
+
+
+def test_a_review_that_changes_while_its_confirmation_is_open_is_not_sent():
+    async def scenario():
+        t = FakeTransport()
+        rid = "run_" + "f" * 32
+        _two_reviews(t, rid)
+        app = _app(t)
+        async with app.run_test(size=(140, 50)) as pilot:
+            await app.refresh_all(); await pilot.pause()
+            app.query_one("#runs", DataTable).move_cursor(row=0); await pilot.pause()
+            await app.refresh_all(); await pilot.pause()
+            await pilot.press("l"); await pilot.pause()
+            await pilot.press("enter"); await pilot.pause()  # rev_a chosen; confirmation open
+            t.runs[rid]["reviews"][0]["status"] = "resolved_deny"  # another client resolved it meanwhile
+            await pilot.press("y"); await pilot.pause(); await pilot.pause()
+            assert "resolve_review" not in t.mutations()
+            assert any("target changed since confirmation" in line and "rev_a" in line for line in app.state.log)
+            # the run's status changing is also a changed target
+            await pilot.press("l"); await pilot.pause()
+            await pilot.press("down"); await pilot.pause()
+            await pilot.press("enter"); await pilot.pause()
+            t.runs[rid]["status"] = "cancelled"
+            await pilot.press("y"); await pilot.pause(); await pilot.pause()
+            assert "resolve_review" not in t.mutations() and sum("target changed" in line for line in app.state.log) == 2
+
+    asyncio.run(scenario())
+
+
+def test_the_inspector_follows_the_highlighted_event_and_statuses_render_distinctly():
+    async def scenario():
+        t = FakeTransport()
+        rid = "run_" + "1" * 32
+        t.add_run(rid, "declined", events=[event(0, "run_created", None, "supervisor"), event(1, "model_request", "h0", payload={"step": 0, "message_count": 2, "input_hash": "x", "messages": [{"content": "SECRET"}]}),
+                                            event(2, "model_response", "h1", payload={"content": "SECRET", "reasoning": "SECRET", "prompt_tokens": 7}),
+                                            event(3, "decision_recorded", "h2", payload={"step": 0, "kind": "decline", "statement": "I decline the export."}),
+                                            event(4, "run_finished", "h3", "supervisor", payload={"step": 0, "status": "declined", "terminal_reason": "declined"})])
+        t.add_run("run_" + "2" * 32, "interrupted", events=[event(0, "run_created", None, "supervisor")])
+        app = _app(t)
+        async with app.run_test(size=(140, 50)) as pilot:
+            await app.refresh_all(); await pilot.pause()
+            runs = app.query_one("#runs", DataTable)
+            runs.move_cursor(row=1); await pilot.pause()  # rows are newest-first: row 1 is run_1…
+            await app.refresh_all(); await pilot.pause()
+            assert app.state.selected.run_id == rid and "activity DECLINED" in app.rendered["overview"]
+            assert "prompt 7 (reported by all 1 responses)" in app.rendered["overview"]
+            events = app.query_one("#events", DataTable)
+            events.move_cursor(row=3); await pilot.pause()
+            inspect = app.rendered["inspect"]
+            assert "EVENT seq 3 · decision_recorded" in inspect and "STATEMENT (public, step 0): decline — I decline the export." in inspect
+            events.move_cursor(row=2); await pilot.pause()
+            assert "not shown here" in app.rendered["inspect"] and "SECRET" not in app.rendered["inspect"]
+            assert "SECRET" not in app.query_one("#inspect", Static).render().plain
+            runs.move_cursor(row=0); await pilot.pause()
+            await app.refresh_all(); await pilot.pause()
+            assert app.state.selected.run_id == "run_" + "2" * 32 and "activity INTERRUPTED" in app.rendered["overview"]
+            # the events cursor lands on the new run's genesis; the old run's statement is gone from the inspector
+            assert "EVENT seq 0 · run_created" in app.rendered["inspect"] and "decline" not in app.rendered["inspect"]
+            assert t.mutations() == []
+
+    asyncio.run(scenario())
+
+
+def test_verify_with_a_different_hash_at_the_same_count_resyncs_and_a_wrong_run_stays_unbound():
+    async def scenario():
+        t = FakeTransport()
+        rid = "run_" + "3" * 32
+        t.add_run(rid, "running", events=[event(0, "run_created", None, "supervisor"), event(1, "model_request", "h0")])
+        app = _app(t)
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.refresh_all(); await pilot.pause()
+            app.query_one("#runs", DataTable).move_cursor(row=0); await pilot.pause()
+            await app.refresh_all(); await pilot.pause()
+            t.verify_head_override = {"run_id": rid, "event_count": 2, "head_hash": "not-h1"}
+            await pilot.press("v"); await pilot.pause(); await pilot.pause()
+            assert app.state.selected.resyncs >= 1 and any("differs from the view" in line for line in app.state.log)
+            assert app.query_one("#events", DataTable).row_count == 2  # refetched from the genesis after the resync
+            t.verify_head_override = {"run_id": "run_" + "9" * 32, "event_count": 2, "head_hash": "h1"}
+            await pilot.press("v"); await pilot.pause()
+            assert "UNBOUND: the verifier answered for ANOTHER run" in app.rendered["evidence"]
+            t.verify_head_override = None
+            await pilot.press("v"); await pilot.pause()
+            assert "UNBOUND: the verifier reported no head identity" in app.rendered["evidence"]
+            assert t.mutations() == ["verify", "verify", "verify"]
 
     asyncio.run(scenario())
