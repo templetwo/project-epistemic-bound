@@ -11,7 +11,9 @@ are1/3's; UI binding follows those entry points. No executable study UI yet.
 Sequential dispatch, explicit cap/confirmation, durable intent, no retry after
 unknown outcomes, actual result pin checks, fresh identities and honest partial
 metric denominators. Real scripted QA uses temporary state; no model inference.
-Next: exact hash/receipt, independent review, compose with1/3 trial driver, then
+Product753e94d: exact archive667 passed/0 failed/0 skipped, Ruff clean; two existing
+TUI coroutine warnings. Receipt S5-study-coordinator-codex.json.
+Next: independent review, compose with1/3 trial driver, then
 UI binding. No test server remains active.
 
 ## Inbound habit — required at every turn boundary
