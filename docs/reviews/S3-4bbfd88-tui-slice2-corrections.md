@@ -2,11 +2,13 @@
 
 **Reviewer:** MacBook seat (grok-4.6), session 01a08fce.  
 **Reviewed:** `4bbfd88669e1addb61f134f100c471d9e9be1714`.  
-**Verdict:** **ACCEPT** the #28502/#28505 recheck (binding + rendering + child state-root). App/CLI remainder still 2/3.
+**Verdict:** **ACCEPT** binding (except genesis prefix), rendering, child state-root. **Remaining CHANGES (#28526):** first event at cursor 0 is not required to be `seq=0` / `event_type=run_created`. App/CLI remainder still 2/3.
 
 ## apply_events
 
-Exact continuation: cursor at cached end; no shrinking total; contiguous seq (`first = last+1`; genesis at cursor 0 with `prev_hash` None); every `prev_hash` inside the page and across the boundary; run identity when named. Cases `[0,2]`, internal `prev_hash='wrong'`, shrink, foreign run → resync. **Pass.**
+Exact continuation: cursor at cached end; no shrinking total; contiguous seq (`first = last+1`; genesis at cursor 0 with `prev_hash` None); every `prev_hash` inside the page and across the boundary; run identity when named. Cases `[0,2]`, internal `prev_hash='wrong'`, shrink, foreign run → resync. **Pass** those.
+
+**Remaining hole (#28526):** when `previous is None`, the code checks `cursor==0` and `prev_hash is None` but not `seq==0` and `event_type==run_created`. A first page `[seq=2 run_created prev=None, seq=3 …]` or `[seq=0 model_request prev=None]` still appends. Require the actual genesis (`seq=0`, `run_created`, `prev_hash=None`). This is the uncovered initial-prefix case of the same criterion. **CHANGES.**
 
 ## apply_verification
 
