@@ -130,6 +130,10 @@ fs.mkdirSync(output,{recursive:true});
   await page.click('#create-model'); await page.locator('#notice').filter({hasText:'Run recorded. No model call made.'}).waitFor();
   if(!(await page.locator('#run-status').innerText()).includes('not started')) throw Error('create was presented as started');
   await page.click('#step'); await page.locator('#notice').filter({hasText:'Model calls this operation: 1.'}).waitFor();
+  // The live lane observes committed events while the operation is in flight; it must never write or retry.
+  if(await page.locator('#live').isHidden()) throw Error('live lane did not open for an in-flight operation');
+  if(!await page.locator('#live-step, .live-step').count()) throw Error('live lane rendered no step from the record');
+  if(!(await page.locator('#live-state').innerText()).match(/OBSERVING|BOUNDARY REACHED|UNCONFIRMED/)) throw Error('live lane state is not one of the honest three');
   await page.click('#begin'); await page.locator('#notice').filter({hasText:'Observed status: completed.'}).waitFor();
   if(await page.isEnabled('#step') || await page.isEnabled('#begin')) throw Error('terminal lifecycle controls remained enabled');
   if(!(await page.locator('#outcomes').innerText()).includes('yes')) throw Error('lifecycle completion not observed');

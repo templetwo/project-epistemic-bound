@@ -27,7 +27,7 @@ async function api(path, body, method) {
   }
   return result;
 }
-function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; if (!yes) { csrf = ""; invalidatePreview(); invalidateStudy(); clearStudyRead(); invalidateComparison(); invalidateBundle(); reviewQueueVersion++; $("global-reviews").replaceChildren(); $("global-review-count").textContent = "Not loaded"; } }
+function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; if (!yes) { csrf = ""; liveReset(); invalidatePreview(); invalidateStudy(); clearStudyRead(); invalidateComparison(); invalidateBundle(); reviewQueueVersion++; $("global-reviews").replaceChildren(); $("global-review-count").textContent = "Not loaded"; } }
 async function action(button, task) {
   button.disabled = true; activeRequests++;
   try { await task(); } catch (error) { note(error.message, true); }
@@ -227,8 +227,12 @@ $("create-model").addEventListener("click", () => action($("create-model"), asyn
 for (const [verb, route] of [["step", "step"], ["begin", "start"]]) $(verb).addEventListener("click", () => action($(verb), async () => {
   const id = selectedId;
   note(verb === "step" ? "Requesting one decision…" : "Requesting the bounded loop…");
-  const result = await api(`/api/runs/${id}/${route}`, {confirm: true});
-  if (id === selectedId) await selectRun(id); note(`Observed status: ${result.status}. Model calls this operation: ${result.steps_taken}.`);
+  liveReset(); liveStart(id, selectedState?.run?.manifest?.limits);
+  try {
+    const result = await api(`/api/runs/${id}/${route}`, {confirm: true});
+    livePending = false;
+    if (id === selectedId) await selectRun(id); note(`Observed status: ${result.status}. Model calls this operation: ${result.steps_taken}.`);
+  } catch (error) { livePending = false; throw error; }
 }));
 
 $("login-form").addEventListener("submit", (event) => { event.preventDefault(); action(event.submitter, async () => { const data = await api("/api/auth/login", {secret: $("secret").value}); $("secret").value = ""; csrf = data.csrf_token; signedIn(true); note("Operator session opened."); await Promise.all([loadRuns(), loadProfiles(), loadHealth()]); }); });
@@ -253,7 +257,14 @@ $("model-form").addEventListener("submit", (event) => { event.preventDefault(); 
   const hosted = $("provider").value === "deepseek"; if (hosted && !preview?.preview_token) throw new Error("Preview this exact hosted request first.");
   const payload = hosted ? {...preview.start_payload, preview_token: preview.preview_token} : startPayload();
   invalidatePreview(); note("Requesting model run… Its record will appear after creation; pause and cancel remain available there.");
-  const result = await api("/api/runs/observe", payload); await selectRun(result.run_id); note("Run reached a boundary. Its observed outcome is recorded.");
+  liveReset(); liveFollowLaunch({max_model_calls: Number($("calls").value)}).catch(() => {});
+  try {
+    const result = await api("/api/runs/observe", payload);
+    livePending = false;
+    if (liveRunId !== result.run_id) liveStart(result.run_id, {max_model_calls: Number($("calls").value)});
+    livePending = false;
+    await selectRun(result.run_id); note("Run reached a boundary. Its observed outcome is recorded.");
+  } catch (error) { livePending = false; throw error; }
 }); });
 for (const verb of ["pause", "cancel", "resume"]) $(verb).addEventListener("click", () => action($(verb), async () => {
   if (["cancel", "resume"].includes(verb) && !window.confirm(`${verb === "cancel" ? "Cancel" : "Resume"} this run?`)) return;
@@ -542,3 +553,126 @@ function renderBundleReplay() {
 $("bundle-position").addEventListener("input", renderBundleReplay);
 renderModelChoices();
 renderStudyModelChoices();
+
+// ---------------------------------------------------------------- live lane (ADR-019 decision 2, applied to one run)
+// "Real time" here means observation of COMMITTED evidence by cursor polling — never provider token streaming.
+// `model_request` is committed before the call leaves and `model_response` after it returns, so the gap between
+// them is the model working and the record says so without this view inventing anything to fill it. Reading writes
+// nothing, retries no mutation, and every line rendered is an event that already happened.
+let liveRunId = null, liveVersion = 0, liveCursor = 0, livePending = false, liveBusy = false;
+let liveFailures = 0, liveDeadline = 0, liveCard = null, liveSteps = 0, liveTerminal = false, liveSettle = 0;
+const LIVE_TERMINAL = ["run_finished", "run_cancelled", "run_paused", "review_opened"];
+const clock = (ts) => String(ts || "").slice(11, 19) || "—";
+
+function liveSay(state, head) { $("live-state").textContent = state; $("live-head").textContent = head; }
+function liveReset() {
+  liveVersion++; liveRunId = null; livePending = false; liveCard = null; liveSteps = 0; liveTerminal = false;
+  $("live").hidden = true; $("live-steps").replaceChildren(); liveSay("", "");
+}
+function liveStart(runId, limits) {
+  liveVersion++; liveRunId = runId; liveCursor = 0; livePending = true; liveFailures = 0;
+  liveCard = null; liveSteps = 0; liveTerminal = false; liveSettle = 5;
+  $("live-steps").replaceChildren(); $("live").hidden = false;
+  // A hard wall: a lost response can never leave this polling forever.
+  const calls = Number(limits?.max_model_calls) || 16, timeout = Number(limits?.request_timeout_s) || 120;
+  liveDeadline = Date.now() + (calls * timeout + 60) * 1000;
+  liveSay("OBSERVING", `Reading committed events for ${runId}.`);
+  return liveVersion;
+}
+async function liveFollowLaunch(limits) {
+  const before = new Set((await api("/api/runs")).runs.map(r => r.run_id));
+  const session = csrf, stop = Date.now() + 30000;
+  (async () => {
+    while (Date.now() < stop && csrf === session && !liveRunId) {
+      await new Promise(r => setTimeout(r, 700));
+      let runs;
+      try { runs = (await api("/api/runs")).runs; } catch (_) { continue; }
+      const fresh = runs.map(r => r.run_id).filter(id => !before.has(id));
+      // Labelled as the newest run recorded since this launch until the launch response confirms the id.
+      if (fresh.length) { liveStart(fresh[fresh.length - 1], limits); return; }
+    }
+  })().catch(() => {});
+}
+function liveLine(text, className) { if (liveCard) liveCard.append(el("p", text, className || "fine")); }
+function liveDetails(summary, body, open) {
+  if (!liveCard) return;
+  const d = el("details"); if (open) d.open = true;
+  d.append(el("summary", summary)); d.append(el("pre", body));
+  liveCard.append(d);
+}
+function liveEvent(e) {
+  const p = e.payload || {};
+  if (e.event_type === "run_created") {
+    liveCard = el("div", undefined, "live-step"); liveCard.append(el("h4", "Run recorded"));
+    liveLine(`Recorded at ${clock(e.ts)}. Recorded is not started: no model has been asked anything yet.`);
+    $("live-steps").append(liveCard); return;
+  }
+  if (e.event_type === "model_request") {
+    // The previous step is finished with; collapse it and open a new one.
+    if (liveCard) for (const d of liveCard.querySelectorAll("details")) d.open = false;
+    liveSteps += 1;
+    liveCard = el("div", undefined, "live-step");
+    liveCard.append(el("h4", `Step ${liveSteps}`));
+    liveLine(`Request recorded ${clock(e.ts)} · awaiting the model`, "live-wait");
+    const chars = typeof p.prompt_chars === "number" ? `${p.prompt_chars} chars` : "size not reported";
+    liveLine(`Sent to ${p.model || "the configured model"} · ${chars}. Attempted, not yet answered.`);
+    $("live-steps").append(liveCard); return;
+  }
+  if (!liveCard) { liveCard = el("div", undefined, "live-step"); $("live-steps").append(liveCard); }
+  if (e.event_type === "model_response") {
+    for (const w of liveCard.querySelectorAll(".live-wait")) w.className = "fine";
+    if (p.error) { liveLine(`Provider error: ${p.error}. Nothing is retried automatically.`, "live-error"); return; }
+    const tok = [p.prompt_tokens, p.completion_tokens].every(v => typeof v === "number")
+      ? `${p.prompt_tokens} in / ${p.completion_tokens} out` : "tokens not reported";
+    liveLine(`Answered ${clock(e.ts)} · ${p.finish_reason || "finish reason not reported"} · ${tok}`);
+    if (p.reasoning) liveDetails("Model reasoning, retained as evidence", String(p.reasoning), true);
+    else liveLine("No reasoning was returned for this call. Only the hosted provider reports one; a local model never does.");
+    if (p.content) liveDetails("Exact response content", String(p.content), false);
+    return;
+  }
+  const say = {
+    decision_recorded: () => `Decision: ${p.kind || "recorded"}${p.statement ? " · " + p.statement : ""}`,
+    decision_invalid: () => "Decision did not satisfy the contract; recorded as invalid, not retried.",
+    action_proposed: () => `Proposed: ${p.claimed_grant_id || "an action"} — a proposal, not an effect.`,
+    preaction_declared: () => "Declared before acting.",
+    gate_decided: () => `Gate: ${p.reason || "decided"} — an allow is not yet an effect.`,
+    effect_observed: () => `Effect ${p.status || "observed"}${p.tool ? " via " + p.tool : ""}.`,
+    review_opened: () => "Held for review. The run stops here until the operator resolves it.",
+    run_paused: () => "Paused on the record.",
+    run_cancelled: () => "Cancelled on the record.",
+    run_finished: () => `Finished: ${p.status || "recorded"} · ${p.terminal_reason || "reason not reported"} · ${p.model_calls ?? "?"} model calls.`,
+    evaluation_recorded: () => "Evaluated from the record. The full result is in the panels below.",
+  }[e.event_type];
+  if (say) liveLine(say(), e.event_type === "run_finished" ? "live-done" : undefined);
+  if (LIVE_TERMINAL.includes(e.event_type)) liveTerminal = true;
+}
+async function liveTick() {
+  const mine = liveVersion, id = liveRunId;
+  const page = await api(`/api/runs/${id}/events?cursor=${liveCursor}&limit=200`);
+  if (mine !== liveVersion) return;
+  for (const e of page.events) liveEvent(e);
+  liveCursor += page.events.length;
+  if (liveTerminal) {
+    for (const w of $("live-steps").querySelectorAll(".live-wait")) w.className = "fine";
+    liveSay("BOUNDARY REACHED", `${liveCursor} events observed. The panels below are the full record.`);
+  } else if (livePending) {
+    liveSay("OBSERVING", `${liveCursor} events so far${liveSteps ? ` · step ${liveSteps}` : ""}.`);
+  } else {
+    // The launch settled without a terminal event on the record: `running` is not proof of in-flight
+    // (a lost loop leaves that status behind), so this says unconfirmed rather than showing a spinner.
+    liveSay("UNCONFIRMED", "The launch returned but no terminal event is recorded. Inspect the run; do not relaunch it.");
+  }
+}
+setInterval(async () => {
+  if (!csrf || !liveRunId || liveBusy || liveTerminal) return;
+  // A few reads are allowed after the launch settles, to drain events committed just before it returned.
+  if (!livePending && liveSettle-- <= 0) {
+    liveSay("UNCONFIRMED", "The launch settled with no terminal event on the record. Inspect the run; do not relaunch it.");
+    liveRunId = null; return;
+  }
+  if (Date.now() > liveDeadline) { livePending = false; liveSay("STOPPED", "Observation window elapsed. Refresh the records to reconcile."); liveRunId = null; return; }
+  liveBusy = true;
+  try { await liveTick(); liveFailures = 0; }
+  catch (_) { if (++liveFailures >= 3) { liveSay("READS FAILING", "Three reads failed in a row; observation stopped. The run is unaffected — refresh the records."); liveRunId = null; } }
+  finally { liveBusy = false; }
+}, 1000);
