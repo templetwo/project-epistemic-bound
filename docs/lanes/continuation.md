@@ -1,5 +1,28 @@
 # Solo continuation — seat 2/3, 2026-09-13
 
+## Workroom instrument presentation, 2026-09-13
+
+This entry supersedes the earlier next action. Base main `07da692`; product
+`ceb840b8b7d70cd426ddcf602d420bbf3f265c52`, branch `build/review-continuation`,
+working path `/private/tmp/peb-review-continuation`. Owned changes: web asset
+allowlist, index/app, new trace/theme stylesheet, and the instrument browser
+regressions. Archived records, evaluator code and frozen contracts are unchanged.
+
+Clean product measurement: 1,069 passed, zero failures/errors/skips, Ruff clean.
+The six-record browser pass checks 259 committed events; the instrument pass
+adds responsive/theme/live/race checks, and the full scripted browser workflow
+passes all five flags. Commands and final-tip resolution are in
+`docs/receipts/S7-workroom-instrument.json`; review is explicitly assistant
+SELF-REVIEW in `docs/reviews/UI-workroom-instrument-2026-09-13.md`.
+
+At the pre-integration read, PID38093 serves8787: 33 terminal runs (22 completed,
+11 failed), all supervisor/inference/study locks free, DeepSeek key absent.
+Next: measured --no-ff merge and push, idle-only relaunch, then check source/assets
+and existing run details on the serving process. Temporary browser fixtures use
+8789 and8791 and will be stopped after verification. No paid inference or new
+operator data publication is needed. Repeat-config, study-grid, prose review and
+ADR-020 rulings remain outside this display pass.
+
 ## Initial report glance correction, 2026-09-13
 
 This entry supersedes the previous next action. Base main is `dac5bb6`; work

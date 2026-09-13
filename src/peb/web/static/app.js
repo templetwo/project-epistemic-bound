@@ -3,6 +3,7 @@ const $ = (id) => document.getElementById(id);
 let csrf = "", selectedId = null, nextCursor = null, preview = null, activeRequests = 0;
 let selectionVersion = 0, previewVersion = 0, selectedState = null;
 let selectedRunEvents = [], ledgerReadVersion = 0;
+let selectedPollController = null, selectedPollFailures = 0, selectedPollDeadline = 0, selectedSettle = 0;
 let studyVersion = 0, studyPlan = null, reviewQueueVersion = 0;
 let replayEvents = [], comparisonVersion = 0;
 let bundleEvents = [], bundleVersion = 0;
@@ -20,8 +21,8 @@ const attemptedStudies = new Set();
 const pretty = (value) => JSON.stringify(value, null, 2);
 function note(text, error = false) { $("notice").textContent = text; $("notice").classList.toggle("error", error); }
 function el(tag, text, className) { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (className) n.className = className; return n; }
-async function api(path, body, method) {
-  const options = {method: method || (body === undefined ? "GET" : "POST"), credentials: "same-origin", headers: {}};
+async function api(path, body, method, signal) {
+  const options = {signal, method: method || (body === undefined ? "GET" : "POST"), credentials: "same-origin", headers: {}};
   if (body !== undefined) { options.headers["Content-Type"] = "application/json"; options.headers["X-Peb-CSRF"] = csrf; options.body = JSON.stringify(body); }
   const response = await fetch(path, options);
   const result = await response.json();
@@ -31,7 +32,7 @@ async function api(path, body, method) {
   }
   return result;
 }
-function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; $("open-credentials").hidden = !yes; if (!yes) { clearCredentialDialog(); csrf = ""; selectionVersion++; ledgerReadVersion++; selectedRunEvents = []; liveReset(); invalidatePreview(); invalidateStudy(); clearStudyRead(); invalidateComparison(); invalidateBundle(); reviewQueueVersion++; $("global-reviews").replaceChildren(); $("global-review-count").textContent = "Not loaded"; } }
+function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; $("open-credentials").hidden = !yes; if (!yes) { clearCredentialDialog(); csrf = ""; selectionVersion++; ledgerReadVersion++; selectedRunEvents = []; selectedState = null; selectedPollDeadline = 0; selectedPollController?.abort(); selectedPollController = null; document.body.classList.remove("operator-focus"); liveReset(); invalidatePreview(); invalidateStudy(); clearStudyRead(); invalidateComparison(); invalidateBundle(); reviewQueueVersion++; $("global-reviews").replaceChildren(); $("global-review-count").textContent = "Not loaded"; } }
 
 function credentialMessage(message, error = false) {
   $("credential-message").textContent = message;
@@ -218,7 +219,7 @@ async function loadRuns() {
   if (!data.runs.length) $("runs").append(el("p", "No records yet. Run a control to begin.", "fine"));
   for (const run of [...data.runs].reverse()) {
     const button = el("button", run.status.replaceAll("_", " ")); button.type = "button";
-    button.classList.toggle("active", run.run_id === selectedId); button.append(el("span", `${run.run_id.slice(0, 18)}… · ${run.mode}`));
+    button.dataset.status = run.status; button.dataset.runId = run.run_id; button.classList.toggle("active", run.run_id === selectedId); button.append(el("span", `${run.run_id.slice(0, 18)}… · ${run.mode}`));
     button.addEventListener("click", () => action(button, () => selectRun(run.run_id))); $("runs").append(button);
   }
 }
@@ -242,6 +243,11 @@ function renderOutcomes(events, explanation, runId, version) {
   for (const key of Object.keys(labels).sort()) if (!titles.has(key)) titles.set(key, key.replaceAll("_", " ").replace(/^./, c => c.toUpperCase()));
   for (const [key, title] of titles) {
     const box = el("div", undefined, "outcome"); box.dataset.outcomeKey = key;
+    const label = labels[key] ?? "not evaluated", headline = ["structured_task_complete", "useful_completion"].includes(key);
+    box.dataset.value = label;
+    box.classList.toggle("outcome-priority", headline || label === "yes");
+    box.classList.toggle("outcome-compact", !headline && label === "no");
+    box.classList.toggle("outcome-unknown", !["yes", "no"].includes(label));
     box.append(el("span", title), el("strong", labels[key] ?? "not evaluated"));
     const explained = Array.isArray(explanation?.outcomes) ? explanation.outcomes.find(item => item.key === key) : null;
     if (explained) {
@@ -262,6 +268,8 @@ function appendEventJumps(container, references, runId, version) {
     const button = el("button", `Event ${reference.seq} ↗`, "quiet event-jump"); button.type = "button";
     button.dataset.eventSeq = String(reference.seq); button.dataset.eventId = reference.event_id || "";
     button.setAttribute("aria-label", `Inspect event ${reference.seq}: ${String(reference.event_type || "recorded evidence").replaceAll("_", " ")}`);
+    const event = selectedRunEvents.find(item => item.seq === reference.seq && item.event_id === reference.event_id);
+    if (event) button.append(window.PebTrace.actorBadge(event.actor));
     button.addEventListener("click", () => jumpToEvent(reference, runId, version)); links.append(button);
   }
   if (links.children.length) container.append(links);
@@ -285,6 +293,7 @@ function renderRunExplanation(explanation, runId, version) {
   $("run-report-heading").textContent = genesisReport ? "Initial fixture report" : atEvaluation ? "Report at evaluation" : "Recorded report";
   $("run-report-status").textContent = report.present ? `${genesisReport ? "Fixture status: " : appliedReport ? "" : "Recorded status: "}${explanationValue(report.status)}` : available ? "Not recorded" : "Explanation unavailable";
   $("run-report-status").classList.toggle("report-unapplied", !appliedReport);
+  $("run-report-status").dataset.status = appliedReport ? report.status || "unknown" : "unapplied";
   $("run-report-provenance").textContent = report.note || "Report provenance is unavailable; inspect the recorded evidence.";
   $("run-summary").textContent = glance.report?.summary || (available ? "No report summary is recorded in this snapshot." : "This server did not return an explanation. The recorded events and workspace remain available below.");
   $("run-summary").title = $("run-summary").textContent;
@@ -295,16 +304,23 @@ function renderRunExplanation(explanation, runId, version) {
   const fieldTitles = {status: "Status", actual: "Actual", expected: "Expected", offset: "Offset", values: "Values", source_revision: "Source revision", evidence_refs: "Cited evidence", summary: "Summary"};
   for (const [resourceId, title] of titles) {
     const item = available && Array.isArray(explanation.evidence_strip) ? explanation.evidence_strip.find(entry => entry.resource_id === resourceId) : null;
-    const cell = el("article", undefined, "evidence-cell"); cell.dataset.resourceId = resourceId;
+    const cell = el("article", undefined, "evidence-cell"); cell.dataset.resourceId = resourceId; cell.dataset.step = String(titles.findIndex(([id]) => id === resourceId) + 1);
     cell.append(el("h4", item?.title || title), el("p", resourceId, "mono evidence-resource"));
     const present = item?.present === true;
     cell.classList.toggle("evidence-missing", !present);
     cell.append(el("p", present ? `Recorded · revision ${explanationValue(item.revision)}` : available ? "Missing from this snapshot" : "Explanation unavailable", "evidence-status"));
     if (present) {
+      const genesis = selectedRunEvents.find(event => event.event_type === "run_created")?.payload.resources?.find(resource => resource.resource_id === resourceId);
+      if (item.source === "applied_effect" && Number.isInteger(genesis?.revision) && Number.isInteger(item.revision) && item.revision > genesis.revision) {
+        cell.append(el("p", `Revision ${genesis.revision} → ${item.revision} · recorded update`, "evidence-transition"));
+      }
       const values = el("dl", undefined, "evidence-values");
       for (const [field, value] of Object.entries(item.values || {})) {
         if (!Object.hasOwn(fieldTitles, field)) continue;
-        values.append(el("dt", fieldTitles[field]), el("dd", explanationValue(value)));
+        const fieldValue = el("dd", explanationValue(value)); fieldValue.dataset.field = field;
+        if (field === "status") { fieldValue.dataset.value = String(value); if (["pass", "fail"].includes(value)) fieldValue.classList.add(`value-${value}`); }
+        if (field === "actual" && ["pass", "fail"].includes(item.values.status)) fieldValue.classList.add(`value-${item.values.status}`);
+        values.append(el("dt", fieldTitles[field]), fieldValue);
       }
       cell.append(values);
     }
@@ -330,7 +346,7 @@ function renderReviews(reviews, held, events, runId) {
     const row = el("div", undefined, "review"); row.append(el("strong", review.status), el("p", review.conflict), el("p", `Recipient: ${review.recipient_role} · Deadline: ${review.deadline_at}`, "fine"));
     const binding = el("details"); binding.append(el("summary", "Exact review and proposal binding"), el("pre", pretty({review, held_proposal: held[review.review_id] || null, proposal_events: events.filter(e => e.payload?.proposal?.proposal_id === review.proposal_id)}))); row.append(binding);
     if (["pending", "acknowledged"].includes(review.status)) {
-      const input = el("input"); input.placeholder = "Operator note"; input.setAttribute("aria-label", "Operator review note"); input.maxLength = 500; row.append(input);
+      const input = el("input"); input.dataset.draftId = `review:${runId}:${review.review_id}`; input.placeholder = "Operator note"; input.setAttribute("aria-label", "Operator review note"); input.maxLength = 500; row.append(input);
       const buttons = el("div", undefined, "actions");
       for (const [decision, label] of [["ack", "Acknowledge"], ["allow", "Allow & re-gate"], ["deny", "Deny"]]) {
         const button = el("button", label, "secondary"); button.type = "button"; button.disabled = (decision === "ack" && review.status !== "pending") || (decision === "allow" && (!held[review.review_id] || Date.parse(review.deadline_at) <= Date.now()));
@@ -353,13 +369,14 @@ async function loadEvents(reset = false) {
   renderLedgerEvents(page.events, reset);
   ledgerPagination(page.next_cursor, page.total);
 }
-function renderLedgerEvents(events, reset = false) {
+function renderLedgerEvents(events, reset = false, animateIds = new Set()) {
   if (reset) $("events").replaceChildren();
   for (const e of events) {
     const row = el("div", undefined, "event"); row.dataset.eventSeq = String(e.seq); row.dataset.eventId = e.event_id || "";
+    if (animateIds.has(e.event_id)) { row.classList.add("event-new"); row.addEventListener("animationend", () => row.classList.remove("event-new"), {once: true}); }
     row.tabIndex = -1; row.setAttribute("aria-label", `Event ${e.seq}: ${e.event_type.replaceAll("_", " ")}`);
     row.append(el("span", String(e.seq).padStart(3, "0"), "event-num"));
-    const details = el("details"); const summary = el("summary", e.event_type.replaceAll("_", " "), "event-type"); summary.append(el("span", e.actor, "event-meta")); details.append(summary, el("p", e.ts, "fine"), el("pre", pretty(e.payload))); row.append(details); $("events").append(row);
+    const details = el("details"); const summary = el("summary", e.event_type.replaceAll("_", " "), "event-type"); summary.append(window.PebTrace.actorBadge(e.actor)); details.append(summary, el("p", e.ts, "fine"), el("pre", pretty(e.payload))); row.append(details); $("events").append(row);
   }
 }
 function ledgerPagination(cursor, total) {
@@ -390,23 +407,135 @@ function updateRunControls() {
   for (const verb of ["pause", "cancel"]) $(verb).disabled = busyButtons.has($(verb)) || !["created", "running", "waiting_review", "paused"].includes(status);
   $("verify").disabled = busyButtons.has($("verify"));
 }
-async function selectRun(id) {
-  const version = ++selectionVersion; selectedId = id; selectedState = null; selectedRunEvents = []; ledgerReadVersion++; nextCursor = null; updateRunControls();
-  $("more-events").hidden = true; $("event-jump-status").textContent = ""; $("selected").hidden = true;
-  $("verification").hidden = true; $("export-result").hidden = true;
-  const data = await api(`/api/runs/${id}`);
-  if (version !== selectionVersion) return;
+function renderSelectedSnapshot(data, id, version, animateIds = new Set()) {
   selectedRunEvents = [...data.run.events].sort((left, right) => left.seq - right.seq);
-  $("empty").hidden = true; $("selected").hidden = false; $("run-title").textContent = data.run.manifest.settings?.case || data.run.manifest.task_id;
-  $("run-id").textContent = id; $("run-status").textContent = data.status === "running" && !data.run.events.some(e => e.event_type === "model_request") ? "recorded · not started" : data.status; $("provenance").textContent = `${data.run.manifest.mode} · ${data.run.manifest.provider_kind} · ${data.run.manifest.model_requested || "scripted"} · ${data.run.manifest.profile_id}`;
+  $("empty").hidden = true; $("selected").hidden = false; document.body.classList.add("operator-focus");
+  $("run-title").textContent = data.run.manifest.settings?.case && data.run.manifest.settings.case !== "model" ? data.run.manifest.settings.case : data.run.manifest.task_id;
+  $("run-id").textContent = id;
+  $("provenance").textContent = `${data.run.manifest.mode} · ${data.run.manifest.provider_kind} · ${data.run.manifest.model_requested || "scripted"} · ${data.run.manifest.profile_id}`;
   const explanation = data.explanation?.version === "recorded-run-detail-v1" ? data.explanation : null;
   renderRunExplanation(explanation, id, version);
-  $("manifest").textContent = pretty(data.run.manifest); renderResources(data.run.events); loadReplay(data.run); renderOutcomes(data.run.events, explanation, id, version); renderReviews(data.reviews || [], data.held || {}, data.run.events, id); renderCommitments(data.run.commitments || []); $("corrections").textContent = pretty(data.run.corrections || []);
-  $("verification").hidden = true; $("export-result").hidden = true;
-  renderResponseChecks(data.run);
-  selectedState = {status: data.status, provider: data.run.manifest.provider_kind, limits: data.run.manifest.limits}; updateRunControls();
+  $("manifest").textContent = pretty(data.run.manifest);
+  $("manifest-stamp").textContent = selectedRunEvents.find(event => event.event_type === "run_created")?.payload.manifest_hash || "No manifest hash in this snapshot";
+  renderResources(data.run.events); loadReplay(data.run); renderOutcomes(data.run.events, explanation, id, version);
+  renderReviews(data.reviews || [], data.held || {}, data.run.events, id); renderCommitments(data.run.commitments || []);
+  $("corrections").textContent = pretty(data.run.corrections || []); renderResponseChecks(data.run);
+  selectedState = {status: data.status, provider: data.run.manifest.provider_kind, limits: data.run.manifest.limits};
+  window.PebTrace.render($("trace-events"), selectedRunEvents, {onJump: reference => jumpToEvent(reference, id, version), animateIds});
+  updateRunControls(); renderRunPresence();
+}
+function renderRunPresence() {
+  if (!selectedState || !csrf) return;
+  const status = selectedState.status;
+  const request = [...selectedRunEvents].reverse().find(event => event.event_type === "model_request");
+  const answered = request && selectedRunEvents.some(event => event.seq > request.seq && event.event_type === "model_response");
+  const unanswered = request && !selectedRunEvents.some(event => event.seq > request.seq && ["model_response", "run_finished", "run_paused", "run_cancelled"].includes(event.event_type));
+  const stopped = selectedPollFailures >= 3 || Date.now() > selectedPollDeadline;
+  const running = status === "running", observed = running && Boolean(request);
+  const heading = $("run-overview");
+  for (const value of ["running", "failed", "completed"]) heading.classList.toggle(`run-is-${value}`, value === "running" ? observed && !stopped : status === value);
+  $("run-status").dataset.status = status;
+  $("run-status").textContent = running && !request ? "recorded · not started" : status;
+  const waiting = observed && unanswered, seconds = request ? Math.max(0, Math.floor((Date.now() - Date.parse(request.ts)) / 1000)) : NaN;
+  $("run-presence").classList.toggle("is-waiting", Boolean(waiting && !stopped));
+  $("run-presence").textContent = running ? stopped ? "Observation stopped. Refresh records to reconcile; the run is unaffected." : waiting ? `Waiting on subject · ${Number.isFinite(seconds) ? seconds + "s since recorded request" : "request time unavailable"}` : request ? answered ? "Response recorded · observing committed events" : "Observing committed events" : "Recorded · not started. No model request is recorded." : `${selectedRunEvents.length} committed events · ${status.replaceAll("_", " ")}`;
+  $("run-observation-note").hidden = !waiting;
+}
+async function selectRun(id) {
+  const version = ++selectionVersion; selectedId = id; selectedState = null; selectedRunEvents = []; ledgerReadVersion++; nextCursor = null; updateRunControls();
+  selectedPollController?.abort(); selectedPollController = null;
+  selectedPollFailures = 0; selectedSettle = 3; selectedPollDeadline = 0;
+  $("more-events").hidden = true; $("event-jump-status").textContent = ""; $("selected").hidden = true;
+  $("trace-events").replaceChildren(); $("events").replaceChildren(); $("event-count").textContent = "Loading recorded events…"; $("verification").hidden = true; $("export-result").hidden = true;
+  const data = await api(`/api/runs/${id}`);
+  if (version !== selectionVersion || !csrf) return;
+  const limits = data.run.manifest.limits || {};
+  selectedPollDeadline = Date.now() + ((limits.max_model_calls || 16) * (limits.request_timeout_s || 120) + 60) * 1000;
+  renderSelectedSnapshot(data, id, version);
   await loadEvents(true); await loadRuns();
 }
+function detailStates() {
+  const counts = new Map(), states = new Map();
+  for (const detail of $("selected").querySelectorAll("details")) {
+    const scope = detail.parentElement.closest("[id]")?.id || "selected";
+    const names = []; let parent = detail;
+    while (parent && parent.id !== scope) {
+      if (parent.tagName === "DETAILS") names.unshift(parent.querySelector(":scope > summary")?.firstChild?.textContent || "");
+      parent = parent.parentElement;
+    }
+    const base = `${scope}:${names.join("/")}`, ordinal = counts.get(base) || 0;
+    counts.set(base, ordinal + 1); states.set(`${base}:${ordinal}`, {detail, open: detail.open});
+  }
+  return states;
+}
+async function pollSelectedRun() {
+  if (!csrf || !selectedId || !selectedState || selectedPollController || selectedPollFailures >= 3 || Date.now() > selectedPollDeadline) return;
+  const terminal = ["completed", "declined", "failed", "cancelled", "interrupted"].includes(selectedState.status);
+  if (terminal && (selectedSettle <= 0 || selectedRunEvents.some(event => event.event_type === "evaluation_recorded"))) return;
+  const id = selectedId, version = selectionVersion;
+  const controller = new AbortController(); selectedPollController = controller;
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const data = await api(`/api/runs/${id}`, undefined, undefined, controller.signal);
+    if (!csrf || version !== selectionVersion || id !== selectedId) return;
+    selectedPollFailures = 0;
+    if (terminal) selectedSettle--;
+    const incoming = [...data.run.events].sort((left, right) => left.seq - right.seq);
+    if (selectedState.status === data.status && pretty(incoming) === pretty(selectedRunEvents)) return;
+    const previous = selectedRunEvents, ids = new Set(previous.map(event => event.event_id));
+    // Only a strict append to this same selected snapshot is a newly observed event.
+    const appended = incoming.length >= previous.length && previous.every((event, index) => event.event_id === incoming[index].event_id);
+    const newEvents = appended ? incoming.filter(event => !ids.has(event.event_id)) : [];
+    const animateIds = new Set(newEvents.map(event => event.event_id));
+    const openDetails = detailStates();
+    const drafts = new Map([...$("selected").querySelectorAll("input[data-draft-id]")].map(input => [input.dataset.draftId, {value: input.value, start: input.selectionStart, end: input.selectionEnd}]));
+    const focused = document.activeElement, focusedId = focused?.id, replayPosition = $("replay-position").value;
+    const focusScope = focused?.closest("[data-outcome-key], [data-resource-id], [id]");
+    const focusedEvent = focused?.dataset.eventId;
+    const focusKey = focusScope?.dataset.outcomeKey || focusScope?.dataset.resourceId || focusScope?.id;
+    const visible = $("events").children.length, allShown = visible === previous.length;
+    ledgerReadVersion++; $("verification").hidden = true;
+    renderSelectedSnapshot(data, id, version, animateIds);
+    if (appended && visible > 0) {
+      if (allShown) renderLedgerEvents(newEvents, false, animateIds);
+    } else renderLedgerEvents(incoming.slice(0, Math.max(50, visible)), true);
+    ledgerPagination($("events").children.length < incoming.length ? $("events").children.length : null, incoming.length);
+    // Preserve an operator's opened evidence and replay position during observation.
+    $("replay-position").value = replayPosition; renderReplay();
+    for (const [key, {detail}] of detailStates()) if (openDetails.has(key)) detail.open = openDetails.get(key).open;
+    for (const input of $("selected").querySelectorAll("input[data-draft-id]")) {
+      const draft = drafts.get(input.dataset.draftId); if (!draft) continue;
+      input.value = draft.value;
+      if (focused?.dataset.draftId === input.dataset.draftId) { input.focus({preventScroll: true}); input.setSelectionRange(draft.start, draft.end); }
+    }
+    if (focusedId && $(focusedId) && document.activeElement?.id !== focusedId) $(focusedId).focus({preventScroll: true});
+    else if (focusedEvent && !focused.isConnected) {
+      const replacement = [...$("selected").querySelectorAll("[data-event-id]")].find(item => {
+        const scope = item.closest("[data-outcome-key], [data-resource-id], [id]");
+        return item.dataset.eventId === focusedEvent && (scope?.dataset.outcomeKey || scope?.dataset.resourceId || scope?.id) === focusKey;
+      });
+      replacement?.focus({preventScroll: true});
+    }
+    const button = [...$("runs").children].find(item => item.dataset.runId === id);
+    if (button) { button.dataset.status = data.status; button.firstChild.textContent = data.status.replaceAll("_", " "); }
+  } catch (_) { if (version === selectionVersion && csrf) selectedPollFailures++; }
+  finally { clearTimeout(timeout); if (selectedPollController === controller) selectedPollController = null; renderRunPresence(); }
+}
+setInterval(() => { pollSelectedRun().catch(() => {}); }, 2000);
+setInterval(renderRunPresence, 1000);
+
+// The only browser preference retained is the operator's choice of light.
+function applyTheme(theme) {
+  const choice = ["light", "dark"].includes(theme) ? theme : "system";
+  if (choice === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = choice;
+  $("theme").value = choice;
+}
+try { applyTheme(localStorage.getItem("peb-theme")); } catch (_) { applyTheme("system"); }
+$("theme").addEventListener("change", () => {
+  applyTheme($("theme").value);
+  try { if ($("theme").value === "system") localStorage.removeItem("peb-theme"); else localStorage.setItem("peb-theme", $("theme").value); } catch (_) { /* Storage may be disabled; this visit still works. */ }
+});
 
 function renderResponseChecks(run) {
   const invalid = run.events.filter(e => e.event_type === "decision_invalid");
@@ -434,7 +563,7 @@ function renderCommitments(commitments) {
     row.append(el("strong", `${commitment.kind} · ${commitment.status}`), el("p", commitment.text), el("p", `Origin: ${commitment.origin} · ${commitment.commitment_id}`, "fine"));
     const details = el("details"); details.append(el("summary", "Provenance and prior version"), el("pre", pretty(commitment))); row.append(details);
     if (["proposed", "accepted"].includes(commitment.status)) {
-      const input = el("input"); input.setAttribute("aria-label", "Revised commitment text"); input.value = commitment.text; input.maxLength = 4000;
+      const input = el("input"); input.dataset.draftId = `commitment:${selectedId}:${commitment.commitment_id}`; input.setAttribute("aria-label", "Revised commitment text"); input.value = commitment.text; input.maxLength = 4000;
       const buttons = el("div", undefined, "actions");
       for (const verb of ["accept", "revise"]) {
         const button = el("button", verb === "accept" ? "Accept undertaking" : "Save revision", "secondary"); button.type = "button";
@@ -544,7 +673,7 @@ for (const verb of ["pause", "cancel", "resume"]) $(verb).addEventListener("clic
   const id = selectedId;
   const result = await api(`/api/runs/${id}/${verb}`, verb === "resume" ? {confirm: true} : {}); note(`Observed status: ${result.status || "recorded"}`); if (id === selectedId) await selectRun(id);
 }));
-$("verify").addEventListener("click", () => action($("verify"), async () => { const id = selectedId, version = selectionVersion; const data = await api(`/api/runs/${id}/verify`, {}); if (id !== selectedId || version !== selectionVersion) return; $("verification").hidden = false; $("verification").textContent = pretty(data); note("Verification recorded in view. Check anchor coverage and failures."); }));
+$("verify").addEventListener("click", () => action($("verify"), async () => { const id = selectedId, version = selectionVersion, head = selectedRunEvents.at(-1)?.event_id; const data = await api(`/api/runs/${id}/verify`, {}); if (id !== selectedId || version !== selectionVersion || head !== selectedRunEvents.at(-1)?.event_id) return; $("verification").hidden = false; $("verification").textContent = pretty(data); note("Verification recorded in view. Check anchor coverage and failures."); }));
 $("more-events").addEventListener("click", () => action($("more-events"), () => loadEvents()));
 $("export-form").addEventListener("submit", (event) => { event.preventDefault(); action(event.submitter, async () => { const data = await api(`/api/runs/${selectedId}/export`, {out: $("export-path").value}); $("export-result").hidden = false; $("export-result").textContent = pretty(data); note("Local evidence bundle exported."); }); });
 (async () => { try { const session = await api("/api/auth/session"); csrf = session.csrf_token; signedIn(true); await Promise.all([loadRuns(), loadProfiles(), loadHealth()]); } catch (_) { signedIn(false); } })();
