@@ -277,6 +277,17 @@
       "skipped": 0,
       "tests": 710,
       "tip": "9ce129a"
+    },
+    {
+      "errors": 0,
+      "failed": 0,
+      "measured_at_local": "2026-09-13T00:2x-0400",
+      "passed": 712,
+      "receipt": "docs/receipts/S7-external-review-response.json (merges 8eecdff: response to Kimi's external review of 6d56684 \u2014 four defects fixed, two audit-trail overstatements corrected, the review preserved verbatim)",
+      "ruff": "All checks passed",
+      "skipped": 0,
+      "tests": 712,
+      "tip": "b2d2724"
     }
   ]
 }

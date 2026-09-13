@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "kind": "external_review_response_receipt",
+  "recorded_by": "seat 1/3 (Claude Code) — the only remaining seat (ADR-020)",
+  "recorded_at_local": "2026-09-13 ~00:2x EDT",
+  "external_review": {
+    "reviewer": "Kimi (K3), external technical adviser, invited by Anthony via the OpenAI reviewer",
+    "brief": "KIMI_REVIEW_BRIEF.md — held locally and deliberately NOT committed (Anthony, 2026-09-13: 'keep it ignored'); excluded via .git/info/exclude so the exclusion itself is not published either",
+    "preserved_verbatim": "docs/reviews/EXTERNAL-6d56684-kimi.md",
+    "sha256": "5c04ed301d9acbf92c02e4111e9c085501e94c3153643525619324585081f952",
+    "plan": "docs/reviews/EXTERNAL-6d56684-kimi-plan.md",
+    "reviewed_commit": "6d56684f007c1e3c653b2b246ad8964a8afd1d3a",
+    "independent_of_this_seat": true,
+    "independently_reproduced_by_the_reviewer": "710 passed / 0 failed / 0 skipped and whole-tree ruff clean at 5e33917, in its own clean checkout; the docs-only claim for the three tip commits confirmed per-commit",
+    "findings": 21
+  },
+  "lane_commit": "8eecdff",
+  "main_tip": "b2d2724",
+  "reviewed_by": "SELF-REVIEW by seat 1/3 of its own response. The external verdict is independent; this response to it is not. Every accepted finding was re-verified from this side before acceptance — see 'verified_before_accepting'.",
+  "verified_before_accepting": {
+    "F15": "_probe_port('::1', 8799) reproduced as {'status': 'in_use', 'errno': 8} before the fix; 127.0.0.1 returned free in the same breath",
+    "F3": "read renderModelChoices() at HEAD: it never touched $('model').value, so a typed hosted id survived a provider switch",
+    "F2": "grep found the prefill in BOTH app.js:275 and index.html:39, matching the finding exactly",
+    "F17": "read both cited receipts; S3-056edda states 'Items 1/3/4 … are not this verdict' and TUI-84b2ad1 states it is 'not seat 3/3's independent verifier/inspector verdict'. Rows 1/3/4 did cite them; rows 2 and 5 cite them legitimately and were left alone",
+    "F18": "read ACCEPTANCE.md against ADR-020 item 3: a direct contradiction, and ACCEPTANCE.md is the file the release workflow reads"
+  },
+  "addressed": ["F1", "F2", "F3", "F4", "F5", "F15", "F16", "F17", "F18", "F19"],
+  "left_open_on_purpose": {
+    "rows": ["F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13", "F14", "F20", "F21"],
+    "why": "several change predicate licences, the EvaluationRecord contract, or acceptance policy. Those are Anthony's to rule on (ADR-020 open item (a)) and are not for this seat to settle while responding to a review of its own work."
+  },
+  "measured": {
+    "ref": "b2d2724 (the merge tip itself)",
+    "command": "bash scripts/clean_checkout_suite.sh b2d2724",
+    "passed": 712,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "ruff": "All checks passed (whole tree)",
+    "note": "712 = the 710 of the previous tip plus two new guards: the ::1 port-probe regression, and 'unknown' falling through to the child's own bind instead of refusing."
+  },
+  "not_claimed": [
+    "the browser harness was NOT executed by this seat; assertions for F2 and F3 were added and syntax-checked only, and the review's F4 correction about overstated harness coverage now stands in the self-review itself",
+    "no acceptance-matrix row is promoted; ADR-020's needs_review rule is restored, not relaxed",
+    "the candidate hosted run remains outside the repository and unverified by anyone but this seat"
+  ]
+}
