@@ -31,6 +31,10 @@ packages = ["src/peb"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+# Work that is created and never awaited is work silently dropped, not a style warning: the cockpit hands
+# coroutines to Textual workers, and an exclusive worker cancelled before it starts must not leave one behind.
+# Exactly that class fails the suite; every other warning stays a warning.
+filterwarnings = ["error:coroutine .* was never awaited:RuntimeWarning"]
 
 [tool.ruff]
 line-length = 100

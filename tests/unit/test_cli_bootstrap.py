@@ -249,7 +249,9 @@ def test_tui_serve_forwards_the_resolved_state_root_to_the_child_over_any_inheri
         captured["connect"] = address
         yield object()
 
-    server = cli._spawn_workroom("127.0.0.1", 8799, tmp_path / "explicit", popen=fake_popen, connect=fake_connect, sleep=lambda _s: None)
+    # probe injected: this test asserts argv/env forwarding, and must not depend on port 8799 being free here
+    server = cli._spawn_workroom("127.0.0.1", 8799, tmp_path / "explicit", popen=fake_popen, connect=fake_connect,
+                                 sleep=lambda _s: None, probe=lambda *_a: {"status": "free"})
     code = captured["argv"][2]
     assert "'--state-root', " + repr(str(tmp_path / "explicit")) in code and "'serve', '--host', '127.0.0.1', '--port', '8799'" in code
     assert captured["env"]["PEB_STATE_ROOT"] == str(tmp_path / "explicit") and captured["connect"] == ("127.0.0.1", 8799)
@@ -284,3 +286,40 @@ def test_tui_serve_end_to_end_with_fakes_uses_the_explicit_root_and_reports_the_
     out = json.loads(capsys.readouterr().out)
     assert rc == 0 and seen["root"] == root and seen["origin"] == "http://127.0.0.1:8791" and seen["secret_len"] == 64
     assert out["in_flight_at_quit"] == ["run_live"] and out["pid"] == 777 and not server.terminated
+
+
+def test_the_cockpit_refuses_to_adopt_a_workroom_it_did_not_start(state_root: Path):
+    """Found while Anthony test-drove the README quickstart with the previous night's workroom still on the port.
+
+    `_spawn_workroom` waits for SOMETHING to listen. With a foreign server already there, connect() wins the race
+    against the child's failure to bind, so the cockpit would attach to the stranger and then report its own
+    (already dead) child's pid — a pid whose `kill` stops nothing. The port must be free before we claim it.
+    """
+    import socket
+    from contextlib import contextmanager
+
+    from peb.cli import _spawn_workroom
+    from peb.errors import ErrorCode, PebError
+
+    @contextmanager
+    def fake_connect(address, timeout=None):
+        yield None
+
+    foreign = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    foreign.bind(("127.0.0.1", 0))
+    foreign.listen(1)
+    port = foreign.getsockname()[1]
+    spawned = []
+    try:
+        with pytest.raises(PebError) as e:
+            _spawn_workroom("127.0.0.1", port, state_root, popen=lambda *a, **k: spawned.append(a) or _FakeServer())
+        assert e.value.code == ErrorCode.conflict
+        assert "did not start" in e.value.message
+        assert e.value.detail["attach_instead"] == f"peb tui --attach http://127.0.0.1:{port}"
+        assert spawned == []  # nothing was launched: the refusal happens BEFORE any child exists
+    finally:
+        foreign.close()
+    # and with the port free again, the spawner proceeds (the fake child "listens" immediately)
+    server = _spawn_workroom("127.0.0.1", port, state_root, popen=lambda *a, **k: _FakeServer(),
+                             connect=fake_connect, sleep=lambda _s: None, probe=lambda *_a: {"status": "free"})
+    assert server is not None

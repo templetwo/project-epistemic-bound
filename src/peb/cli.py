@@ -367,7 +367,12 @@ def cmd_serve(args: argparse.Namespace) -> int:
 IN_FLIGHT = ("running", "waiting_review")
 
 
-def _spawn_workroom(host: str, port: int, state_root: Path, *, popen=None, connect=None, sleep=None, deadline_s: float = 15.0):
+def probe_host_for(host: str) -> str:
+    """The address to probe/connect for a server bound to `host` (loopback only, ADR-019)."""
+    return "127.0.0.1" if host == "localhost" else host
+
+
+def _spawn_workroom(host: str, port: int, state_root: Path, *, popen=None, connect=None, sleep=None, probe=None, deadline_s: float = 15.0):
     """Start the EXISTING `peb serve` as a child of this interpreter on an explicit loopback host/port and the
     RESOLVED state root (forwarded both as `--state-root` argv and as PEB_STATE_ROOT in the child's environment —
     2/3's #28502: an explicit CLI root must override anything inherited). Waits until the port listens."""
@@ -380,12 +385,25 @@ def _spawn_workroom(host: str, port: int, state_root: Path, *, popen=None, conne
     popen = popen or subprocess.Popen
     connect = connect or socket.create_connection
     sleep = sleep or _time.sleep
+    probe = probe or _probe_port   # injectable so no test depends on a real port being free
+    # The wait below returns as soon as SOMETHING listens on the port. If another workroom is already there,
+    # connect() wins the race against our child's failure to bind, and the cockpit would attach to a stranger's
+    # server while reporting our child's pid — a pid whose `kill` stops nothing. So refuse before spawning:
+    # a port that is not free is not ours to claim (found while Anthony test-drove the README quickstart with
+    # the previous night's workroom still on 8787). Residual window between this probe and the child's bind is
+    # milliseconds and ends in the honest "child exited before it listened" error below.
+    taken = probe(probe_host_for(host), port)
+    if taken.get("status") != "free":
+        raise PebError(ErrorCode.conflict,
+                       f"something is already listening on {host}:{port}; the cockpit will not adopt a workroom it did not start",
+                       {"host": host, "port": port, "attach_instead": f"peb tui --attach http://{probe_host_for(host)}:{port}",
+                        "or": "choose a free port with --port"})
     argv = [sys.executable, "-c",
             f"from peb.cli import main; raise SystemExit(main(['--state-root', {str(state_root)!r}, 'serve', '--host', {host!r}, '--port', {str(port)!r}]))"]
     env = {**os.environ, "PEB_STATE_ROOT": str(state_root)}
     server = popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
     deadline = _time.monotonic() + deadline_s
-    probe_host = "127.0.0.1" if host == "localhost" else host
+    probe_host = probe_host_for(host)
     while _time.monotonic() < deadline:
         if server.poll() is not None:
             raise PebError(ErrorCode.provider_unavailable, "the workroom child process exited before it listened",

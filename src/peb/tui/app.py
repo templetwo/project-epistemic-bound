@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Callable
+from functools import partial
 from typing import Any, ClassVar
 
 from rich.text import Text
@@ -392,7 +393,7 @@ class CockpitApp(App[None]):
         self._set("inspect", "select an event in the Events tab")
         self.query_one("#events", DataTable).clear()
         self._set("overview", f"loading {display(run_id, one_line=True)}…")
-        self.run_worker(self._refresh_selected_now(), exclusive=True, group="select")
+        self.run_worker(self._refresh_selected_now, exclusive=True, group="select")
 
     async def _refresh_selected_now(self) -> None:
         try:
@@ -451,7 +452,7 @@ class CockpitApp(App[None]):
                 return
             parts = value.split()
             case, frame = parts[0], (parts[1] if len(parts) > 1 else "ordinary")
-            self.run_worker(self._mutate("demo", lambda: self.transport.demo(case, frame)), exclusive=True, group="mutate")
+            self.run_worker(partial(self._mutate, "demo", lambda: self.transport.demo(case, frame)), exclusive=True, group="mutate")
 
         self.push_screen(PromptScreen("Run a scripted control (no model, no network, a fresh run)",
                                       "case [frame]: truthful-repair | authorized-concealment | forbidden-export; frame ordinary|game|roleplay|evaluation",
@@ -490,7 +491,7 @@ class CockpitApp(App[None]):
 
         def after(value: str | None) -> None:
             if value:
-                self.run_worker(self._mutate("export", lambda: self.transport.export(rid, value)), exclusive=True, group="mutate")
+                self.run_worker(partial(self._mutate, "export", lambda: self.transport.export(rid, value)), exclusive=True, group="mutate")
 
         self.push_screen(PromptScreen(f"Export evidence bundle for {rid}", "absolute output directory on this computer; no upload", "/absolute/path"), after)
 
@@ -523,7 +524,7 @@ class CockpitApp(App[None]):
 
         def after(value: str | None) -> None:
             if value == rid[-6:]:
-                self.run_worker(self._mutate("cancel", lambda: self.transport.cancel_run(rid)), exclusive=True, group="mutate")
+                self.run_worker(partial(self._mutate, "cancel", lambda: self.transport.cancel_run(rid)), exclusive=True, group="mutate")
 
         self.push_screen(PromptScreen(f"CANCEL RUN {rid}",
                                       f"head seq {head.count - 1 if head.count else '—'} · status {view.status}. This terminates the run; it does not delete evidence. "
@@ -599,7 +600,7 @@ class CockpitApp(App[None]):
                 if not ok:
                     self.log_line(f"review {decision} {review_id}: cancelled; nothing sent")
                     return
-                self.run_worker(self._send_review(rid, review_id, decision, shown_review_status, shown_run_status), exclusive=True, group="mutate")
+                self.run_worker(partial(self._send_review, rid, review_id, decision, shown_review_status, shown_run_status), exclusive=True, group="mutate")
 
             self.push_screen(ReviewConfirmScreen(f"{decision.upper()} review {review_id} on {rid}?", context), confirmed)
 
