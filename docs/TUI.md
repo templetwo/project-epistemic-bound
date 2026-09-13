@@ -23,6 +23,12 @@ state root to the child (an explicit `--state-root` wins over an inherited `PEB_
   (`peb --state-root ROOT tui --attach URL`); with a different root the wrong secret is offered and sign-in fails.
   `--serve` starts a workroom as a child of this process on the resolved state root and attaches to it — an
   alternative to `serve` + `--attach`, not an addition (one workroom per port).
+- **A port that is already occupied is refused, not adopted.** `--serve` probes the port first; if something is
+  already listening it raises `conflict` rather than attaching to a workroom it did not start and reporting its own
+  child's pid as the one to kill. The error names both ways out: `--attach` that workroom instead, or pick a free
+  `--port`. A host the probe cannot resolve yields no opinion and the child's own bind decides (documented after the
+  external review of `6d56684`, F15/F16: the probe used to report an unresolvable host as occupied, which refused
+  every `--host ::1` on a free port).
 - **Detach**: `q` leaves the cockpit and **detaches**. Runs keep going, and a workroom started by `--serve` keeps
   serving. The cockpit prints the workroom's origin, pid, the runs it saw in flight at quit (or that it could not read
   them), how to re-attach and how to stop it. Nothing is terminated by the cockpit closing: no inventory read can be a

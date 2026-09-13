@@ -64,6 +64,13 @@ chosen for. A test for the study form's provider switching does not exist at the
 behaviour is entirely in `app.js`; it is covered by the browser harness (`tests/browser/workroom.cjs`), which
 is a manual harness, not part of `pytest`. **That gap is real and is not closed by this commit.**
 
+> **Corrected 2026-09-13 (external review of `6d56684`, F4).** The sentence above was wrong in a way that
+> flattered this commit: at `1834d65` the harness contained **no** deepseek→ollama study-provider switch at all,
+> so it did not cover the fix it was cited for — the only provider-switch assertion present (deepseek→scripted)
+> pre-dated this change. Combined with the harness never having been executed, the fix for claim 4 had **zero
+> executed regression coverage at any layer**. The assertions were added and the harness gap named at the commit
+> that carries this correction. The harness still has not been executed by this seat.
+
 ## Measurement
 
 - Lane `1834d65`: 710 passed / 0 failed / 0 skipped (707 before, plus three new tests); whole-tree ruff clean.

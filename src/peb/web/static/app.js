@@ -8,7 +8,7 @@ let bundleEvents = [], bundleVersion = 0;
 let activeStudyId = null, studyReadVersion = 0, studyReportStatus = null, studyPollBusy = false;
 let studyPreview = null, studyPreviewVersion = 0;
 const TYPED_MODEL = "__typed__";
-let installedModels = null, ollamaEndpoint = "";
+let installedModels = null, ollamaEndpoint = "", runModelProvider = "ollama";
 // The hosted catalog is never read without the operator asking: it is the one readiness fact that leaves this machine.
 let hostedModels = null, hostedStatus = "", hostedHost = "the pinned hosted endpoint", studyModelProvider = "deepseek";
 let studyReadFailures = 0;
@@ -49,6 +49,9 @@ function fillModelSelect(select, catalog) {
 }
 function catalogNote(provider) {
   if (provider === "deepseek") {
+    // Three states, not two: never checked, checked and failed, checked and listed. Collapsing the first two
+    // made a failed check read as if no check had happened (external review of 6d56684, F5).
+    if (hostedModels === null && hostedStatus) return `The catalog check did not return a list (${hostedStatus}). Type an exact id; it is checked against the provider before any paid call.`;
     if (hostedModels === null) return "Every id is checked against the provider's current catalog before any paid call. Check the catalog to choose from it rather than typing one.";
     if (!hostedModels.length) return `${hostedHost} returned no catalog (${hostedStatus}). Type an exact id; it is still checked before any paid call.`;
     return `${hostedModels.length} offered right now by ${hostedHost}, read without an inference call and at no charge.`;
@@ -74,6 +77,11 @@ function hostedCatalogNotice(hosted) {
 function renderModelChoices() {
   const provider = $("provider").value, hosted = provider === "deepseek";
   const select = $("model-choice"), input = $("model");
+  // An exact id belongs to the provider it was typed for. The study form already cleared it on a provider
+  // change; the run form did not, so a typed hosted id survived a switch to ollama and was sent as the
+  // ollama model (external review of 6d56684, F3). Preview invalidation always covered the authorization
+  // path, so this was never an authorization defect — but the form showed one thing and meant another.
+  if (provider !== runModelProvider) { input.value = ""; runModelProvider = provider; }
   const chosen = fillModelSelect(select, hosted ? hostedModels : installedModels);
   input.hidden = chosen !== TYPED_MODEL; input.required = chosen === TYPED_MODEL;
   $("check-hosted").hidden = !hosted;
@@ -272,7 +280,10 @@ function renderStudyModelChoices() {
   const scripted = provider === "scripted", hosted = provider === "deepseek";
   // An explicit id belongs to the provider it was chosen for: carrying a hosted id into a local plan would be a
   // different run than the one displayed. Changing provider clears it rather than silently reusing it.
-  if (provider !== studyModelProvider) { input.value = scripted ? "scripted" : hosted ? "deepseek-flash" : ""; studyModelProvider = provider; }
+  // No model is chosen for the operator — including by pre-filling the field. The hosted branch used to
+  // insert "deepseek-flash" here, which meant a plan built without touching the field silently planned with
+  // it (external review of 6d56684, F2: the menu was never preselected but the effective identifier was).
+  if (provider !== studyModelProvider) { input.value = scripted ? "scripted" : ""; studyModelProvider = provider; }
   input.readOnly = scripted;
   select.hidden = scripted;
   const chosen = scripted ? TYPED_MODEL : fillModelSelect(select, hosted ? hostedModels : installedModels);
