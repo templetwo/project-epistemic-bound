@@ -70,6 +70,9 @@ def _condition(run: ReadOnlyRun, axis: Axis) -> tuple[dict, list[str]]:
             resources = None
     hashes = manifest.hashes.model_dump(mode="json")
     profile = manifest.profile_id
+    # Browser launch correlation identifies transport ownership, not the subject condition.
+    # Correction allowance and decision-instruction version remain condition pins.
+    settings.pop("ui_launch_id", None)
     if axis == "frame":
         settings.pop("frame", None)
     else:

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import re
 import socket
 from dataclasses import dataclass, field
 from typing import Any
@@ -23,6 +24,67 @@ from ..contracts import Limits, ModelRequest, ModelResponse
 from .base import ProviderError
 
 LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+MODEL_METADATA_CEILING_BYTES = 256 * 1024
+_METADATA_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:+/-]{0,79}\Z")
+
+
+def _metadata_token(value: Any) -> str | None:
+    """Only short ASCII identifiers reach operator metadata; templates/license/raw parameters never do."""
+    if value is None or value == "":
+        return None
+    if not isinstance(value, str) or not _METADATA_TOKEN.fullmatch(value):
+        raise ValueError("invalid metadata identifier")
+    return value
+
+
+def _context_size(value: Any) -> int | None:
+    if value is None:
+        return None
+    if type(value) is not int or not 1 <= value <= 2**31 - 1:
+        raise ValueError("invalid context size")
+    return value
+
+
+def _model_metadata(data: Any) -> dict[str, Any]:
+    """Closed projection of /api/show. Reported model maxima never become an active-context claim."""
+    if not isinstance(data, dict):
+        raise TypeError("metadata must be an object")
+    details = data.get("details", {})
+    info = data.get("model_info", {})
+    if not isinstance(details, dict) or not isinstance(info, dict):
+        raise TypeError("invalid metadata objects")
+    caps = data.get("capabilities")
+    if caps is not None:
+        if not isinstance(caps, list) or len(caps) > 32:
+            raise ValueError("invalid capabilities")
+        caps = [_metadata_token(c) for c in caps]
+        if None in caps:
+            raise ValueError("empty capability")
+        caps = sorted(set(caps))
+    family = _metadata_token(details.get("family"))
+    architecture = _metadata_token(info.get("general.architecture")) or family
+    advertised = _context_size(info.get(f"{architecture}.context_length")) if architecture else None
+    parameters = data.get("parameters", "")
+    if not isinstance(parameters, str) or len(parameters) > 16384:
+        raise ValueError("invalid parameter metadata")
+    contexts = []
+    for line in parameters.splitlines():
+        if re.match(r"\s*num_ctx(?:\s|$)", line):
+            match = re.fullmatch(r"\s*num_ctx\s+(\d{1,10})\s*", line)
+            if not match:
+                raise ValueError("invalid num_ctx metadata")
+            contexts.append(_context_size(int(match[1])))
+    if len(set(contexts)) > 1:
+        raise ValueError("ambiguous num_ctx metadata")
+    return {
+        "capabilities": caps,
+        "family": family,
+        "parameter_size": _metadata_token(details.get("parameter_size")),
+        "quantization_level": _metadata_token(details.get("quantization_level")),
+        "advertised_context_length": advertised,
+        "configured_num_ctx": contexts[0] if contexts else None,
+        "active_context_length": None,
+    }
 
 
 def assert_loopback(endpoint: str) -> None:
@@ -80,6 +142,38 @@ class OllamaProvider:
                     "installed_model_count": len(names)}
         return {"status": "ok", "endpoint": self.endpoint, "model": self.model, "installed_model_count": len(names)}
 
+    async def inspect_model(self) -> dict[str, Any]:
+        """Explicit metadata-only /api/show read. Never generate, pull, retry or infer harness compatibility.
+
+        API reference: https://docs.ollama.com/api-reference/show-model-details
+        Native `tools` metadata is distinct from JSON `format` used by this harness:
+        https://docs.ollama.com/capabilities/structured-outputs
+        """
+        out: dict[str, Any] = {
+            "endpoint": self.endpoint, "model": self.model, "compatibility": "not_tested",
+            "note": "Metadata only; no inference. Native tool support does not establish compatibility with "
+                    "this JSON decision harness. Advertised context is model metadata; configured num_ctx "
+                    "is the model's explicit setting, not measured active context.",
+        }
+        try:
+            async with self._client(timeout=3.0) as client, client.stream(
+                "POST", "/api/show", json={"model": self.model, "verbose": False}
+            ) as response:
+                if response.status_code == 404:
+                    return {**out, "status": "unknown_model"}
+                response.raise_for_status()
+                raw = bytearray()
+                async for chunk in response.aiter_bytes():
+                    if len(raw) + len(chunk) > MODEL_METADATA_CEILING_BYTES:
+                        return {**out, "status": "invalid_metadata", "error": "metadata_too_large"}
+                    raw.extend(chunk)
+            metadata = _model_metadata(json.loads(raw))
+        except httpx.HTTPError as exc:
+            return {**out, "status": "server_unreachable", "error": type(exc).__name__}
+        except (ValueError, TypeError, RecursionError):
+            return {**out, "status": "invalid_metadata", "error": "invalid_metadata"}
+        return {**out, "status": "ok", **metadata}
+
     async def generate(self, request: ModelRequest) -> ModelResponse:
         if request.model != self.model:
             # The manifest and the configured provider must agree; no silent substitution.
@@ -115,13 +209,25 @@ class OllamaProvider:
             data = r.json()
         except ValueError:
             return _err(request, "transport", detail="non-json body")
-        content = str((data.get("message") or {}).get("content", ""))
+        if not isinstance(data, dict) or not isinstance(data.get("message"), dict):
+            return _err(request, "transport", detail="invalid response shape")
+        message = data["message"]
+        content = message.get("content", "")
+        reasoning = message.get("thinking")
+        if not isinstance(content, str) or (reasoning is not None and not isinstance(reasoning, str)):
+            return _err(request, "transport", detail="invalid message shape")
         resolved = data.get("model")
+        if resolved is not None and not isinstance(resolved, str):
+            return _err(request, "transport", detail="invalid model id shape")
+        # The same byte bound applies to each retained text field. Thinking remains separate evidence;
+        # it never substitutes for an empty decision or reaches the decision parser.
+        if reasoning is not None and len(reasoning.encode("utf-8")) > request.limits.decision_ceiling_bytes:
+            return _err(request, "truncated", detail="reasoning exceeds retention limit")
         if resolved is not None and resolved != self.model:
             return ModelResponse(model_requested=self.model, model_resolved=str(resolved), content=content,
                                  finish_reason="error", prompt_tokens=_int_or_none(data.get("prompt_eval_count")),
                                  completion_tokens=_int_or_none(data.get("eval_count")),
-                                 duration_ms=_ms(data.get("total_duration")), error="model_id_mismatch")
+                                 duration_ms=_ms(data.get("total_duration")), error="model_id_mismatch", reasoning=reasoning)
         done_reason = data.get("done_reason")
         finish = "stop" if done_reason == "stop" else "length" if done_reason == "length" else "unknown"
         error = "truncated" if finish == "length" else None
@@ -135,7 +241,7 @@ class OllamaProvider:
                              content=content, finish_reason=finish,
                              prompt_tokens=_int_or_none(data.get("prompt_eval_count")),
                              completion_tokens=_int_or_none(data.get("eval_count")),
-                             duration_ms=_ms(data.get("total_duration")), error=error)
+                             duration_ms=_ms(data.get("total_duration")), error=error, reasoning=reasoning)
 
 
 def _err(request: ModelRequest, code: str, detail: str | None = None) -> ModelResponse:

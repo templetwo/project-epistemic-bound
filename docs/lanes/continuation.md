@@ -1,5 +1,26 @@
 # Solo continuation — seat 2/3, 2026-09-13
 
+## Browser-exercise update, 2026-09-13
+
+This entry supersedes the earlier unit/process/next-action descriptions below.
+Anthony authorized all exercise fixes, agents, push and relaunch. Work remains
+on `build/review-continuation` in `/private/tmp/peb-review-continuation`, with
+normal commits and a measured `--no-ff` integration merge. Old lane worktrees
+are inspected only. Scoped web/runtime/provider edits are recorded by ADR-021.
+
+Checks and implementation-review findings are in
+`docs/reviews/UI-observation-friction-2026-09-13.md`; final measurements belong
+to `docs/receipts/S7-observation-friction.json` and the appended main-tip log.
+Assistant agents reviewed implementation and exercised mock/scripted runs;
+these are not sibling-seat or independent acceptance verdicts.
+
+Next: integrate the measured changes, relaunch the operator workroom and verify
+its serving source/health, then stand by. No model inference is required for
+relaunch verification. The server needs its provider key in its own launch
+environment; process diagnostics disclose presence only. F9/F12 remain open.
+
+## Earlier continuation unit (retained)
+
 - Direction: Anthony asked "can you take it from here?" after seat 1/3's API
   connection stopped the review response. This is the current continuation
   note; the old codex/grok lane notes and branches remain frozen history.

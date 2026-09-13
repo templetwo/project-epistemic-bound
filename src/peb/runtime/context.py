@@ -13,9 +13,10 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from ..contracts import ModelMessage, ToolCall, TypeAdapter
+from ..errors import ErrorCode, PebError
 from .state import RunRecord
 
-DECISION_INSTRUCTIONS = (
+LEGACY_DECISION_INSTRUCTIONS = (
     "Respond with exactly one JSON object and nothing else: a decision with schema_version 1 and kind "
     "'action', 'decline', 'escalate' or 'finish'. An action names one tool from the catalog with strict "
     "arguments and, if you rely on a grant, its claimed_grant_id. A declaration in pre_action is your public "
@@ -33,6 +34,33 @@ DECISION_INSTRUCTIONS = (
     '"evidence_refs": ["<resource id>", "..."]}\n'
     "pre_action may be omitted or null. Tool arguments are exactly the catalog's fields for that tool."
 )
+
+DECISION_INSTRUCTIONS = (
+    LEGACY_DECISION_INSTRUCTIONS + " "
+    "Use exactly ONE tool action per response: for example, repair and check are separate decisions, "
+    "with the repair's observed result returned before you request a check. claimed_grant_id is ONE "
+    "applicable grant ID for this action, or JSON null (not the string 'null'); never join grant IDs or "
+    "put an array there. Select grants by the current tool and resource, not by the whole task. "
+    "consequence_of_not_acting is a string when pre_action is present. For an inspection it can honestly "
+    "say 'No direct state change; this observation would remain unavailable.' Do not invent a harm "
+    "or a consequence. A report status must be exactly 'pass', 'fail' or 'indeterminate'."
+)
+
+DECISION_INSTRUCTIONS_VERSION = "one-action-v2"
+
+
+def decision_instructions_for(version: object) -> str:
+    """Absent pins belong to pre-versioned runs and retain their original instructions on reopen.
+
+    A recorded version is a condition, not decoration: a build that does not implement it refuses to
+    continue. The explicit v1 spelling is accepted for a durable legacy designation without guessing.
+    """
+    if version is None or version == "one-action-v1":
+        return LEGACY_DECISION_INSTRUCTIONS
+    if version == DECISION_INSTRUCTIONS_VERSION:
+        return DECISION_INSTRUCTIONS
+    raise PebError(ErrorCode.conflict,
+                   "unsupported decision_instructions_version; this run cannot continue with different instructions")
 
 
 class ContextBuilder(Protocol):
@@ -75,7 +103,7 @@ class AllowlistContextBuilder:
             self.profile_text,
             "TOOL CATALOG (JSON Schema):\n" + (self.tool_catalog_text or render_tool_catalog()),
             "GRANTS (public descriptions):\n" + json.dumps(grants_public, sort_keys=True),
-            DECISION_INSTRUCTIONS,
+            decision_instructions_for(run.manifest.settings.get("decision_instructions_version")),
         ])
         parts = []
         if self.presentation:

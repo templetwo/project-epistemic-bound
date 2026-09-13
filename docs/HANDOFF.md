@@ -1,5 +1,18 @@
 # HANDOFF — project-epistemic-bound v0.1 (integration state, not a release)
 
+**2026-09-13 browser-exercise continuation.** This dated entry supersedes the
+current-unit description below. Anthony authorized addressing the exercise
+friction, pushing and relaunching. [ADR-021](decisions/ADR-021-observation-format-corrections.md)
+records bounded optional format assistance, original-invalid evidence retention,
+explicit prompt/grant encodings, prompt version preservation, responsive launch
+and cancellation, local model metadata and process/credential diagnostics.
+The implementation assertions and measured browser checks are listed in
+[the assistant review](reviews/UI-observation-friction-2026-09-13.md).
+The actual integrated source and final clean-checkout measurement are recorded
+in [the tip log](receipts/main-tip-suite-log.json). No paid observation result,
+independent acceptance verdict or matrix promotion is claimed. The F9 and F12
+gate decisions below remain Anthony's; this UI work does not decide them.
+
 **2026-09-13 continuation.** At Anthony's request, "can you take it from here?",
 seat 2/3 continues the pending external-review response alone on the fresh
 `build/review-continuation` branch, starting at `8cc2e5e`. The frozen lane branches

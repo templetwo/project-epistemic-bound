@@ -48,6 +48,8 @@ class RunRecord:
     terminal_reason: TerminalReason | None = None
     step: int = 0
     model_calls: int = 0
+    format_corrections_used: int = 0
+    pending_format_correction: dict[str, Any] | None = None
     next_seq: int = 0
     revisions: dict[str, int] = field(default_factory=dict)  # trusted: initial snapshot + executor receipts
     history: list[dict[str, Any]] = field(default_factory=list)  # observed results returned to the subject
