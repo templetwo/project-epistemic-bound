@@ -69,7 +69,20 @@ async function labels(page, expected) {
   }
 }
 
+async function castCounts(page, events) {
+  const counts = await page.locator('#trace-events .trace-cast-item').evaluateAll(nodes => nodes.map(node => ({
+    actor: node.dataset.actor, count: Number(node.dataset.eventCount), quiet: node.classList.contains('trace-actor-quiet'),
+  })));
+  const known = ['supervisor', 'subject', 'reference_monitor', 'executor', 'evaluator'];
+  const expected = known.map(actor => ({actor, count: events.filter(event => event.actor === actor).length}));
+  const other = events.filter(event => !known.includes(event.actor)).length;
+  if (other) expected.push({actor: '__other__', count: other});
+  assert.deepEqual(counts, expected.map(item => ({...item, quiet: item.count === 0})),
+    'the visible cast counts the full snapshot, including zero and off-page events');
+}
+
 async function trace(page, events) {
+  await castCounts(page, events);
   const marks = await page.locator(MARKS).evaluateAll(nodes => nodes.map(node => ({
     seq: Number(node.dataset.eventSeq), id: node.dataset.eventId, actor: node.dataset.actor,
     type: node.dataset.eventType, gate: node.dataset.gateOutcome,
@@ -81,6 +94,11 @@ async function trace(page, events) {
     assert.equal(marks[i].type, events[i].event_type, `event kind for seq ${events[i].seq}`);
     if (events[i].event_type === 'gate_decided') {
       assert.equal(marks[i].gate, events[i].payload.outcome);
+      const summary = page.locator(`${MARKS}[data-event-id="${marks[i].id}"]`).locator('xpath=..').locator('.trace-event-summary');
+      const exact = `${events[i].payload.outcome}${events[i].payload.reason ? ` · ${events[i].payload.reason}` : ''}`;
+      assert.equal(await summary.textContent(), exact, 'wrap opportunities retain exact reason text');
+      assert.equal(await summary.getAttribute('title'), exact);
+      assert.equal(await summary.locator('wbr').count(), (exact.match(/_/g) || []).length);
       const state = events[i].payload.outcome === 'needs_approval' || events[i].payload.reason === 'protocol_hold' ? 'hold' : events[i].payload.outcome;
       assert.equal(await page.locator(`${MARKS}[data-event-id="${marks[i].id}"]`).locator('xpath=..').locator(`.trace-gate-${state}`).count(), 1);
     }
@@ -111,7 +129,39 @@ async function layout(page, width, scheme) {
   assert.equal(distinct(measured.cells.map(cell => cell.left)).length, width > 680 ? 2 : 1, 'stable evidence columns');
   assert.equal(distinct(measured.cells.map(cell => cell.top)).length, width > 680 ? 2 : 4, 'stable evidence rows');
   assert(measured.report.width >= 220, `report cell is only ${measured.report.width}px wide`);
-  layouts.push({width, scheme, ...measured});
+  const traceLayout = await page.evaluate(() => {
+    const cast = [...document.querySelectorAll('#trace-events .trace-cast-item')].map(node => {
+      const r = node.getBoundingClientRect(); return {actor: node.dataset.actor, left: r.left, right: r.right, width: r.width, height: r.height, visible: getComputedStyle(node).visibility !== 'hidden'};
+    });
+    const scroller = document.querySelector('#trace-events .trace-scroll');
+    const hint = document.querySelector('#trace-events .trace-overflow-hint');
+    const prior = scroller.scrollLeft; scroller.scrollLeft = scroller.scrollWidth;
+    const viewport = scroller.getBoundingClientRect();
+    const reachable = ['actor-executor', 'actor-evaluator'].every(actor => {
+      const r = scroller.querySelector(`.trace-header .${actor}`).getBoundingClientRect();
+      return r.left >= viewport.left && r.right <= viewport.right;
+    });
+    scroller.scrollLeft = prior;
+    // The component "mismatch" fits a lane and must not strand its final letter.
+    const detail = [...document.querySelectorAll('#trace-events .trace-event-summary')].find(node => node.textContent.includes('grant_scope_mismatch'));
+    const walker = document.createTreeWalker(detail, NodeFilter.SHOW_TEXT);
+    const textNodes = []; while (walker.nextNode()) textNodes.push(walker.currentNode);
+    const start = detail.textContent.indexOf('mismatch'), end = start + 'mismatch'.length;
+    const range = document.createRange(); let offset = 0;
+    for (const node of textNodes) {
+      if (start >= offset && start < offset + node.length) range.setStart(node, start - offset);
+      if (end > offset && end <= offset + node.length) range.setEnd(node, end - offset);
+      offset += node.length;
+    }
+    return {cast, overflow: scroller.scrollWidth > scroller.clientWidth,
+      hintVisible: getComputedStyle(hint).display !== 'none', reachable, reasonLines: range.getClientRects().length};
+  });
+  assert(traceLayout.cast.length >= 5 && traceLayout.cast.every(item => item.left >= 0 && item.right <= width + 1 && item.width > 0 && item.height > 0 && item.visible),
+    `${scheme}/${width}: all five cast summaries fit without horizontal scrolling`);
+  assert.equal(traceLayout.hintVisible, traceLayout.overflow, 'overflow instructions appear when lane scrolling is needed');
+  assert(traceLayout.reachable, 'executor and evaluator are reachable together at the end of the horizontal scroll');
+  assert.equal(traceLayout.reasonLines, 1, 'the gate reason wraps between components, not before a final letter');
+  layouts.push({width, scheme, ...measured, trace: traceLayout});
 }
 
 async function contrast(page, label) {
@@ -124,7 +174,7 @@ async function contrast(page, label) {
     const luminance = color => color.slice(0, 3).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)
       .reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
     const selectors = ['#run-id', '#provenance', '#run-report-status', '#run-report-provenance', '#run-predicate-version',
-      '#run-presence', '#run-nav a', '#outcomes .outcome > span', '#outcomes .outcome > strong', '#trace-events .trace-header .actor-label', '#trace-events .trace-row-actor .actor-label', '#theme', '#export-path'];
+      '#run-presence', '#run-nav a', '#outcomes .outcome > span', '#outcomes .outcome > strong', '#trace-events .trace-header .actor-label', '#trace-events .trace-row-actor .actor-label', '#trace-events .trace-cast .actor-label', '#trace-events .trace-actor-count', '#theme', '#export-path'];
     return selectors.flatMap(selector => [...document.querySelectorAll(selector)].filter(node => {
       const style = getComputedStyle(node); return node.getClientRects().length && style.visibility !== 'hidden' && !node.disabled;
     }).slice(0, selector.includes('trace-row-actor') ? 12 : 6).map(node => {
@@ -358,6 +408,7 @@ async function longTrace(page, base) {
     events.push(secondAppend); data.run.events.push(structuredClone(secondAppend));
     await until(page, () => document.querySelector('#trace-events .trace-caption').textContent.includes('200 of 202'));
     await frames(page);
+    await castCounts(page, events);
     assert.equal(await page.locator(MARKS).count(), 200, 'polling retains the expanded source-event page');
     assert(await page.locator('#trace-events .trace-more').evaluate(node => document.activeElement === node), 'polling retains the trace page-button focus');
     assert.deepEqual(await page.locator('#trace-events .trace-scroll').evaluate(node => ({top: node.scrollTop, left: node.scrollLeft})), scroll);
@@ -422,6 +473,12 @@ async function longTrace(page, base) {
       assert(await page.locator('body').evaluate(node => node.classList.contains('operator-focus')));
       assert((await page.locator('.intro').evaluate(node => node.getBoundingClientRect().height)) < introBefore, 'selected run compacts the introductory hero');
       assert(!/awaiting|\d+s since/i.test(await page.locator('#run-presence').innerText()), 'historical run does not imply live inference');
+    }
+    await selected(page, runs.local_invalid);
+    assert(await page.locator('#trace-events .trace-actor-quiet').count() > 0);
+    for (const scheme of ['light', 'dark']) {
+      await page.locator('#theme').selectOption(scheme); await dark(page, scheme === 'dark');
+      await contrast(page, `${scheme}-quiet-cast`);
     }
     const fallbackRun = runs.legacy_missing_initial, fallbackUrl = `${origin}/api/runs/${fallbackRun.run_id}`;
     const fallback = structuredClone(snapshots.legacy_missing_initial); delete fallback.explanation;
@@ -547,6 +604,17 @@ async function longTrace(page, base) {
     await verificationRace(page, snapshots.hosted_repair);
     await pollingRaces(page, snapshots);
     await longTrace(page, snapshots.hosted_repair);
+    const hostileReason = await page.evaluate(() => {
+      const container = document.createElement('div');
+      const reason = '<img src=x onerror="window.__instrumentInjected=true">_grant_scope_mismatch';
+      window.PebTrace.render(container, [{seq: 0, event_id: 'inert-browser-case', actor: 'reference_monitor',
+        event_type: 'gate_decided', payload: {outcome: 'deny', reason}}]);
+      const detail = container.querySelector('.trace-event-summary');
+      return {text: detail.textContent, title: detail.title, expected: `deny · ${reason}`,
+        elements: [...detail.children].map(node => node.tagName)};
+    });
+    assert.equal(hostileReason.text, hostileReason.expected); assert.equal(hostileReason.title, hostileReason.expected);
+    assert(hostileReason.elements.length > 0 && hostileReason.elements.every(tag => tag === 'WBR'), 'hostile reason creates only intentional wrap elements');
     const finalStorage = await storage(page);
     assert.equal(Object.keys(finalStorage.local).length, 1); assert.deepEqual(finalStorage.session, {});
     assert(Object.values(finalStorage.local).every(value => ['system', 'light', 'dark'].includes(value)));
@@ -563,7 +631,8 @@ async function longTrace(page, base) {
         'two-column desktop evidence', 'single-column mobile evidence', 'dark text contrast including missing explanation', 'read-only selected-run polling', 'stale verification hidden on append and late completion',
         'elapsed recorded-request time', 'append-only trace motion', 'no replay motion', 'reduced motion',
         'hung old poll cannot block new selection', 'stale initial ledger cannot overwrite appended evidence',
-        'review draft caret and focus survive append', '202-event trace pagination and polling retention', 'hostile unknown actor remains inert']};
+        'review draft caret and focus survive append', '202-event trace pagination and polling retention', 'hostile unknown actor remains inert', 'exact reason text wraps between identifier components',
+        'full snapshot actor counts including quiet and off-page actors', 'cast stays visible and scroll hint matches overflow', 'hostile gate reason remains inert']};
     fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify(result, null, 2) + '\n');
     console.log(JSON.stringify({passed: true, published_runs: result.published_runs, screenshot_count: screenshots.length,
       viewport_widths: result.viewport_widths, model_calls: 0, mutation_requests: 0}));

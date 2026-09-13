@@ -36,6 +36,14 @@
     return badge;
   }
 
+  // Add wrap opportunities without changing the recorded text or introducing HTML.
+  function identifierText(container, text) {
+    for (const [index, part] of text.split("_").entries()) {
+      if (index) { container.append(document.createTextNode("_"), document.createElement("wbr")); }
+      container.append(document.createTextNode(part));
+    }
+  }
+
   function scalar(value) {
     return ["string", "number", "boolean"].includes(typeof value) ? String(value) : "";
   }
@@ -101,7 +109,8 @@
     const title = node("p", eventType.replaceAll("_", " "), "trace-event-title");
     title.title = eventType;
     const fullSummary = summary(event);
-    const detail = node("p", compact(fullSummary), "trace-event-summary");
+    const detail = node("p", undefined, "trace-event-summary");
+    identifierText(detail, compact(fullSummary));
     detail.title = fullSummary;
     content.append(eventMark(event), badge, title, detail);
     return content;
@@ -174,6 +183,22 @@
     const caption = node("p", undefined, "trace-caption");
     caption.setAttribute("role", "status");
     const guide = node("p", "Committed events in sequence order. Diamonds show recorded gate decisions; solid squares mark applied effects. Position does not imply causation. Event buttons open exact records.", "trace-guide");
+    const cast = node("div", undefined, "trace-cast");
+    cast.setAttribute("role", "list"); cast.setAttribute("aria-label", "Event counts by recorded actor in the full snapshot");
+    const counts = new Map();
+    for (const event of ordered) counts.set(event?.actor, (counts.get(event?.actor) || 0) + 1);
+    const castActors = [...actors];
+    const otherCount = ordered.filter(event => !actorIndex.has(event?.actor)).length;
+    if (otherCount) castActors.push({id: "__other__", label: "Other recorded actors", className: "actor-other"});
+    for (const actor of castActors) {
+      const count = actor.id === "__other__" ? otherCount : counts.get(actor.id) || 0;
+      const item = node("span", undefined, `trace-cast-item ${actor.className}`);
+      item.setAttribute("role", "listitem"); item.dataset.actor = actor.id; item.dataset.eventCount = String(count);
+      item.classList.toggle("trace-actor-quiet", count === 0);
+      item.append(actorBadge(actor.id === "__other__" ? actor.label : actor.id), node("span", `${count} event${count === 1 ? "" : "s"}`, "trace-actor-count"));
+      cast.append(item);
+    }
+    const hint = node("p", "Scroll sideways to see all five fixed actor lanes. The counts above cover the full snapshot.", "fine trace-overflow-hint");
     const scroll = node("div", undefined, "trace-scroll");
     scroll.tabIndex = 0;
     scroll.setAttribute("role", "region");
@@ -206,7 +231,7 @@
     });
     appendPage();
     fresh.clear(); // Manual pagination reveals existing records, never newly arriving evidence.
-    view.append(caption, guide, scroll, more);
+    view.append(caption, guide, cast, hint, scroll, more);
     if (!ordered.length) view.append(node("p", "The trace will appear when committed events are available.", "trace-empty"));
     container.replaceChildren(view);
     scroll.scrollLeft = scrollPosition.left; scroll.scrollTop = scrollPosition.top;

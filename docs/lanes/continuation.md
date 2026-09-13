@@ -1,5 +1,29 @@
 # Solo continuation — seat 2/3, 2026-09-13
 
+## Trace readability follow-up, 2026-09-13
+
+This entry supersedes the previous next action. Base main `8b90721`; product
+`53408e8801f1dd5b50e433d4e882b09d8efe80a1`, branch `build/review-continuation`,
+working path `/private/tmp/peb-review-continuation`. Owned changes: trace renderer,
+instrument CSS, browser assertions and this unit's records. The five fixed lanes
+remain; an overview keeps all actors visible and identifier wrapping preserves
+recorded text.
+
+Measurement: clean product 1,069 passed, zero failures/errors/skips, Ruff clean;
+25 instrument browser groups and 19 explained-detail groups on six published
+records. `S7-trace-readability.json` records commands and final-tip push condition;
+`UI-trace-readability-2026-09-13.md` explicitly records SELF-REVIEW.
+
+At the pre-integration read, PID66678 serves8787, all inference/study locks are
+free, and 44 runs are terminal (23 completed,21 failed). The explicitly requested
+local Mistral run is complete. Secure-input credential present: idle-only restart
+will clear it. Next: measured --no-ff merge, push, idle relaunch and source/asset
+verification. Temporary read-only browser fixture8791 will be stopped.
+
+Correction feedback and provider-error diagnostics remain a separate runtime
+follow-up, recorded in DEFERRED.md. No change to evaluator, frozen contracts,
+archived operator evidence or ADR-020 status belongs to this display unit.
+
 ## Workroom instrument presentation, 2026-09-13
 
 This entry supersedes the earlier next action. Base main `07da692`; product

@@ -401,6 +401,19 @@
       "receipt": "docs/receipts/S7-workroom-instrument.json",
       "measurement": "clean-checkout at resolved final main tip; push gated on counts and Ruff success; six-record instrument/explanation and full-five-flag browser passes",
       "measured_by": "Codex continuation; assistant self-review"
+    },
+    {
+      "tip": "first-parent main commit adding docs/receipts/S7-trace-readability.json",
+      "tip_resolver": "git log --first-parent --diff-filter=A -1 --format=%H -- docs/receipts/S7-trace-readability.json",
+      "tests": 1069,
+      "passed": 1069,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "ruff": "All checks passed",
+      "receipt": "docs/receipts/S7-trace-readability.json",
+      "measurement": "clean-checkout at resolved final main tip; push gated on measured counts and Ruff success; six-record instrument/explanation browser passes",
+      "measured_by": "Codex continuation; assistant self-review"
     }
   ]
 }
