@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import platform
 import socket
 import sys
@@ -29,28 +30,36 @@ def _probe_port(host: str, port: int) -> dict[str, Any]:
     getaddrinfo, and a host this probe cannot resolve returns `unknown` rather than an opinion it has not
     earned; the caller lets the child's own bind decide that case.
     """
+    import errno
+
+    base = {"host": host, "port": port, "probe": "bind",
+            "note": "Bind availability only. An in_use result may be this workroom's own listener; "
+                    "it does not identify the owner or prove a stale process."}
     try:
         infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except socket.gaierror as e:
-        return {"status": "unknown", "host": host, "port": port, "reason": type(e).__name__, "detail": str(e)}
+        return {**base, "status": "unknown", "reason": type(e).__name__, "detail": str(e)}
     family, socktype, proto, _canonname, sockaddr = infos[0]
     s = socket.socket(family, socktype, proto)
     try:
         s.bind(sockaddr)
-        return {"status": "free", "host": host, "port": port}
+        return {**base, "status": "free"}
     except OSError as e:
-        return {"status": "in_use", "host": host, "port": port, "errno": e.errno}
+        return {**base, "status": "in_use" if e.errno == errno.EADDRINUSE else "unknown", "errno": e.errno}
     finally:
         s.close()
 
 
 def _probe_state_root(root: Path) -> dict[str, Any]:
+    import tempfile
+
     out: dict[str, Any] = {"path": str(root)}
     try:
         root.mkdir(parents=True, exist_ok=True, mode=0o700)
-        probe = root / ".write-probe"
-        probe.write_text("ok", encoding="utf-8")
-        probe.unlink()
+        # Concurrent health requests run in workers; each needs its own probe file.
+        with tempfile.NamedTemporaryFile(dir=root, prefix=".write-probe-", mode="w", encoding="utf-8") as probe:
+            probe.write("ok")
+            probe.flush()
         out["status"] = "writable"
     except OSError as e:
         out["status"] = "unwritable"
@@ -90,6 +99,55 @@ def _probe_ollama(cfg: AppConfig) -> dict[str, Any]:
     return out
 
 
+async def probe_ollama_model(cfg: AppConfig, model: str, *, transport: Any = None) -> dict[str, Any]:
+    """Inspect exactly the operator-selected local model without inference or a configuration change."""
+    from .providers.ollama import OllamaProvider
+
+    return await OllamaProvider(cfg.ollama_endpoint, model, transport=transport).inspect_model()
+
+
+def _credential_report(cfg: AppConfig) -> dict[str, Any]:
+    """Presence only, from this process; browser authentication cannot change inherited credentials."""
+    return {"deepseek": {
+        "key_env": cfg.deepseek_api_key_env,
+        "key": "present" if os.environ.get(cfg.deepseek_api_key_env) else "absent",
+        "source": "server process environment (CLI: the command process environment)",
+        "note": "Operator login unlocks local controls; it does not load provider credentials. "
+                "A server started without the key must be relaunched from an environment where it is present.",
+    }}
+
+
+def _service_identity() -> dict[str, Any]:
+    """Capture service construction time and a bounded source fingerprint, never a guessed git revision.
+
+    This fingerprints package source on disk at service construction; it does not claim an OS process birth
+    time, a clean git checkout, or continuously track later edits. No path or environment value is returned.
+    """
+    import hashlib
+    from datetime import UTC, datetime
+
+    started_at = datetime.now(UTC).isoformat()
+    package_root = Path(__file__).resolve().parent
+    source_hash = hashlib.sha256()
+    source_sha256 = None
+    try:
+        files = sorted(p for p in package_root.rglob("*")
+                       if p.suffix in {".py", ".js", ".html", ".css"} and p.is_file())
+        if not 1 <= len(files) <= 1000:
+            raise ValueError("source scope exceeds bound")
+        for path in files:
+            if path.is_symlink() or path.stat().st_size > 2 * 1024 * 1024:
+                raise ValueError("source file exceeds bound")
+            source_hash.update(path.relative_to(package_root).as_posix().encode("utf-8") + b"\0")
+            source_hash.update(hashlib.sha256(path.read_bytes()).digest())
+        source_sha256 = source_hash.hexdigest()
+    except (OSError, ValueError):
+        pass  # Installed distributions with unavailable source are explicitly unknown.
+    return {"pid": os.getpid(), "service_started_at": started_at,
+            "build": {"package_version": __version__, "source_sha256": source_sha256,
+                      "source_scope": "peb package source at service construction"}}
+
+
 HOSTED_CATALOG_ONLY = "catalog-listing-only"
 
 
@@ -116,6 +174,7 @@ async def probe_hosted_catalog(cfg: AppConfig, model: str | None = None, *, tran
         if out.get("status") == "unknown_model":
             out["status"] = "listed"
     out["reads"] = "the provider's own current catalog; no inference and no charge"
+    out["credential_note"] = _credential_report(cfg)["deepseek"]["note"]
     return out
 
 
@@ -150,6 +209,9 @@ def doctor_report(cfg: AppConfig) -> dict[str, Any]:
         "port": _probe_port(cfg.host, cfg.port),
         "signing_mode": cfg.signing_mode,
         "provider": _probe_ollama(cfg),
+        "credentials": _credential_report(cfg),
+        "process": {"pid": os.getpid(), "service_started_at": None,
+                    "build": {"package_version": __version__, "source_sha256": None}},
         "scripted_mode": "available" if True else "unavailable",
     }
     ready_for_scripted = report["state_root"]["status"] == "writable"
@@ -225,14 +287,15 @@ def cmd_run(args: argparse.Namespace) -> int:
                      "provenance": args.rates_provenance or "supplied on the command line; not verified by this software"}
         scope = outbound_scope(provider_kind=args.provider, endpoint=endpoint, model=args.model, profile_id=args.profile,
                                task_id=args.task, max_model_calls=args.max_model_calls, max_output_tokens=args.max_tokens,
-                               max_input_chars=args.max_input_chars, rates=rates, thinking=args.thinking)
+                               max_input_chars=args.max_input_chars, rates=rates, thinking=args.thinking,
+                               format_correction_limit=args.format_correction_limit)
         print(json.dumps({"dry_run": True, **scope}, indent=2, sort_keys=True))
         return 0
     summary = asyncio.run(run_model_observation(cfg.state_root, model=args.model, profile_id=args.profile,
                                                 task_id=args.task, max_model_calls=args.max_model_calls,
                                                 endpoint=endpoint, provider_kind=args.provider,
                                                 max_output_tokens=args.max_tokens, max_input_chars=args.max_input_chars,
-                                                thinking=args.thinking))
+                                                thinking=args.thinking, format_correction_limit=args.format_correction_limit))
     summary["outcome_columns"] = summarize_outcome_columns(summary)
     print(json.dumps(summary, indent=2, sort_keys=True))
     return 0 if summary["verification"]["chain_consistent"] else 1
@@ -681,6 +744,8 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--profile", required=True)
     r.add_argument("--task", required=True)
     r.add_argument("--max-model-calls", type=int, default=16)
+    r.add_argument("--format-correction-limit", type=int, choices=(0, 1, 2), default=0,
+                   help="explicit schema-correction calls allowed within the existing model-call cap (default: 0)")
     r.add_argument("--max-tokens", type=int, default=None, help="max output tokens per call (Limits.max_output_tokens)")
     r.add_argument("--dry-run", action="store_true",
                    help="print the outbound-data scope and maximum budget; no network, no state change (ADR-017)")

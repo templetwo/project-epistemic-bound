@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "kind": "external_review_response_receipt",
+  "recorded_by": "seat 2/3 (Codex), solo continuation at Anthony’s request",
+  "reviewed_by": "SELF-REVIEW by seat 2/3; no independent acceptance verdict",
+  "responds_to": "docs/reviews/EXTERNAL-6d56684-kimi.md",
+  "supersedes_open_list": "docs/receipts/S7-review-findings-2.json",
+  "product_commit": "813e0d0571e7d97f07e55b29f1abcc9bcdb4ecf2",
+  "review": "docs/reviews/REVIEW-continuation-2026-09-13.md",
+  "addressed": [
+    "F7",
+    "F8",
+    "F11",
+    "F13",
+    "F21"
+  ],
+  "still_open": {
+    "F9": "Bare frozen EvaluationRecord has no anchor provenance; existing envelope measured, amendment route awaits ADR-020 item (b).",
+    "F12": "Reviewer-independence enforcement awaits ADR-020 item (a)."
+  },
+  "measured": {
+    "command": [
+      "bash",
+      "scripts/clean_checkout_suite.sh",
+      "813e0d0",
+      "--junitxml=/private/tmp/peb-review-continuation-validation/lane-retry-junit.xml"
+    ],
+    "started_at": "2026-09-13T12:19:55.418075+00:00",
+    "finished_at": "2026-09-13T12:20:24.489017+00:00",
+    "exit_code": 0,
+    "stdout_sha256": "75b8048a113c831110dcfe07669be2a3d3fb8346633501ffdd36bd66a1640643",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tests": {
+      "passed": 724,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ruff": "All checks passed (whole tree; observed in clean-checkout output)"
+  },
+  "pre_fix_regressions": {
+    "command": "uv run --locked pytest -o addopts= -q tests/evaluation/test_review_findings.py",
+    "implementation": "8cc2e5e evaluator with the new tests",
+    "passed": 3,
+    "failed": 5,
+    "failures": "four hash-consistent decision-record divergences and one missing final-prose flag; failures occurred after real execution and verification"
+  },
+  "acceptance": {
+    "needs_review": 43,
+    "passed": 7,
+    "partial": 1,
+    "status_reviewer_evidence_and_requirement_fields": "asserted identical to 8cc2e5e by the reproducible command in the review"
+  },
+  "initial_environment_failure": {
+    "exit_code": 2,
+    "reason": "filesystem sandbox denied uv cache access before tests; rerun with approved access succeeded"
+  },
+  "limits": [
+    "No actual-model run, private-run inspection, paid call or browser execution in this review unit.",
+    "No operator-server restart or acceptance promotion.",
+    "Standalone local logs and JUnit are retained under /private/tmp/peb-review-continuation-validation; this receipt names the exact product and reproducible tests.",
+    "Not integrated or pushed at this checkpoint; the operator supplied a subsequent browser-friction task."
+  ]
+}

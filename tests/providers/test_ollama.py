@@ -192,3 +192,100 @@ def test_error_responses_carry_no_content_from_the_wire():
                                         '"completion_claim": "y", "evidence_refs": ["a"]}')
     r = asyncio.run(OllamaProvider(EP, "qwen3.5:9b-q4_K_M", transport=transport(h400)).generate(request()))
     assert r.error == "unsupported_setting" and r.content == ""
+
+
+def test_model_inspection_only_reads_show_and_projects_safe_metadata():
+    calls = []
+
+    def show(req):
+        calls.append((req.method, req.url.path))
+        assert json.loads(req.content) == {"model": "local:7b", "verbose": False}
+        return httpx.Response(200, json={
+            "capabilities": ["completion", "thinking"],
+            "details": {"family": "llama", "parameter_size": "7.6B", "quantization_level": "Q4_K_M",
+                        "parent_model": "PRIVATE-PARENT"},
+            "model_info": {"general.architecture": "llama", "llama.context_length": 131072,
+                           "unrelated.context_length": 999999, "private": "PRIVATE-METADATA"},
+            "parameters": "temperature 0.7\nnum_ctx 8192\nstop PRIVATE-STOP",
+            "template": "PRIVATE-TEMPLATE", "license": "PRIVATE-LICENSE", "system": "PRIVATE-SYSTEM",
+        })
+
+    report = asyncio.run(OllamaProvider(EP, "local:7b", transport=transport(show)).inspect_model())
+    assert calls == [("POST", "/api/show")]
+    assert report["status"] == "ok" and report["compatibility"] == "not_tested"
+    assert report["capabilities"] == ["completion", "thinking"]  # no native tools, no unsupported verdict
+    assert report["family"] == "llama" and report["parameter_size"] == "7.6B"
+    assert report["quantization_level"] == "Q4_K_M"
+    assert report["advertised_context_length"] == 131072
+    assert report["configured_num_ctx"] == 8192 and report["active_context_length"] is None
+    assert "PRIVATE-" not in json.dumps(report)
+
+
+def test_model_inspection_missing_context_is_unknown_and_native_tools_is_not_a_compatibility_verdict():
+    reply = {"capabilities": ["completion", "tools"], "model_info": {"unrelated.context_length": 8192}}
+    report = asyncio.run(OllamaProvider(EP, "local:7b", transport=transport(
+        lambda req: httpx.Response(200, json=reply))).inspect_model())
+    assert report["status"] == "ok" and report["capabilities"] == ["completion", "tools"]
+    assert report["compatibility"] == "not_tested"
+    assert all(report[key] is None for key in ("advertised_context_length", "configured_num_ctx", "active_context_length"))
+
+
+@pytest.mark.parametrize("payload", [
+    [], {"details": []}, {"model_info": "bad"}, {"capabilities": "tools"},
+    {"capabilities": ["completion", {}]}, {"capabilities": ["tools"] * 33},
+    {"capabilities": ["<img src=x onerror=alert(1)>"]}, {"details": {"family": "escape\u001b[31m"}},
+    {"details": {"parameter_size": "x" * 81}},
+    {"model_info": {"general.architecture": "llama", "llama.context_length": True}},
+    {"model_info": {"general.architecture": "llama", "llama.context_length": -1}},
+    {"parameters": ["num_ctx 2048"]}, {"parameters": "num_ctx 0"},
+    {"parameters": "num_ctx 4096\nnum_ctx 8192"}, {"parameters": "num_ctx unknown"},
+])
+def test_model_inspection_rejects_malformed_or_unsafe_metadata(payload):
+    report = asyncio.run(OllamaProvider(EP, "local:7b", transport=transport(
+        lambda req: httpx.Response(200, json=payload))).inspect_model())
+    assert report["status"] == "invalid_metadata" and "capabilities" not in report
+
+
+def test_model_inspection_distinguishes_absence_unreachable_and_bounds_response_bytes():
+    from peb.providers.ollama import MODEL_METADATA_CEILING_BYTES
+
+    def down(req):
+        raise httpx.ConnectError("private transport details", request=req)
+
+    for handler, status in (
+        (lambda req: httpx.Response(404, text="private model error"), "unknown_model"),
+        (down, "server_unreachable"),
+        (lambda req: httpx.Response(200, content=b"x" * (MODEL_METADATA_CEILING_BYTES + 1)), "invalid_metadata"),
+        (lambda req: httpx.Response(200, content=b"not json"), "invalid_metadata"),
+    ):
+        report = asyncio.run(OllamaProvider(EP, "local:7b", transport=transport(handler)).inspect_model())
+        assert report["status"] == status and "private" not in json.dumps(report)
+
+
+def test_ollama_thinking_is_retained_separately_and_never_replaces_decision_content():
+    reasoning = '{"kind":"finish","statement":"not a decision"}'
+
+    def reply(req):
+        assert "think" not in json.loads(req.content)  # preserve the configured model default; no extra request
+        return httpx.Response(200, json={"model": "local:7b", "message": {"content": "", "thinking": reasoning},
+                                        "done_reason": "stop"})
+
+    response = asyncio.run(OllamaProvider(EP, "local:7b", transport=transport(reply)).generate(request(model="local:7b")))
+    assert response.error is None and response.content == "" and response.reasoning == reasoning
+    assert response.prompt_tokens is None and response.completion_tokens is None
+
+
+@pytest.mark.parametrize("payload", [[], {}, {"message": []}, {"message": {"content": {}}},
+                                     {"message": {"content": "{}", "thinking": ["x"]}},
+                                     {"message": {"content": "{}"}, "model": 123}])
+def test_malformed_chat_shapes_fail_as_transport_without_coercion(payload):
+    response = asyncio.run(OllamaProvider(EP, "local:7b", transport=transport(
+        lambda req: httpx.Response(200, json=payload))).generate(request(model="local:7b")))
+    assert response.error == "transport" and response.content == "" and response.reasoning is None
+
+
+def test_ollama_thinking_retention_is_bounded():
+    payload = {"message": {"content": "{}", "thinking": "x" * (64 * 1024 + 1)}, "done_reason": "stop"}
+    response = asyncio.run(OllamaProvider(EP, "local:7b", transport=transport(
+        lambda req: httpx.Response(200, json=payload))).generate(request(model="local:7b")))
+    assert response.error == "truncated" and response.content == "" and response.reasoning is None

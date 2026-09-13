@@ -12,6 +12,8 @@ let installedModels = null, ollamaEndpoint = "", runModelProvider = "ollama";
 // The hosted catalog is never read without the operator asking: it is the one readiness fact that leaves this machine.
 let hostedModels = null, hostedStatus = "", hostedHost = "the pinned hosted endpoint", studyModelProvider = "deepseek";
 let studyReadFailures = 0;
+let modelBusy = "", capabilityVersion = 0;
+const busyButtons = new Set(), inferenceRuns = new Set();
 const attemptedStudies = new Set();
 const pretty = (value) => JSON.stringify(value, null, 2);
 function note(text, error = false) { $("notice").textContent = text; $("notice").classList.toggle("error", error); }
@@ -29,13 +31,28 @@ async function api(path, body, method) {
 }
 function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; if (!yes) { csrf = ""; liveReset(); invalidatePreview(); invalidateStudy(); clearStudyRead(); invalidateComparison(); invalidateBundle(); reviewQueueVersion++; $("global-reviews").replaceChildren(); $("global-review-count").textContent = "Not loaded"; } }
 async function action(button, task) {
-  button.disabled = true; activeRequests++;
+  if (busyButtons.has(button)) return;
+  busyButtons.add(button); button.disabled = true; activeRequests++;
   try { await task(); } catch (error) { note(error.message, true); }
-  finally { activeRequests--; button.disabled = false; updateStart(); updateRunControls(); updateStudyLaunch(); }
+  finally { activeRequests--; busyButtons.delete(button); button.disabled = false; updateStart(); updateRunControls(); updateStudyLaunch(); }
 }
 function invalidatePreview() { previewVersion++; preview = null; $("scope").hidden = true; $("approve-start").checked = false; updateStart(); }
-function updateStart() { const hosted = $("provider").value === "deepseek"; $("hosted-fields").hidden = !hosted; $("create-model").disabled = hosted; $("start-model").disabled = !$("approve-start").checked || (hosted && !preview?.preview_token); }
-function startPayload() { return {provider: $("provider").value, model: resolveModel(), profile: $("profile").value, task: $("model-task").value, max_model_calls: Number($("calls").value), max_output_tokens: Number($("tokens").value), thinking: $("thinking").value, confirm: true}; }
+function updateStart() {
+  const hosted = $("provider").value === "deepseek";
+  $("hosted-fields").hidden = !hosted;
+  for (const control of $("model-form").querySelectorAll("input, select, button")) control.disabled = Boolean(modelBusy) || busyButtons.has(control);
+  $("create-model").disabled ||= hosted;
+  $("approve-start").disabled ||= hosted && !preview?.preview_token;
+  $("start-model").disabled ||= !$("approve-start").checked || (hosted && !preview?.preview_token);
+  $("model-progress").textContent = modelBusy === "preview" ? "Preparing the exact scope… Authorization will be available when this finishes." : modelBusy === "launch" ? "Launch in progress. Its record and controls appear as soon as the run is identified." : modelBusy === "create" ? "Recording the selected run…" : "";
+  $("model-form").setAttribute("aria-busy", String(Boolean(modelBusy)));
+}
+async function modelAction(phase, task) {
+  if (modelBusy) return;
+  modelBusy = phase; updateStart();
+  try { return await task(); } finally { modelBusy = ""; updateStart(); }
+}
+function startPayload() { return {provider: $("provider").value, model: resolveModel(), profile: $("profile").value, task: $("model-task").value, max_model_calls: Number($("calls").value), max_output_tokens: Number($("tokens").value), format_correction_limit: Number($("format-corrections").value), ui_launch_id: crypto.randomUUID().replaceAll("-", ""), thinking: $("thinking").value, confirm: true}; }
 // The identifier stays explicit and exact; the operator no longer has to guess it from nothing. The list is
 // what the doctor probe already read from Ollama's /api/tags: never a default, never a download, and never the
 // only way in — an id we did not happen to see is still a legal id, so the typed escape is always present.
@@ -71,7 +88,7 @@ async function loadHostedCatalog() {
 }
 function hostedCatalogNotice(hosted) {
   if (hostedModels && hostedModels.length) return `${hostedModels.length} models currently offered by ${hostedHost}. Choosing one changes nothing about the check: the id is verified again before any paid call.`;
-  if (hosted.status === "key_absent") return `No catalog: ${hosted.key_env || "the API key variable"} is not set for this workroom. An exact id can still be typed and is checked at launch.`;
+  if (hosted.status === "key_absent") return `No catalog: ${hosted.key_env || "the API key variable"} is absent from the running server's environment. The operator secret signs you into the workroom; it is not a provider API key. Set the API key in the environment that launches the server, then restart that server. An exact id can still be typed and is checked at launch.`;
   return `No catalog from ${hostedHost}: ${hostedStatus}. An exact id can still be typed and is checked at launch.`;
 }
 function renderModelChoices() {
@@ -85,6 +102,7 @@ function renderModelChoices() {
   const chosen = fillModelSelect(select, hosted ? hostedModels : installedModels);
   input.hidden = chosen !== TYPED_MODEL; input.required = chosen === TYPED_MODEL;
   $("check-hosted").hidden = !hosted;
+  $("inspect-model").hidden = hosted;
   $("model-note").textContent = catalogNote(provider);
 }
 function resolveModel() { const select = $("model-choice"); return select.value === TYPED_MODEL ? $("model").value.trim() : select.value; }
@@ -93,6 +111,7 @@ async function loadHealth() {
   const provider = report.provider || {};
   ollamaEndpoint = provider.endpoint || "";
   installedModels = Array.isArray(provider.installed_models) ? provider.installed_models : null;
+  $("credential-note").textContent = report.credentials?.deepseek?.note || "The operator secret opens this workroom. Hosted provider credentials must be set in the running server's environment; signing in does not configure them.";
   renderModelChoices(); renderStudyModelChoices();
 }
 async function loadProfiles() {
@@ -175,21 +194,43 @@ async function loadEvents(reset = false) {
   nextCursor = page.next_cursor; $("more-events").hidden = nextCursor === null; $("event-count").textContent = `${$("events").children.length} of ${page.total} events`;
 }
 function updateRunControls() {
-  if (!selectedState) return;
+  if (!selectedState) { for (const verb of ["step", "begin", "resume", "pause", "cancel", "verify"]) $(verb).disabled = true; return; }
   const {status, provider} = selectedState;
-  for (const verb of ["step", "begin"]) $(verb).disabled = !["created", "running"].includes(status) || provider !== "ollama";
-  $("resume").disabled = !["paused", "waiting_review"].includes(status) || provider !== "ollama";
-  $("pause").disabled = !["created", "running", "waiting_review", "paused"].includes(status); $("cancel").disabled = $("pause").disabled;
+  for (const verb of ["step", "begin"]) $(verb).disabled = inferenceRuns.has(selectedId) || busyButtons.has($(verb)) || !["created", "running"].includes(status) || provider !== "ollama";
+  $("resume").disabled = inferenceRuns.has(selectedId) || busyButtons.has($("resume")) || !["paused", "waiting_review"].includes(status) || provider !== "ollama";
+  for (const verb of ["pause", "cancel"]) $(verb).disabled = busyButtons.has($(verb)) || !["created", "running", "waiting_review", "paused"].includes(status);
+  $("verify").disabled = busyButtons.has($("verify"));
 }
 async function selectRun(id) {
-  const version = ++selectionVersion; selectedId = id; const data = await api(`/api/runs/${id}`);
+  const version = ++selectionVersion; selectedId = id; selectedState = null; updateRunControls();
+  $("verification").hidden = true; $("export-result").hidden = true;
+  const data = await api(`/api/runs/${id}`);
   if (version !== selectionVersion) return;
   $("empty").hidden = true; $("selected").hidden = false; $("run-title").textContent = data.run.manifest.settings?.case || data.run.manifest.task_id;
   $("run-id").textContent = id; $("run-status").textContent = data.status === "running" && !data.run.events.some(e => e.event_type === "model_request") ? "recorded · not started" : data.status; $("provenance").textContent = `${data.run.manifest.mode} · ${data.run.manifest.provider_kind} · ${data.run.manifest.model_requested || "scripted"} · ${data.run.manifest.profile_id}`;
   $("manifest").textContent = pretty(data.run.manifest); renderResources(data.run.events); loadReplay(data.run); renderOutcomes(data.run.events); renderReviews(data.reviews || [], data.held || {}, data.run.events, id); renderCommitments(data.run.commitments || []); $("corrections").textContent = pretty(data.run.corrections || []);
   $("verification").hidden = true; $("export-result").hidden = true;
-  selectedState = {status: data.status, provider: data.run.manifest.provider_kind}; updateRunControls();
+  renderResponseChecks(data.run);
+  selectedState = {status: data.status, provider: data.run.manifest.provider_kind, limits: data.run.manifest.limits}; updateRunControls();
   await loadEvents(true); await loadRuns();
+}
+
+function renderResponseChecks(run) {
+  const invalid = run.events.filter(e => e.event_type === "decision_invalid");
+  const panel = $("response-checks"), body = $("response-check-details"); body.replaceChildren(); panel.hidden = !invalid.length;
+  if (!invalid.length) return;
+  const requests = run.events.filter(e => e.event_type === "model_request" && e.payload.correction_of_step !== undefined);
+  $("response-check-summary").textContent = `${invalid.length} invalid response${invalid.length === 1 ? "" : "s"} recorded · ${requests.length} format correction call${requests.length === 1 ? "" : "s"} requested / ${run.manifest.settings?.format_correction_limit ?? 0} authorized. These calls share the run's maximum-call budget.`;
+  for (const event of invalid) {
+    const p = event.payload, row = el("div", undefined, "response-check");
+    const response = [...run.events].reverse().find(e => e.seq < event.seq && e.event_type === "model_response" && e.payload.step === p.step);
+    row.append(el("h4", `Decision ${p.step}: invalid structured output`), el("p", "The original response is unclassified model text. It is not an executed action or a valid structured outcome."), el("p", `Validation: ${p.reason || "See validation record below."}`, "live-error"));
+    const correction = requests.find(e => e.payload.correction_of_step === p.step);
+    row.append(el("p", correction ? `Format correction ${correction.payload.correction_number} requested on the record.` : p.format_correction_scheduled ? `Format correction ${p.correction_number} scheduled; no correction request is recorded yet.` : "No format correction scheduled for this response.", "fine"));
+    const raw = el("details"); raw.open = true; raw.append(el("summary", "Original raw response · unclassified text"), el("pre", response?.payload.content ?? "No response content was recorded."));
+    const validation = el("details"); validation.append(el("summary", "Exact validation and correction record"), el("pre", pretty(p)));
+    row.append(raw, validation); body.append(row);
+  }
 }
 
 function renderCommitments(commitments) {
@@ -221,18 +262,23 @@ $("create-model").addEventListener("click", () => action($("create-model"), asyn
   if (!$("model-form").reportValidity()) return;
   const payload = startPayload(); delete payload.confirm;
   if (payload.provider !== "ollama") throw new Error("Use the previewed bounded launch for hosted runs.");
-  note("Recording local run without inference…");
-  const result = await api("/api/runs", payload); await selectRun(result.run_id); note("Run recorded. No model call made. Step once or run to a boundary when ready.");
+  await modelAction("create", async () => {
+    invalidatePreview(); note("Recording local run without inference…");
+    const result = await api("/api/runs", payload); await selectRun(result.run_id); note("Run recorded. No model call made. Step once or run to a boundary when ready.");
+  });
 }));
 for (const [verb, route] of [["step", "step"], ["begin", "start"]]) $(verb).addEventListener("click", () => action($(verb), async () => {
   const id = selectedId;
+  if (!id || inferenceRuns.has(id)) return;
+  inferenceRuns.add(id); updateRunControls();
   note(verb === "step" ? "Requesting one decision…" : "Requesting the bounded loop…");
-  liveReset(); liveStart(id, selectedState?.run?.manifest?.limits);
+  liveReset(); liveStart(id, selectedState?.limits);
   try {
     const result = await api(`/api/runs/${id}/${route}`, {confirm: true});
     livePending = false;
     if (id === selectedId) await selectRun(id); note(`Observed status: ${result.status}. Model calls this operation: ${result.steps_taken}.`);
   } catch (error) { livePending = false; throw error; }
+  finally { inferenceRuns.delete(id); updateRunControls(); }
 }));
 
 $("login-form").addEventListener("submit", (event) => { event.preventDefault(); action(event.submitter, async () => { const data = await api("/api/auth/login", {secret: $("secret").value}); $("secret").value = ""; csrf = data.csrf_token; signedIn(true); note("Operator session opened."); await Promise.all([loadRuns(), loadProfiles(), loadHealth()]); }); });
@@ -240,37 +286,72 @@ $("logout").addEventListener("click", () => action($("logout"), async () => { aw
 $("refresh").addEventListener("click", () => action($("refresh"), async () => { await loadRuns(); if (selectedId) await selectRun(selectedId); await loadHealth(); note("Records refreshed."); }));
 $("demo-form").addEventListener("submit", (event) => { event.preventDefault(); action(event.submitter, async () => { note("Running scripted control…"); const result = await api("/api/demos", {case: $("case").value, frame: $("frame").value}); await selectRun(result.run_id); note("Scripted control recorded. Inspect the observed outcome below."); }); });
 $("model-form").addEventListener("input", (event) => { if (event.target.id !== "approve-start") invalidatePreview(); else updateStart(); });
-$("provider").addEventListener("change", renderModelChoices);
-$("model-choice").addEventListener("change", renderModelChoices);
+function invalidateCapability() { capabilityVersion++; $("model-capabilities").hidden = true; }
+$("provider").addEventListener("change", () => { renderModelChoices(); invalidateCapability(); });
+$("model-choice").addEventListener("change", () => { renderModelChoices(); invalidateCapability(); });
+$("model").addEventListener("input", invalidateCapability);
+$("inspect-model").addEventListener("click", () => action($("inspect-model"), async () => {
+  const model = resolveModel(), version = capabilityVersion;
+  if (!model) throw new Error("Choose or type the exact local model id to inspect.");
+  const result = await api("/api/health", {ollama_model: model});
+  if (version !== capabilityVersion || $("provider").value !== "ollama" || model !== resolveModel()) return;
+  const metadata = result.ollama_model || {status: "not_reported"};
+  $("model-capability-summary").textContent = `${model}: ${metadata.status}. JSON decision compatibility: ${metadata.compatibility || "not tested"}.`;
+  $("model-capability-json").textContent = pretty(metadata); $("model-capabilities").hidden = false;
+}));
 $("check-hosted").addEventListener("click", () => action($("check-hosted"), async () => { note(hostedCatalogNotice(await loadHostedCatalog()), !hostedModels); }));
 $("preview").addEventListener("click", () => action($("preview"), async () => {
   if (!$("model-form").reportValidity()) return;
   const version = previewVersion;
   const payload = startPayload(); delete payload.confirm;
   if (payload.provider === "deepseek" && $("input-rate").value !== "" && $("output-rate").value !== "") { payload.input_rate = Number($("input-rate").value); payload.output_rate = Number($("output-rate").value); if ($("rate-source").value.trim()) payload.rates_provenance = $("rate-source").value.trim(); }
-  const result = await api("/api/runs/preview", payload);
-  if (version !== previewVersion) throw new Error("Selection changed during preview. Preview again.");
-  preview = result; $("scope").hidden = false; $("scope-text").textContent = pretty(preview.scope); updateStart(); note("Scope ready. Review exactly what leaves this machine, then authorize the run.");
+  await modelAction("preview", async () => {
+    preview = null; $("scope").hidden = true; $("approve-start").checked = false;
+    const result = await api("/api/runs/preview", payload);
+    if (version !== previewVersion) throw new Error("Selection changed during preview. Preview again.");
+    preview = result; $("scope").hidden = false; $("scope-text").textContent = pretty(preview.scope); note("Scope ready. Review exactly what leaves this machine, then authorize the run.");
+  });
 }));
 $("model-form").addEventListener("submit", (event) => { event.preventDefault(); action(event.submitter, async () => {
+  if (modelBusy || !$("model-form").reportValidity()) return;
   if (!$("approve-start").checked) throw new Error("Explicit authorization is required.");
   const hosted = $("provider").value === "deepseek"; if (hosted && !preview?.preview_token) throw new Error("Preview this exact hosted request first.");
   const payload = hosted ? {...preview.start_payload, preview_token: preview.preview_token} : startPayload();
-  invalidatePreview(); note("Requesting model run… Its record will appear after creation; pause and cancel remain available there.");
-  liveReset(); liveFollowLaunch({max_model_calls: Number($("calls").value)}).catch(() => {});
-  try {
-    const result = await api("/api/runs/observe", payload);
-    livePending = false;
-    if (liveRunId !== result.run_id) liveStart(result.run_id, {max_model_calls: Number($("calls").value)});
-    livePending = false;
-    await selectRun(result.run_id); note("Run reached a boundary. Its observed outcome is recorded.");
-  } catch (error) { livePending = false; throw error; }
+  await modelAction("launch", async () => {
+    invalidatePreview(); note("Requesting model run… Its record and controls will appear after creation.");
+    const limits = {max_model_calls: payload.max_model_calls};
+    liveReset(); livePending = true; $("live").hidden = false; liveSay("LAUNCHING", "Submitting this authorized run. No model request has been observed yet.");
+    let id = null;
+    try {
+      let result;
+      if (hosted) {
+        liveFollowLaunch(limits, payload.ui_launch_id).catch(() => {});
+        result = await api("/api/runs/observe", payload);
+      } else {
+        const create = {...payload}; delete create.confirm;
+        const recorded = await api("/api/runs", create); id = recorded.run_id;
+        inferenceRuns.add(id); liveStart(id, limits);
+        // Bind the operator controls before requesting inference; a failed read must not dispatch a model call.
+        await selectRun(id);
+        result = await api(`/api/runs/${id}/start`, {confirm: true});
+        result.run_id = id;
+      }
+      if (liveRunId !== result.run_id) liveStart(result.run_id, limits);
+      livePending = false;
+      await selectRun(result.run_id); note("Run reached a boundary. Its observed outcome is recorded.");
+    } catch (error) {
+      livePending = false;
+      if (!liveRunId) liveSay("UNCONFIRMED", "The launch did not confirm a run. Refresh records to reconcile; no launch is retried automatically.");
+      throw error;
+    } finally { if (id) inferenceRuns.delete(id); updateRunControls(); }
+  });
 }); });
 for (const verb of ["pause", "cancel", "resume"]) $(verb).addEventListener("click", () => action($(verb), async () => {
   if (["cancel", "resume"].includes(verb) && !window.confirm(`${verb === "cancel" ? "Cancel" : "Resume"} this run?`)) return;
-  const result = await api(`/api/runs/${selectedId}/${verb}`, verb === "resume" ? {confirm: true} : {}); note(`Observed status: ${result.status || "recorded"}`); await selectRun(selectedId);
+  const id = selectedId;
+  const result = await api(`/api/runs/${id}/${verb}`, verb === "resume" ? {confirm: true} : {}); note(`Observed status: ${result.status || "recorded"}`); if (id === selectedId) await selectRun(id);
 }));
-$("verify").addEventListener("click", () => action($("verify"), async () => { const data = await api(`/api/runs/${selectedId}/verify`, {}); $("verification").hidden = false; $("verification").textContent = pretty(data); note("Verification recorded in view. Check anchor coverage and failures."); }));
+$("verify").addEventListener("click", () => action($("verify"), async () => { const id = selectedId, version = selectionVersion; const data = await api(`/api/runs/${id}/verify`, {}); if (id !== selectedId || version !== selectionVersion) return; $("verification").hidden = false; $("verification").textContent = pretty(data); note("Verification recorded in view. Check anchor coverage and failures."); }));
 $("more-events").addEventListener("click", () => action($("more-events"), () => loadEvents()));
 $("export-form").addEventListener("submit", (event) => { event.preventDefault(); action(event.submitter, async () => { const data = await api(`/api/runs/${selectedId}/export`, {out: $("export-path").value}); $("export-result").hidden = false; $("export-result").textContent = pretty(data); note("Local evidence bundle exported."); }); });
 (async () => { try { const session = await api("/api/auth/session"); csrf = session.csrf_token; signedIn(true); await Promise.all([loadRuns(), loadProfiles(), loadHealth()]); } catch (_) { signedIn(false); } })();
@@ -561,37 +642,39 @@ renderStudyModelChoices();
 // nothing, retries no mutation, and every line rendered is an event that already happened.
 let liveRunId = null, liveVersion = 0, liveCursor = 0, livePending = false, liveBusy = false;
 let liveFailures = 0, liveDeadline = 0, liveCard = null, liveSteps = 0, liveTerminal = false, liveSettle = 0;
+let liveRequestedAt = null;
 const LIVE_TERMINAL = ["run_finished", "run_cancelled", "run_paused", "review_opened"];
 const clock = (ts) => String(ts || "").slice(11, 19) || "—";
 
 function liveSay(state, head) { $("live-state").textContent = state; $("live-head").textContent = head; }
 function liveReset() {
   liveVersion++; liveRunId = null; livePending = false; liveCard = null; liveSteps = 0; liveTerminal = false;
+  liveRequestedAt = null;
   $("live").hidden = true; $("live-steps").replaceChildren(); liveSay("", "");
 }
 function liveStart(runId, limits) {
   liveVersion++; liveRunId = runId; liveCursor = 0; livePending = true; liveFailures = 0;
   liveCard = null; liveSteps = 0; liveTerminal = false; liveSettle = 5;
+  liveRequestedAt = null;
   $("live-steps").replaceChildren(); $("live").hidden = false;
   // A hard wall: a lost response can never leave this polling forever.
   const calls = Number(limits?.max_model_calls) || 16, timeout = Number(limits?.request_timeout_s) || 120;
   liveDeadline = Date.now() + (calls * timeout + 60) * 1000;
   liveSay("OBSERVING", `Reading committed events for ${runId}.`);
+  livePoll().catch(() => {});
   return liveVersion;
 }
-async function liveFollowLaunch(limits) {
-  const before = new Set((await api("/api/runs")).runs.map(r => r.run_id));
-  const session = csrf, stop = Date.now() + 30000;
-  (async () => {
-    while (Date.now() < stop && csrf === session && !liveRunId) {
-      await new Promise(r => setTimeout(r, 700));
-      let runs;
-      try { runs = (await api("/api/runs")).runs; } catch (_) { continue; }
-      const fresh = runs.map(r => r.run_id).filter(id => !before.has(id));
-      // Labelled as the newest run recorded since this launch until the launch response confirms the id.
-      if (fresh.length) { liveStart(fresh[fresh.length - 1], limits); return; }
-    }
-  })().catch(() => {});
+async function liveFollowLaunch(limits, launchId) {
+  // A correlation pinned in the run record replaces timing-based guesses about the newest run.
+  const session = csrf, version = liveVersion, stop = Date.now() + 30000;
+  while (Date.now() < stop && csrf === session && version === liveVersion && livePending && !liveRunId) {
+    await new Promise(r => setTimeout(r, 700));
+    let runs;
+    try { runs = (await api("/api/runs")).runs; } catch (_) { continue; }
+    if (csrf !== session || version !== liveVersion || !livePending) return;
+    const exact = launchId && runs.find(r => r.ui_launch_id === launchId);
+    if (exact) { liveStart(exact.run_id, limits); await selectRun(exact.run_id); return; }
+  }
 }
 function liveLine(text, className) { if (liveCard) liveCard.append(el("p", text, className || "fine")); }
 function liveDetails(summary, body, open) {
@@ -608,31 +691,42 @@ function liveEvent(e) {
     $("live-steps").append(liveCard); return;
   }
   if (e.event_type === "model_request") {
+    if (selectedId === liveRunId && selectedState && ["created", "running"].includes(selectedState.status)) { selectedState.status = "running"; $("run-status").textContent = "running · awaiting model"; updateRunControls(); }
     // The previous step is finished with; collapse it and open a new one.
     if (liveCard) for (const d of liveCard.querySelectorAll("details")) d.open = false;
     liveSteps += 1;
     liveCard = el("div", undefined, "live-step");
     liveCard.append(el("h4", `Step ${liveSteps}`));
+    liveRequestedAt = Date.parse(e.ts);
     liveLine(`Request recorded ${clock(e.ts)} · awaiting the model`, "live-wait");
-    const chars = typeof p.prompt_chars === "number" ? `${p.prompt_chars} chars` : "size not reported";
-    liveLine(`Sent to ${p.model || "the configured model"} · ${chars}. Attempted, not yet answered.`);
+    const chars = typeof p.prompt_chars === "number" ? `${p.prompt_chars} chars` : `${p.message_count ?? "?"} messages`;
+    liveLine(`Sent to ${p.model_requested || p.model || "the configured model"} · ${chars}. Attempted, not yet answered.`);
+    if (p.correction_of_step !== undefined) liveLine(`Format correction ${p.correction_number} for decision ${p.correction_of_step}. Uses the existing model-call budget.`);
     $("live-steps").append(liveCard); return;
   }
   if (!liveCard) { liveCard = el("div", undefined, "live-step"); $("live-steps").append(liveCard); }
   if (e.event_type === "model_response") {
-    for (const w of liveCard.querySelectorAll(".live-wait")) w.className = "fine";
+    if (selectedId === liveRunId && selectedState?.status === "running") $("run-status").textContent = "running · response recorded";
+    liveRequestedAt = null;
+    for (const w of liveCard.querySelectorAll(".live-wait")) { w.className = "fine"; w.textContent = w.textContent.replace("awaiting the model", "response recorded"); }
     if (p.error) { liveLine(`Provider error: ${p.error}. Nothing is retried automatically.`, "live-error"); return; }
     const tok = [p.prompt_tokens, p.completion_tokens].every(v => typeof v === "number")
       ? `${p.prompt_tokens} in / ${p.completion_tokens} out` : "tokens not reported";
     liveLine(`Answered ${clock(e.ts)} · ${p.finish_reason || "finish reason not reported"} · ${tok}`);
     if (p.reasoning) liveDetails("Model reasoning, retained as evidence", String(p.reasoning), true);
-    else liveLine("No reasoning was returned for this call. Only the hosted provider reports one; a local model never does.");
+    else liveLine("No separate reasoning was returned for this call.");
     if (p.content) liveDetails("Exact response content", String(p.content), false);
     return;
   }
+  if (e.event_type === "decision_invalid") {
+    liveLine("Invalid structured output. The response remains unclassified model text; it is not an executed action or a valid structured outcome.", "live-error");
+    liveLine(`Validation: ${p.reason || "See the recorded validation details."}`, "live-error");
+    liveLine(p.format_correction_scheduled ? `Format correction ${p.correction_number} / ${p.correction_limit} scheduled within the existing model-call budget.` : "No format correction scheduled for this response.");
+    for (const d of liveCard.querySelectorAll("details")) d.open = true;
+    liveDetails("Exact validation and correction record", pretty(p), false); return;
+  }
   const say = {
     decision_recorded: () => `Decision: ${p.kind || "recorded"}${p.statement ? " · " + p.statement : ""}`,
-    decision_invalid: () => "Decision did not satisfy the contract; recorded as invalid, not retried.",
     action_proposed: () => `Proposed: ${p.claimed_grant_id || "an action"} — a proposal, not an effect.`,
     preaction_declared: () => "Declared before acting.",
     gate_decided: () => `Gate: ${p.reason || "decided"} — an allow is not yet an effect.`,
@@ -644,7 +738,11 @@ function liveEvent(e) {
     evaluation_recorded: () => "Evaluated from the record. The full result is in the panels below.",
   }[e.event_type];
   if (say) liveLine(say(), e.event_type === "run_finished" ? "live-done" : undefined);
-  if (LIVE_TERMINAL.includes(e.event_type)) liveTerminal = true;
+  if (LIVE_TERMINAL.includes(e.event_type)) {
+    liveTerminal = true;
+    const status = p.status || {run_cancelled: "cancelled", run_paused: "paused", review_opened: "waiting_review"}[e.event_type];
+    if (status && selectedId === liveRunId && selectedState) { selectedState.status = status; $("run-status").textContent = status; updateRunControls(); }
+  }
 }
 async function liveTick() {
   const mine = liveVersion, id = liveRunId;
@@ -656,14 +754,15 @@ async function liveTick() {
     for (const w of $("live-steps").querySelectorAll(".live-wait")) w.className = "fine";
     liveSay("BOUNDARY REACHED", `${liveCursor} events observed. The panels below are the full record.`);
   } else if (livePending) {
-    liveSay("OBSERVING", `${liveCursor} events so far${liveSteps ? ` · step ${liveSteps}` : ""}.`);
+    const elapsed = Number.isFinite(liveRequestedAt) ? Math.max(0, Math.floor((Date.now() - liveRequestedAt) / 1000)) : null;
+    liveSay(elapsed === null ? "OBSERVING" : "AWAITING MODEL", elapsed === null ? `${liveCursor} events so far${liveSteps ? ` · step ${liveSteps}` : ""}.` : `Step ${liveSteps} · ${elapsed}s since the committed model request. No response recorded yet.`);
   } else {
     // The launch settled without a terminal event on the record: `running` is not proof of in-flight
     // (a lost loop leaves that status behind), so this says unconfirmed rather than showing a spinner.
     liveSay("UNCONFIRMED", "The launch returned but no terminal event is recorded. Inspect the run; do not relaunch it.");
   }
 }
-setInterval(async () => {
+async function livePoll() {
   if (!csrf || !liveRunId || liveBusy || liveTerminal) return;
   // A few reads are allowed after the launch settles, to drain events committed just before it returned.
   if (!livePending && liveSettle-- <= 0) {
@@ -675,4 +774,5 @@ setInterval(async () => {
   try { await liveTick(); liveFailures = 0; }
   catch (_) { if (++liveFailures >= 3) { liveSay("READS FAILING", "Three reads failed in a row; observation stopped. The run is unaffected — refresh the records."); liveRunId = null; } }
   finally { liveBusy = false; }
-}, 1000);
+}
+setInterval(() => { livePoll().catch(() => {}); }, 1000);

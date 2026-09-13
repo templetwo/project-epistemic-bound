@@ -87,10 +87,13 @@ class HealthGetPayload(StrictModel):
     """Readiness, unchanged by default. `check_hosted` opts in to ONE extra read: the hosted provider's current
     catalog from its pinned host. Omitted (the default) means no hosted network call at all, so a plain readiness
     read still leaves this machine only for the configured loopback. `hosted_model` additionally asks whether that
-    exact id is in the catalog; absent, only the catalog is reported and no id is judged."""
+    exact id is in the catalog; absent, only the catalog is reported and no id is judged. `ollama_model` opts in
+    to metadata-only /api/show for that exact local id; it never configures, generates or pulls a model."""
 
     check_hosted: bool = False
     hosted_model: str | None = Field(default=None, max_length=200)
+    ollama_model: str | None = Field(default=None, min_length=1, max_length=200,
+                                   pattern=r"^[A-Za-z0-9][A-Za-z0-9._:/+-]*$")
 
     @model_validator(mode="after")
     def _hosted_model_needs_the_check(self) -> HealthGetPayload:
@@ -140,6 +143,8 @@ class RunStartPayload(StrictModel):
     _task_is_registered = field_validator("task")(_registered_task)
     max_model_calls: int = Field(default=16, ge=1, le=64)
     max_output_tokens: int | None = Field(default=None, ge=64, le=32768)
+    format_correction_limit: int = Field(default=0, ge=0, le=2)
+    ui_launch_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{32}$")
     thinking: Literal["enabled", "disabled"] = "enabled"  # hosted thinking mode; ignored by Ollama (ADR-017 addendum 2)
     confirm: Literal[True]
 
@@ -156,6 +161,8 @@ class RunPreviewPayload(StrictModel):
     _task_is_registered = field_validator("task")(_registered_task)
     max_model_calls: int = Field(default=16, ge=1, le=64)
     max_output_tokens: int | None = Field(default=None, ge=64, le=32768)
+    format_correction_limit: int = Field(default=0, ge=0, le=2)
+    ui_launch_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{32}$")
     thinking: Literal["enabled", "disabled"] = "enabled"
     input_rate: float | None = Field(default=None, gt=0)
     output_rate: float | None = Field(default=None, gt=0)
@@ -182,6 +189,8 @@ class RunCreatePayload(StrictModel):
     _task_is_registered = field_validator("task")(_registered_task)
     max_model_calls: int = Field(default=16, ge=1, le=64)
     max_output_tokens: int | None = Field(default=None, ge=64, le=32768)
+    format_correction_limit: int = Field(default=0, ge=0, le=2)
+    ui_launch_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{32}$")
     thinking: Literal["enabled", "disabled"] = "enabled"
 
 
@@ -361,6 +370,9 @@ class WorkroomService:
         # Test seam only: an httpx transport for the Ollama adapter (fake loopback server in tests).
         # `peb serve` never sets it; a real run always talks to the configured loopback endpoint.
         self._ollama_transport = ollama_transport
+        from ..cli import _service_identity
+
+        self._process_identity = _service_identity()
 
     async def request(self, operation: Any, path_ids: Any, payload: Any) -> dict[str, Any]:
         op, ids, body = parse_request(operation, path_ids, payload)
@@ -385,17 +397,25 @@ class WorkroomService:
     # -- operations -------------------------------------------------------------------------------
 
     async def _health_get(self, ids: dict[str, str], body: HealthGetPayload) -> dict[str, Any]:  # type: ignore[override]
-        """The `peb doctor` report, unchanged: versions, state root, storage, port, provider readiness. No writes
+        """The `peb doctor` report plus captured service identity. No writes
         beyond what doctor itself does (it may create the state root directory).
 
         With `check_hosted`, and only then, one further read is made: the hosted provider's current catalog from
         its pinned endpoint. It is reported under `hosted`, separately from local readiness, because it is the one
-        part of this report that leaves the machine."""
-        from ..cli import doctor_report, probe_hosted_catalog
+        part of this report that leaves the machine. `ollama_model` adds a local metadata-only inspection."""
+        import asyncio
+
+        from ..cli import doctor_report, probe_hosted_catalog, probe_ollama_model
         from ..config import load_config
 
         cfg = dataclasses.replace(load_config(self._state_root), ollama_endpoint=self._endpoint)
-        report = doctor_report(cfg)
+        # doctor performs synchronous network/filesystem probes. Keep those off the event loop so a slow
+        # readiness read cannot freeze run polling or operator controls. The existing doctor_report seam stays.
+        report = await asyncio.to_thread(doctor_report, cfg)
+        report["process"] = self._process_identity
+        if body.ollama_model is not None:
+            report["ollama_model"] = await probe_ollama_model(cfg, body.ollama_model,
+                                                             transport=self._ollama_transport)
         if body.check_hosted:
             report["hosted"] = await probe_hosted_catalog(cfg, body.hosted_model or None)
         return report
@@ -419,7 +439,9 @@ class WorkroomService:
                                               task_id=body.task, max_model_calls=body.max_model_calls,
                                               endpoint=endpoint, inference_lock_path=self._inference_lock_path,
                                               transport=self._ollama_transport, provider_kind=body.provider,
-                                              max_output_tokens=body.max_output_tokens, thinking=body.thinking)
+                                              max_output_tokens=body.max_output_tokens, thinking=body.thinking,
+                                              format_correction_limit=body.format_correction_limit,
+                                              ui_launch_id=body.ui_launch_id)
         summary["outcome_columns"] = summarize_outcome_columns(summary)
         return summary
 
@@ -438,12 +460,16 @@ class WorkroomService:
                      "provenance": body.rates_provenance or "supplied by the operator; not verified by this software"}
         scope = outbound_scope(provider_kind=body.provider, endpoint=endpoint, model=body.model, profile_id=body.profile,
                                task_id=body.task, max_model_calls=body.max_model_calls,
-                               max_output_tokens=body.max_output_tokens, rates=rates, thinking=body.thinking)
+                               max_output_tokens=body.max_output_tokens, rates=rates, thinking=body.thinking,
+                               format_correction_limit=body.format_correction_limit)
         start_payload = {"provider": body.provider, "model": body.model, "profile": body.profile, "task": body.task,
                          "max_model_calls": body.max_model_calls, "max_output_tokens": body.max_output_tokens,
                          "confirm": True}
         if "thinking" in body.model_fields_set:  # bound into the preview token only when the operator chose it explicitly
             start_payload["thinking"] = body.thinking
+        for field in ("format_correction_limit", "ui_launch_id"):
+            if field in body.model_fields_set:
+                start_payload[field] = getattr(body, field)
         return {"preview": True, "endpoint": endpoint, **scope, "start_payload": start_payload,
                 "note": "no network call was made and nothing was written; a hosted run.start must be preceded by this "
                         "report for the identical start_payload"}
@@ -462,7 +488,9 @@ class WorkroomService:
         return await create_model_run(self._state_root, model=body.model, profile_id=body.profile, task_id=body.task,
                                       max_model_calls=body.max_model_calls, endpoint=self._endpoint_for(body.provider),
                                       transport=self._ollama_transport, provider_kind=body.provider,
-                                      max_output_tokens=body.max_output_tokens, thinking=body.thinking)
+                                      max_output_tokens=body.max_output_tokens, thinking=body.thinking,
+                                      format_correction_limit=body.format_correction_limit,
+                                      ui_launch_id=body.ui_launch_id)
 
     async def _run_step(self, ids: dict[str, str], body: ConfirmPayload) -> dict[str, Any]:  # type: ignore[override]
         """§15 `POST /api/runs/{id}/step`: at most ONE subject decision and its permitted effect, on a run in
@@ -598,11 +626,13 @@ class WorkroomService:
     def _runs_list(self, ids: dict[str, str], body: StrictModel) -> dict[str, Any]:
         repo = self._open()
         try:
-            return {"runs": [_json_ready(r) for r in repo.list_runs()]}
+            return {"runs": [{**_json_ready(r), "ui_launch_id": repo.manifest(r.run_id).settings.get("ui_launch_id")}
+                             for r in repo.list_runs()]}
         finally:
             repo.close()
 
     def _run_get(self, ids: dict[str, str], body: StrictModel) -> dict[str, Any]:
+        from .format_corrections import decision_format_report
         from .reconstruct import held_proposals_from_events
         from .snapshot import read_only_run
 
@@ -614,6 +644,7 @@ class WorkroomService:
             held = held_proposals_from_events(rid, snap.events, snap.reviews, policy_version=repo.policy_version(rid),
                                               initial_session=snap.manifest.subject_session_id)
             return {"run": snap.model_dump(mode="json"), "status": str(repo.run_status(rid)),
+                    "decision_format": decision_format_report(snap.events, snap.manifest.settings.get("format_correction_limit", 0)),
                     "reviews": [r.model_dump(mode="json") for r in snap.reviews],
                     "held": {review_id: h.proposal.proposal_id for review_id, h in held.items()}}
         finally:

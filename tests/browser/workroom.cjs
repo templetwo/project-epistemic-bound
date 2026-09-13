@@ -129,11 +129,19 @@ fs.mkdirSync(output,{recursive:true});
   await page.selectOption('#provider','ollama'); await page.fill('#model','qwen3.5:9b-q4_K_M');
   await page.click('#create-model'); await page.locator('#notice').filter({hasText:'Run recorded. No model call made.'}).waitFor();
   if(!(await page.locator('#run-status').innerText()).includes('not started')) throw Error('create was presented as started');
+  const createdBinding = await page.evaluate(async () => {
+   const id = document.querySelector('#run-id').textContent;
+   const detail = await (await fetch(`/api/runs/${id}`)).json();
+   const listed = (await (await fetch('/api/runs')).json()).runs.find(run => run.run_id === id);
+   return {settings: detail.run.manifest.settings, listedLaunch: listed.ui_launch_id};
+  });
+  if(createdBinding.settings.format_correction_limit !== 1) throw Error('UI correction budget not preserved in real backend manifest');
+  if(!/^[0-9a-f]{32}$/.test(createdBinding.settings.ui_launch_id) || createdBinding.listedLaunch !== createdBinding.settings.ui_launch_id) throw Error('real backend launch correlation not preserved in manifest and run listing');
   await page.click('#step'); await page.locator('#notice').filter({hasText:'Model calls this operation: 1.'}).waitFor();
   // The live lane observes committed events while the operation is in flight; it must never write or retry.
   if(await page.locator('#live').isHidden()) throw Error('live lane did not open for an in-flight operation');
   if(!await page.locator('#live-step, .live-step').count()) throw Error('live lane rendered no step from the record');
-  if(!(await page.locator('#live-state').innerText()).match(/OBSERVING|BOUNDARY REACHED|UNCONFIRMED/)) throw Error('live lane state is not one of the honest three');
+  if(!(await page.locator('#live-state').innerText()).match(/OBSERVING|AWAITING MODEL|BOUNDARY REACHED|UNCONFIRMED/)) throw Error('live lane state does not describe observed activity');
   await page.click('#begin'); await page.locator('#notice').filter({hasText:'Observed status: completed.'}).waitFor();
   if(await page.isEnabled('#step') || await page.isEnabled('#begin')) throw Error('terminal lifecycle controls remained enabled');
   if(!(await page.locator('#outcomes').innerText()).includes('yes')) throw Error('lifecycle completion not observed');
@@ -186,6 +194,8 @@ fs.mkdirSync(output,{recursive:true});
   if(!duplicate.reasons.includes('same_run_selected_twice') || duplicate.metrics.some(m => m.evaluable_pairs)) throw Error('duplicate run licensed as pair');
  }
  await page.locator('#study-panel > summary').click();
+ // Planning needs an explicit identifier since provider choices no longer prefill one (F2).
+ await page.fill('#study-model','browser-preview-only');
  const runsBeforePlan = await page.evaluate(async () => (await (await fetch('/api/runs')).json()).runs.map(r => r.run_id));
  await page.click('#plan-study'); await page.locator('#study-result').waitFor({state:'visible'});
  const plan = JSON.parse(await page.locator('#study-json').textContent());

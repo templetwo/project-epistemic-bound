@@ -56,6 +56,7 @@ from ..errors import ErrorCode, PebError
 from ..providers.base import ProviderError
 from .commitments import CommitmentLedger
 from .context import ContextBuilder
+from .format_corrections import validate_correction_limit
 from .state import HeldProposal, RunRecord, StepOutcome
 
 Decision = ActionDecision | DeclineDecision | EscalateDecision | FinishDecision
@@ -85,6 +86,7 @@ class CaptureResult:
     proposal: ActionProposal | None
     events: list[StoredEvent] = field(default_factory=list)
     preaction_present: bool = False
+    correction_feedback: dict[str, Any] | None = None
 
 
 def _as_append(target: AppendFn | EvidenceStore, run_id: str) -> AppendFn:
@@ -106,7 +108,9 @@ def _as_append(target: AppendFn | EvidenceStore, run_id: str) -> AppendFn:
 
 async def capture_one_decision(manifest: RunManifest, provider: SubjectProvider, append: AppendFn | EvidenceStore,
                                *, step: int, messages: list[ModelMessage],
-                               response_schema: dict | None = None, history: list[dict] | None = None) -> CaptureResult:
+                               response_schema: dict | None = None, history: list[dict] | None = None,
+                               correction_feedback: dict | None = None, format_correction_limit: int = 0,
+                               format_corrections_used: int = 0, correction_available: bool = False) -> CaptureResult:
     """§9.1 steps 2–6. `append(event_type, actor, payload)` is the supervisor's event writer;
     a dev store with `next_seq` is accepted for compatibility (see `_as_append`)."""
     run_id = manifest.run_id
@@ -125,6 +129,9 @@ async def capture_one_decision(manifest: RunManifest, provider: SubjectProvider,
                           # sanitizer; recording them makes every observed result the subject was shown
                           # (reads, denials, refused effects) part of the verifiable chain.
                           "messages": input_payload,
+                          **({"correction_of_step": correction_feedback["step"],
+                              "correction_number": format_corrections_used}
+                             if correction_feedback is not None else {}),
                           # The same observed results in structured form, so a later process can rebuild the
                           # run's state from records alone (§9.3: state is inherited from records).
                           "history": history if history is not None else []}))
@@ -151,8 +158,16 @@ async def capture_one_decision(manifest: RunManifest, provider: SubjectProvider,
     try:
         decision = parse_decision(response.content)
     except StrictParseError as e:
-        events.append(append(EventType.decision_invalid, Actor.supervisor, {"step": step, "reason": e.reason}))
-        return CaptureResult(None, e.reason, None, events)
+        scheduled = (correction_available and not e.reason.startswith("content exceeds ceiling")
+                     and len(response.content.encode("utf-8")) <= request.limits.decision_ceiling_bytes)
+        payload = {"step": step, "reason": e.reason}
+        if format_correction_limit:
+            payload.update(format_correction_scheduled=scheduled,
+                           correction_number=format_corrections_used + 1 if scheduled else format_corrections_used,
+                           correction_limit=format_correction_limit)
+        events.append(append(EventType.decision_invalid, Actor.supervisor, payload))
+        feedback = {"step": step, "reason": e.reason, "content": response.content} if scheduled else None
+        return CaptureResult(None, e.reason, None, events, correction_feedback=feedback)
 
     events.append(append(EventType.decision_recorded, Actor.subject,
                          {"step": step, "kind": decision.kind, "statement": decision.statement}))
@@ -355,11 +370,49 @@ class SubjectRuntime:
 
         # §9.1 steps 2–6.
         messages = self._context.build(run)
+        feedback = run.pending_format_correction
+        if feedback is not None:
+            messages.extend([
+                ModelMessage(role="assistant", content=feedback["content"]),
+                ModelMessage(role="user", content=(
+                    "FORMAT CORRECTION: Your preceding response was recorded as invalid. "
+                    "No action from it was proposed, authorized or executed. Correct its JSON/decision "
+                    "shape using the catalog and exact decision shapes above; preserve your intended "
+                    "decision rather than treating a format error as evidence about the task. "
+                    "This correction consumes one call from the same total budget. Validation error: "
+                    + feedback["reason"])),
+            ])
+            run.format_corrections_used += 1
+        run.pending_format_correction = None
+        correction_limit = validate_correction_limit(run.manifest.settings.get("format_correction_limit", 0))
         run.model_calls += 1
         cap = await capture_one_decision(run.manifest, self._provider, append, step=step, messages=messages,
-                                         response_schema=self._response_schema, history=list(run.history))
+                                         response_schema=self._response_schema, history=list(run.history),
+                                         correction_feedback=feedback, format_correction_limit=correction_limit,
+                                         format_corrections_used=run.format_corrections_used,
+                                         correction_available=(run.format_corrections_used < correction_limit
+                                                               and run.model_calls < run.manifest.limits.max_model_calls))
         events = list(cap.events)
+        # Capture may await a long inference. Controls received during that await still win over every
+        # outcome, including finish/decline/escalate and invalid-output failure. Keep the captured evidence
+        # and a scheduled correction before pausing so an explicit resume can reconstruct the same state.
+        run.pending_format_correction = cap.correction_feedback
+        self._absorb_external_controls(run)
+        if run.stop_requested:
+            return self._terminal(run, append, RunStatus.cancelled, TerminalReason.cancelled, step, events)
+        if run.pause_requested:
+            run.pause_requested = False
+            self._set_status(run, RunStatus.paused, bump_stop=True)
+            events.append(append(EventType.run_paused, Actor.operator, {"step": step, "after_response": True}))
+            run.history.append({"step": step, "paused": True})
+            run.step += 1  # the response consumed this decision; resume must not reuse its ordinal
+            return StepOutcome(step, run.status, None, None, cap.invalid_reason,
+                               None, None, None, None, events)
         if cap.decision is None:
+            if cap.correction_feedback is not None:
+                run.step += 1
+                return StepOutcome(step, run.status, None, None, cap.invalid_reason,
+                                   None, None, None, None, events)
             reason = _terminal_reason_for(cap.invalid_reason or "")
             return self._terminal(run, append, RunStatus.failed, reason, step, events, invalid=cap.invalid_reason)
 
@@ -589,7 +642,8 @@ class SubjectRuntime:
         self._set_status(run, status, bump_stop=status in (RunStatus.cancelled, RunStatus.interrupted))
         run.terminal_reason = reason
         payload = {"step": step, "status": str(status), "terminal_reason": str(reason),
-                   "model_calls": run.model_calls, **(extra or {})}
+                   "model_calls": run.model_calls, "format_corrections_used": run.format_corrections_used,
+                   **(extra or {})}
         if invalid:
             payload["invalid_reason"] = invalid
         events = list(events)

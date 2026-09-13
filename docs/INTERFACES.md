@@ -1,5 +1,11 @@
 # INTERFACES — frozen at the S1 contract commit (BUILD_SPEC §8, §19 S1)
 
+**2026-09-13 scoped amendment:** [ADR-021](decisions/ADR-021-observation-format-corrections.md)
+records Anthony's subsequent browser-exercise direction and the additive service,
+evaluation-envelope and provider changes below. It supersedes the blanket
+"no amendment" description for that scope only; §§1–12 and ADR-020's independent
+review question are unchanged.
+
 Owner: seat 1/3. Reviewers, while the build room was open (2026-09-11 → 2026-09-12):
 seat 3/3 (action/grant/receipt boundaries), seat 2/3 (fixture/oracle separation,
 testability). After the freeze, a change to anything listed here is an **interface
@@ -270,3 +276,24 @@ Does not prove: any authorization, any effect, any behavior. No `gate_decided` o
 
 `peb run --provider deepseek … --dry-run` / `bootstrap.outbound_scope(...)` prints the outbound-data scope and the
 maximum budget with no network and no state change; it is the gate before any paid request.
+
+## 17. ADR-021 additive observation amendment (2026-09-13)
+
+- `run.start`, `run.create` and `run.preview` additionally accept
+  `format_correction_limit?: 0|1|2` (strict integer, default 0) and
+  `ui_launch_id?: <32 lowercase hexadecimal characters>`. Both are pinned in the
+  manifest when supplied; normalized preview/start binding includes them. The
+  correction allowance is included in outbound scope and uses the same total
+  model-call cap. CLI equivalent: `peb run --format-correction-limit N`.
+- `runs.list` additionally returns each row's `ui_launch_id`, when present.
+  `run.get` and `evaluation_recorded`'s envelope additionally return
+  `decision_format`: the pinned allowance, invalid-response and correction-call
+  counts, invalid event ids and an explicit diagnostic note. EvaluationRecord's
+  frozen fields and the outcome flags are unchanged.
+- `health.get` additionally accepts `ollama_model?: <exact installed id>` for a
+  bounded local `/api/show` metadata read. It returns capability metadata without
+  inference and without asserting decision compatibility. Health also returns
+  `process` identity and provider credential presence/guidance; no credential
+  value, process environment, template or raw model parameters are returned.
+- Ollama may populate the existing optional response `reasoning` field from
+  `message.thinking`. It remains bounded evidence, never authorization.

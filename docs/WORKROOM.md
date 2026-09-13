@@ -5,6 +5,33 @@ http://127.0.0.1:8787, and enter `operator.secret` from your selected state
 root. Keep that file private. Stop the foreground server with Ctrl-C. Subject
 sessions are separate from the three builder seats.
 
+**2026-09-13 exercise update ([ADR-021](decisions/ADR-021-observation-format-corrections.md)).**
+The form exposes **Format correction calls · within maximum calls** (0–2,
+initially 1). One invalid JSON decision can now receive precise format feedback
+and another call if the selected allowance and total budget permit. Set 0 for
+first-attempt-only observation; CLI/API and study defaults remain 0. The original
+response is kept, with its validation error and correction count in run detail.
+An invalid statement can be inspected as text, but it is not scored as an
+executed action. Assistance does not confer behavioral correction credit.
+
+Each decision proposes one tool call and one grant id (or null), with repair and
+check in separate decisions. For a read, the consequence string can truthfully
+say "Not applicable: this only reads the workspace"; under observe,
+`pre_action` itself may be null. These encodings are now explicit in the prompt.
+The schema is still strict. Existing runs retain their recorded prompt version.
+
+**Inspect local model capabilities** asks the backend for bounded Ollama metadata,
+so browser CORS is not involved and no inference runs. Missing native tool support
+is flagged; it does not prove a model cannot produce the JSON decisions used here.
+The reported context capacity is not a measurement of the currently active window.
+Actual compatibility remains untested until a recorded model run establishes it.
+
+The form holds its selection through preview and launch. Launch status appears
+immediately, then the exact recorded run supplies the live lane and elapsed wait
+since its latest model request. A returned response cannot override a pause or
+cancel received during the call. Switching inspected runs also cannot attach a
+late verification result or terminal-state update to the wrong selection.
+
 The cockpit binds the runtime WorkroomService: scripted controls, explicit
 bounded model runs, saved manifests and resource effects, all recorded behavior
 labels, pause/cancel/local resume, a global review queue, per-run resolution, recorded-state replay, verification and local export.
@@ -36,6 +63,15 @@ refuse them. Refusing a name the provider would have honoured is the safe direct
 of that error, and it is the provider's catalog deciding, not this workroom's
 opinion — but it is a refusal, not an outage, and it is recorded here as such.
 
+Health now shows the server PID, service start time and source digest alongside
+credential presence. Signing into the workroom changes no provider credential.
+The provider reads `DEEPSEEK_API_KEY` from the server process environment; an
+export in a different or later shell cannot change a running process. Relaunch
+from the environment containing the key. The port check may report `in_use`
+because this server owns its own socket; that report alone does not establish a
+stale instance. Compare the displayed process identity with the launch instead.
+Do not dump the process environment to diagnose credentials: it can expose keys.
+
 Hosted starts require a server-issued, one-use preview token bound to the
 operator session and exact normalized start request. Preview performs no network
 request and needs no API key. Thinking is an explicit selection, enabled by
@@ -54,8 +90,10 @@ lane above the record. It is not a stream from the provider: it is this workroom
 events by cursor, which is what ADR-019 decision 2 already defines real time to mean here. The runtime commits
 `model_request` before the call leaves and `model_response` after it returns, so a step shows as *awaiting the
 model* for exactly as long as the model is working, and says nothing about that gap it cannot support. Reasoning,
-where the provider returns it, is shown open beside the decision and collapses when the next step begins; a local
-model never returns one and the lane says so rather than leaving a blank. The lane writes nothing, retries no
+where the provider returns it, is shown open beside the decision and collapses when the next step begins.
+Correction, 2026-09-13: the prior "a local model never returns one" statement was too broad.
+Ollama's optional `message.thinking` is now retained in the existing reasoning field; absence is shown explicitly.
+The lane writes nothing, retries no
 mutation, and stops on its own: at a recorded boundary, after three failed reads, or when the launch settles with
 no terminal event — in which case it reads UNCONFIRMED and tells you to inspect rather than relaunch, because a
 `running` status is not by itself evidence that anything is still in flight.

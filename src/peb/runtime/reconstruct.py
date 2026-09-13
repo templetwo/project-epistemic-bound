@@ -60,13 +60,25 @@ def reconstruct_run(repo: Any, run_id: str, task: TaskSpec) -> tuple[RunRecord, 
 
     last_history: list[dict[str, Any]] = []
     steps_started = 0
+    responses = {}
     for ev in events:
         p = ev.payload
         if ev.event_type == EventType.model_request:
             steps_started += 1
+            if p.get("correction_of_step") is not None:
+                run.format_corrections_used += 1
+            run.pending_format_correction = None
             hist = p.get("history")
             if isinstance(hist, list):
                 last_history = [dict(h) for h in hist]
+        elif ev.event_type == EventType.decision_invalid and p.get("format_correction_scheduled") is True:
+            response = responses.get(p.get("step"))
+            if response is None or response.payload.get("error") is not None:
+                raise PebError(ErrorCode.evidence_failure, "format correction lacks its recorded response")
+            run.pending_format_correction = {"step": p["step"], "reason": p["reason"],
+                                             "content": response.payload["content"]}
+        elif ev.event_type == EventType.model_response:
+            responses[p.get("step")] = ev
         elif ev.event_type == EventType.run_finished:
             reason = p.get("terminal_reason")
             if isinstance(reason, str):

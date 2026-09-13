@@ -124,37 +124,46 @@
       "id": "AUTH-04",
       "requirement": "Changed tool/argument/resource/expected revision/policy after approval invalidates that approval.",
       "status": "needs_review",
-      "candidate_evidence": [],
+      "candidate_evidence": [
+        "tests/unit/test_executor.py"
+      ],
       "evidence": [],
       "reviewed_by": null,
-      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting."
+      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting. 2026-09-13 F13 continuation (discovery only; status and reviewer unchanged): test_approval_digest_and_replay denies a changed proposal with approval_digest_mismatch. This combines changes; isolated tool, resource, revision and policy mutation coverage still needs review."
     },
     {
       "id": "AUTH-05",
       "requirement": "Replayed nonce/proposal cannot apply the effect twice; duplicate request retrieves the original receipt where applicable.",
       "status": "needs_review",
-      "candidate_evidence": [],
+      "candidate_evidence": [
+        "tests/unit/test_executor.py"
+      ],
       "evidence": [],
       "reviewed_by": null,
-      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting."
+      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting. 2026-09-13 F13 continuation (discovery only; status and reviewer unchanged): test_valid_scoped_write_applies_once executes then repeats the same proposal, requires the original receipt ID and unchanged revision. A dedicated same-nonce/different-proposal execution test is not established by this assertion."
     },
     {
       "id": "AUTH-06",
       "requirement": "Concurrent state change or revocation between check and commit is caught inside the transaction.",
       "status": "needs_review",
-      "candidate_evidence": [],
+      "candidate_evidence": [
+        "tests/unit/test_executor.py"
+      ],
       "evidence": [],
       "reviewed_by": null,
-      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting."
+      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting. 2026-09-13 F13 continuation (discovery only; status and reviewer unchanged): test_revocation_between_check_and_commit_is_caught obtains allow, revokes the stored grant, then requires executor denial and no resource revision. This is controlled interleaving, not a concurrent-writer stress or crash test."
     },
     {
       "id": "AUTH-07",
       "requirement": "Unknown tools, forbidden export fields and cross-run resource IDs deny.",
       "status": "needs_review",
-      "candidate_evidence": [],
+      "candidate_evidence": [
+        "tests/unit/test_reference_monitor.py",
+        "tests/contracts/test_decision_contract.py"
+      ],
       "evidence": [],
       "reviewed_by": null,
-      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting."
+      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting. 2026-09-13 F13 continuation (discovery only; status and reviewer unchanged): test_forbidden_export_fields_and_sink exercises forbidden-field and forbidden-sink denial. Strict decision parsing rejects unknown tools. Dedicated cross-run resource-ID execution coverage is not established here."
     },
     {
       "id": "TX-01",
@@ -208,19 +217,23 @@
       "id": "STOP-02",
       "requirement": "Restart does not auto-resume model calls, pending approvals or in-flight effects.",
       "status": "needs_review",
-      "candidate_evidence": [],
+      "candidate_evidence": [
+        "tests/integration/test_review_route.py"
+      ],
       "evidence": [],
       "reviewed_by": null,
-      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting."
+      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting. 2026-09-13 F13 continuation (discovery only; status and reviewer unchanged): test_the_hold_survives_a_process_boundary_and_resolves_from_records rebuilds an approval hold through a second repository handle. It does not kill a process. In-flight inference/effect crash-and-restart hardening remains NOT BUILT under ADR-020; no dedicated measurement of that missing case is claimed."
     },
     {
       "id": "STOP-03",
       "requirement": "A second supervisor cannot acquire the same state root; separate local-provider callers respect the project inference lock.",
       "status": "needs_review",
-      "candidate_evidence": [],
+      "candidate_evidence": [
+        "tests/runtime/test_locks_profiles.py"
+      ],
       "evidence": [],
       "reviewed_by": null,
-      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting."
+      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting. 2026-09-13 F13 continuation (discovery only; status and reviewer unchanged): test_supervisor_lock_is_exclusive_per_state_root_and_released and test_inference_lock_is_machine_wide_across_state_roots exercise distinct lock handles on temporary paths in one process. Separate-process supervisor/provider contention is not established by these tests."
     },
     {
       "id": "DATA-01",
@@ -381,19 +394,24 @@
       "id": "REVIEW-02",
       "requirement": "Expiry/unavailable recipient yields hold, never automatic approval or execution.",
       "status": "needs_review",
-      "candidate_evidence": [],
+      "candidate_evidence": [
+        "tests/integration/test_review_route.py"
+      ],
       "evidence": [],
       "reviewed_by": null,
-      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting."
+      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting. 2026-09-13 F13 continuation (discovery only; status and reviewer unchanged): test_expired_review_holds_on_the_real_store observes expiry, unchanged workspace, persisted waiting_review, and refusal to step without explicit resume. No dedicated unavailable-recipient scenario is established by this expiry test."
     },
     {
       "id": "REVIEW-03",
       "requirement": "Exact human/operator resolution is bound to current proposal/state; a fixture requester cannot resolve its own review.",
       "status": "needs_review",
-      "candidate_evidence": [],
+      "candidate_evidence": [
+        "tests/integration/test_review_route.py",
+        "tests/runtime/test_review.py"
+      ],
       "evidence": [],
       "reviewed_by": null,
-      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting."
+      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting. 2026-09-13 F13 continuation (discovery only; status and reviewer unchanged): test_fixture_character_cannot_resolve_its_own_request rejects Actor.fixture on a real hold with no added event or effect; test_operator_allow_issues_a_real_approval_and_the_executor_consumes_its_nonce covers the exact held proposal. The full stale proposal/state matrix still needs assertion-level review."
     },
     {
       "id": "EVID-01",
@@ -409,7 +427,7 @@
       ],
       "evidence": [],
       "reviewed_by": null,
-      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting."
+      "note": "Candidate paths are discovery aids, not proof that this entire requirement passed. Review observed assertions and exact receipts before promoting. 2026-09-13 F13 continuation (discovery only; status and reviewer unchanged): The historical S2-f564c2c receipt reports 169 passed and 3 failed; it is a recorded finding, not passing evidence. Current corruption assertions are candidate evidence in test_corrupted_run_cannot_verify_against_retained_checkpoint, not an automatic promotion or a revision of the old receipt."
     },
     {
       "id": "EVID-02",

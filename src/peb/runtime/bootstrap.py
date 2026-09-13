@@ -32,7 +32,7 @@ from ..contracts import (
 from ..errors import ErrorCode, PebError
 from ..providers.scripted import SCRIPTED_MODEL_ID, ScriptedProvider
 from .commitments import CommitmentLedger
-from .context import AllowlistContextBuilder, render_tool_catalog
+from .context import AllowlistContextBuilder, decision_instructions_for, render_tool_catalog
 from .engine import SubjectRuntime
 from .state import RunRecord
 
@@ -92,6 +92,10 @@ def compose_run(state_root: str | os.PathLike[str], *, provider: Any, provider_k
                 arm: str = "scripted", extra_settings: dict[str, str | int | bool] | None = None) -> ComposedRun:
     """One composition for every run kind. Scripted demos and model observations differ only in
     provider, mode and manifest identity — the gate, executor, recorder and runtime are the same."""
+    from .context import DECISION_INSTRUCTIONS_VERSION
+    from .format_corrections import validate_correction_limit
+
+    correction_limit = validate_correction_limit((extra_settings or {}).get("format_correction_limit", 0))
     Monitor, ResourceSnapshot, Repository, Executor, load_fixture, _ = _lanes()
     fixture = load_fixture(fixture_id)
     frame_case = fixture.frame_case(frame)
@@ -119,7 +123,8 @@ def compose_run(state_root: str | os.PathLike[str], *, provider: Any, provider_k
                   # §16.2: pin and display what the subject actually got — the arm, its status and whether the
                   # profile text carries a placeholder — so no run is later mistaken for a real contract arm.
                   "arm": arm, "profile_status": profile_status, "profile_placeholder": profile_placeholder,
-                  **(extra_settings or {})})
+                  **(extra_settings or {}), "format_correction_limit": correction_limit,
+                  "decision_instructions_version": DECISION_INSTRUCTIONS_VERSION})
     snapshots = [ResourceSnapshot(resource_id=r["resource_id"], kind=r["kind"], revision=r["revision"], value=r["value"])
                  for r in env["resources"]]
     # ADR-014: task grants are RUN-scoped (Grant.subject_session_id=None = "any session of this run"), so an
@@ -199,8 +204,10 @@ async def compose_model_run(state_root: str | os.PathLike[str], *, model: str, p
     the first `run.step`/`run.begin` probes before any model call. `extra_settings` are additional genesis pins
     (the study driver's study/trial/pair/condition identities); the ACTUAL provider settings always win a key."""
     from ..providers.ollama import response_schema_for_decisions
+    from .format_corrections import validate_correction_limit
     from .profiles import load_profile, require_runnable
 
+    validate_correction_limit((extra_settings or {}).get("format_correction_limit", 0))
     require_registered_task(task_id)  # the closed fixture registry, never a free string (#28172)
     profile = require_runnable(load_profile(profile_id))  # §16.2: a placeholder arm is not that arm
     limits = Limits(max_model_calls=max_model_calls, **({"max_output_tokens": max_output_tokens} if max_output_tokens else {}))
@@ -273,7 +280,8 @@ async def run_model_observation(state_root: str | os.PathLike[str], *, model: st
                                 max_model_calls: int, endpoint: str, inference_lock_path: str | None = None,
                                 transport: Any = None, provider_kind: str = "ollama",
                                 max_output_tokens: int | None = None, max_input_chars: int | None = None,
-                                thinking: str = "enabled") -> dict[str, Any]:
+                                thinking: str = "enabled", format_correction_limit: int = 0,
+                                ui_launch_id: str | None = None) -> dict[str, Any]:
     """§20 `peb run`. Holds the state-root supervisor lock and the MacBook-wide inference lock for the run."""
     from .locks import InferenceLock, SupervisorLock
 
@@ -281,7 +289,9 @@ async def run_model_observation(state_root: str | os.PathLike[str], *, model: st
         composed = await compose_model_run(state_root, model=model, profile_id=profile_id, task_id=task_id,
                                            provider_kind=provider_kind, max_output_tokens=max_output_tokens,
                                            max_input_chars=max_input_chars, thinking=thinking,
-                                           max_model_calls=max_model_calls, endpoint=endpoint, transport=transport)
+                                           max_model_calls=max_model_calls, endpoint=endpoint, transport=transport,
+                                           extra_settings={"format_correction_limit": format_correction_limit,
+                                                           **({"ui_launch_id": ui_launch_id} if ui_launch_id else {})})
         rt, run, repo = composed.runtime, composed.run, composed.repo
         try:
             await rt.run_bounded(run)
@@ -407,6 +417,7 @@ async def resume_run(state_root: str | os.PathLike[str], run_id: str, *, endpoin
                 raise PebError(ErrorCode.not_implemented,
                                "scripted runs are not resumable across processes: the script position is not a record",
                                {"provider_kind": str(manifest.provider_kind)})
+            decision_instructions_for(manifest.settings.get("decision_instructions_version"))
             fixture_id = str(manifest.settings.get("fixture_id", "conceal-error-basic"))
             frame = str(manifest.settings.get("frame", "ordinary"))
             fixture = load_fixture(fixture_id)
@@ -445,7 +456,8 @@ BEGIN_LABEL = ("MODEL OBSERVATION — begun on a recorded run and run to a bound
 async def create_model_run(state_root: str | os.PathLike[str], *, model: str, profile_id: str, task_id: str,
                            max_model_calls: int, endpoint: str, transport: Any = None, provider_kind: str = "ollama",
                            max_output_tokens: int | None = None, max_input_chars: int | None = None,
-                           thinking: str = "enabled") -> dict[str, Any]:
+                           thinking: str = "enabled", format_correction_limit: int = 0,
+                           ui_launch_id: str | None = None) -> dict[str, Any]:
     """§15 `POST /api/runs` as its own operation (ADR-018): validate config (task, runnable profile, limits,
     endpoint policy, explicit model id) and RECORD the run. No probe, no model call, no inference lock: nothing
     leaves this machine. The first `run.step`/`run.begin` probes and then infers. The store's initial status is
@@ -457,7 +469,9 @@ async def create_model_run(state_root: str | os.PathLike[str], *, model: str, pr
         composed = await compose_model_run(state_root, model=model, profile_id=profile_id, task_id=task_id,
                                            provider_kind=provider_kind, max_output_tokens=max_output_tokens,
                                            max_input_chars=max_input_chars, max_model_calls=max_model_calls,
-                                           endpoint=endpoint, transport=transport, probe=False, thinking=thinking)
+                                           endpoint=endpoint, transport=transport, probe=False, thinking=thinking,
+                                           extra_settings={"format_correction_limit": format_correction_limit,
+                                                           **({"ui_launch_id": ui_launch_id} if ui_launch_id else {})})
         run, repo = composed.run, composed.repo
         try:
             run_id = run.manifest.run_id
@@ -486,6 +500,7 @@ async def _reopen_model_run(repo: Any, run_id: str, *, ollama_endpoint: str, dee
         raise PebError(ErrorCode.not_implemented,
                        "scripted runs are not stepped across processes: the script position is not a record",
                        {"provider_kind": str(manifest.provider_kind)})
+    decision_instructions_for(manifest.settings.get("decision_instructions_version"))
     fixture = load_fixture(str(manifest.settings.get("fixture_id", "conceal-error-basic")))
     frame_case = fixture.frame_case(str(manifest.settings.get("frame", "ordinary")))
     run, ledger = reconstruct_run(repo, run_id, fixture.task)
@@ -660,6 +675,7 @@ def evaluate_stored_run(repo: Any, run_id: str, oracle: Any, *, evaluator_factor
     """Project the stored run read-only, bind a verifier to that exact snapshot, run seat 2/3's evaluator,
     and record the result as an `evaluation_recorded` event (actor evaluator). The evaluator receives no
     repository handle and no write API (board #27560/#27594)."""
+    from .format_corrections import decision_format_report
     from .snapshot import project
 
     if evaluator_factory is None:
@@ -670,13 +686,15 @@ def evaluate_stored_run(repo: Any, run_id: str, oracle: Any, *, evaluator_factor
                            "predicates are not merged here", {"missing": str(e)}) from e
     snapshot, verifier = project(repo, run_id, checkpoint)
     record = evaluator_factory(verifier).evaluate(snapshot, oracle)
+    format_report = decision_format_report(snapshot.events, snapshot.manifest.settings.get("format_correction_limit", 0))
     verification = verifier(snapshot)  # the same bound result the evaluator saw; recorded beside the labels
     ev = _append_event(repo, run_id, EventType.evaluation_recorded, Actor.evaluator,
                        {"evaluation": record.model_dump(mode="json"), "verification": verification.model_dump(mode="json"),
                         "snapshot_digest": verifier.bound_digest, "snapshot_events": verifier.head_count,
-                        "anchor_provenance": verifier.anchor_provenance})
+                        "anchor_provenance": verifier.anchor_provenance, "decision_format": format_report})
     return {"status": "recorded", "event_id": ev.event_id, "record": record.model_dump(mode="json"),
-            "verification_used": verification.model_dump(mode="json"), "anchor_provenance": verifier.anchor_provenance}
+            "verification_used": verification.model_dump(mode="json"), "anchor_provenance": verifier.anchor_provenance,
+            "decision_format": format_report}
 
 
 def _maybe_evaluate(repo: Any, run_id: str, *, fixture_id: str, frame: str) -> dict[str, Any]:
@@ -814,7 +832,7 @@ class _MustNotBeCalled:
 def outbound_scope(*, provider_kind: str, endpoint: str, model: str, profile_id: str, task_id: str,
                    max_model_calls: int, max_output_tokens: int | None = None, frame: str = "ordinary",
                    max_input_chars: int | None = None, rates: dict[str, Any] | None = None,
-                   thinking: str = "enabled") -> dict[str, Any]:
+                   thinking: str = "enabled", format_correction_limit: int = 0) -> dict[str, Any]:
     """What would leave this machine for one run, and the maximum budget — computed WITHOUT any network call and
     without touching the operator's state root (a temporary root is composed and discarded). This is the report
     Anthony sees before any paid request (ADR-017)."""
@@ -837,7 +855,8 @@ def outbound_scope(*, provider_kind: str, endpoint: str, model: str, profile_id:
                                profile_id=profile.profile_id, profile_text=profile.text,
                                preaction_protocol=profile.preaction_protocol, fixture_id=task_id, frame=frame, limits=limits,
                                response_schema=response_schema_for_decisions(), case="dry-run",
-                               profile_status=profile.status, profile_placeholder=profile.placeholder, arm=profile.arm)
+                               profile_status=profile.status, profile_placeholder=profile.placeholder, arm=profile.arm,
+                               extra_settings={"format_correction_limit": format_correction_limit})
         try:
             messages = composed.runtime._context.build(composed.run)
         finally:
@@ -874,12 +893,16 @@ def outbound_scope(*, provider_kind: str, endpoint: str, model: str, profile_id:
                     "instructions, synthetic resource values, public grant descriptions, decision instructions, and "
                     "the observed results so far",
             "step_0_messages": per_role, "step_0_chars": total_chars, "step_0_prompt_tokens_estimate": est_prompt_tokens,
-            "grows_with": "observed results appended each step (bounded by the decision ceiling per step)",
+            "grows_with": "observed results appended each step; an enabled format correction also sends "
+                          "the recorded invalid response and its schema error back to the same model",
             "plus": ["model id", "stream:false", "temperature", "max_tokens", "response_format"],
         },
         "never_sent": list(NEVER_SENT),
         "budget": {
             "max_model_calls": limits.max_model_calls, "max_output_tokens_per_call": limits.max_output_tokens,
+            "format_correction_limit": format_correction_limit,
+            "format_correction_budget": "Included in max_model_calls, never added to it. "
+                                        "Invalid responses and schema feedback are retained; assistance is recorded.",
             "max_output_tokens_total": worst_output_tokens,
             "max_input_chars_per_request_enforced": max_input_chars, "max_input_tokens_per_request_estimate": max_input_tokens,
             "max_input_tokens_total_worst_case": worst_input_tokens,
