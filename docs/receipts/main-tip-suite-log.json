@@ -323,6 +323,19 @@
       "ruff": "All checks passed",
       "receipt": "docs/receipts/S7-observation-friction.json",
       "measured_by": "Codex continuation; assistant self-review"
+    },
+    {
+      "tip": "first-parent main commit adding docs/receipts/S7-secure-api-input.json",
+      "tip_resolver": "git log --first-parent --diff-filter=A -1 --format=%H -- docs/receipts/S7-secure-api-input.json",
+      "tests": 930,
+      "passed": 930,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "ruff": "All checks passed",
+      "receipt": "docs/receipts/S7-secure-api-input.json",
+      "measurement": "clean-checkout at the resolved final tip; push gated on counts, Ruff success and final credential browser checks",
+      "measured_by": "Codex continuation; assistant self-review"
     }
   ]
 }

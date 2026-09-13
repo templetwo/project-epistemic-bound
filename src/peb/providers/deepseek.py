@@ -2,8 +2,8 @@
 
 - Explicit HTTPS endpoint (default https://api.deepseek.com); anything but https, or a URL carrying userinfo, is refused.
 - Explicit model id; `probe()` lists `/models` and refuses an unlisted id explicitly (`unknown_model`).
-- The API key is read ONLY from an environment variable (default name DEEPSEEK_API_KEY) at construction, held on the
-  instance (not a dataclass field: absent from repr/asdict), and sent only as the Authorization header. It never
+- The API key is captured from the service request's memory snapshot, or an environment variable for CLI callers
+  (default DEEPSEEK_API_KEY), held as SecretStr outside dataclass fields, and sent only as the Authorization header. It never
   appears in ModelRequest, ModelResponse, events, receipts, exports, config files or error details.
 - OpenAI-compatible chat completions: POST /chat/completions, stream:false, temperature 0,
   max_tokens = Limits.max_output_tokens, response_format {"type": "json_object"}. DeepSeek's JSON mode requires the
@@ -21,15 +21,16 @@ The returned content is untrusted data: it goes to `parse_decision`, nowhere els
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+from pydantic import SecretStr
 
 from ..contracts import Limits, ModelRequest, ModelResponse
 from .base import ProviderError
+from .credentials import resolve_credential
 
 DEFAULT_ENDPOINT = "https://api.deepseek.com"
 DEFAULT_KEY_ENV = "DEEPSEEK_API_KEY"
@@ -71,7 +72,9 @@ class DeepSeekProvider:
         if self.thinking not in ("disabled", "enabled"):
             raise ProviderError("deepseek thinking must be 'disabled' or 'enabled'", {"thinking": self.thinking})
         # Not a dataclass field on purpose: never in repr(), dataclasses.asdict(), or anything serialized.
-        self._key: str = os.environ.get(self.api_key_env, "") or ""
+        credential = resolve_credential(self.api_key_env)
+        self._key = credential.secret or SecretStr("")
+        self._key_source = credential.source
         # Attempted requests vs responses that reported usage — missing usage is visible, never collapsed to zero.
         self._usage: dict[str, Any] = {"requests_attempted": 0, "responses_received": 0, "responses_with_usage": 0,
                                        "responses_without_usage": 0, "usage_fields_missing": [],
@@ -79,15 +82,16 @@ class DeepSeekProvider:
                                        "prompt_cache_hit_tokens": None, "prompt_cache_miss_tokens": None,
                                        "thinking_requested": self.thinking, "thinking_effective": None,
                                        "reasoning_tokens": None,  # usage.completion_tokens_details.reasoning_tokens, summed when reported
-                                       "refused_before_send": 0, "credential_reflected": 0}
+                                       "refused_before_send": 0, "credential_reflected": 0,
+                                       "credential_scan_refused": 0}
 
     def __repr__(self) -> str:  # the key is never shown, only whether one is present
         return (f"DeepSeekProvider(endpoint={self.endpoint!r}, model={self.model!r}, "
-                f"key={'present' if self._key else 'absent'} via {self.api_key_env})")
+                f"key={'present' if self.key_present else 'absent'} source={self._key_source})")
 
     @property
     def key_present(self) -> bool:
-        return bool(self._key)
+        return bool(self._key.get_secret_value())
 
     def _reflects_key(self, r: httpx.Response) -> bool:
         """True when the response body (whatever its status) contains the exact credential — in its raw bytes, or in
@@ -95,14 +99,19 @@ class DeepSeekProvider:
         the completion `content` is itself a JSON document the runtime would decode again). Such a body is evidence
         of an echoing or hostile upstream: the adapter keeps NOTHING from it — not the content, not the model id,
         not the error text — and the refusal is counted so it is visible in the run summary (#27918, #27952)."""
-        if not self._key:
+        if not self.key_present:
             return False
-        reflected = self._key in r.content.decode("utf-8", errors="replace")
+        if len(r.content) > _SCAN_RESPONSE_BYTES_LIMIT:
+            raise _CredentialScanLimit
+        key = self._key.get_secret_value()
+        reflected = key in r.content.decode("utf-8", errors="replace")
         if not reflected:
             try:
-                reflected = _contains_secret(r.json(), self._key)
+                reflected = _contains_secret(r.json(), key)
             except ValueError:
                 reflected = False
+            except RecursionError:
+                raise _CredentialScanLimit from None
         if reflected:
             self._usage["credential_reflected"] += 1
         return reflected
@@ -115,14 +124,15 @@ class DeepSeekProvider:
         # to any other host; the only route is the explicit, approved endpoint.
         return httpx.AsyncClient(base_url=self.endpoint.rstrip("/"), timeout=timeout, trust_env=False,
                                  follow_redirects=False, transport=self.transport,
-                                 headers={"Authorization": f"Bearer {self._key}"})
+                                 headers={"Authorization": f"Bearer {self._key.get_secret_value()}"})
 
     # -- readiness ----------------------------------------------------------------------------------
 
     async def probe(self) -> dict[str, Any]:
         base = {"kind": "deepseek", "endpoint_host": urlparse(self.endpoint).hostname, "model": self.model,
-                "key_env": self.api_key_env, "key": "present" if self._key else "absent"}
-        if not self._key:
+                "key_env": self.api_key_env, "key": "present" if self.key_present else "absent",
+                "source": self._key_source}
+        if not self.key_present:
             return {**base, "status": "key_absent"}
         try:
             async with self._client(timeout=float(self.limits.request_timeout_s)) as client:
@@ -131,8 +141,12 @@ class DeepSeekProvider:
             return {**base, "status": "timeout"}
         except httpx.HTTPError as e:
             return {**base, "status": "server_unreachable", "detail": type(e).__name__}
-        if self._reflects_key(r):
-            return {**base, "status": "credential_reflected"}
+        try:
+            if self._reflects_key(r):
+                return {**base, "status": "credential_reflected"}
+        except _CredentialScanLimit:
+            self._usage["credential_scan_refused"] += 1
+            return {**base, "status": "credential_scan_incomplete", "detail": "credential inspection exceeded its bound"}
         code = _status_code(r.status_code)
         if code is not None:
             return {**base, "status": code}
@@ -156,7 +170,7 @@ class DeepSeekProvider:
     async def generate(self, request: ModelRequest) -> ModelResponse:
         if request.model != self.model:
             return _err(request, "model_id_mismatch")
-        if not self._key:
+        if not self.key_present:
             return _err(request, "key_absent")
         if self.response_format != "json_object":
             return _err(request, "unsupported_setting", f"response_format={self.response_format!r}")
@@ -185,8 +199,12 @@ class DeepSeekProvider:
             return _err(request, "timeout")
         except httpx.HTTPError as e:
             return _err(request, "server_unreachable", type(e).__name__)
-        if self._reflects_key(r):
-            return _err(request, "credential_reflected")
+        try:
+            if self._reflects_key(r):
+                return _err(request, "credential_reflected")
+        except _CredentialScanLimit:
+            self._usage["credential_scan_refused"] += 1
+            return _err(request, "transport")
         if 300 <= r.status_code < 400:
             return _err(request, "transport", "redirect refused")
         code = _status_code(r.status_code)
@@ -249,28 +267,51 @@ class DeepSeekProvider:
 
 
 _SCAN_DEPTH = 8
+_SCAN_NODE_LIMIT = 100_000
+_SCAN_DECODE_CHAR_LIMIT = 4 * 1024 * 1024
+_SCAN_RESPONSE_BYTES_LIMIT = 4 * 1024 * 1024
+
+
+class _CredentialScanLimit(Exception):
+    """Inspection was incomplete; the entire body must be refused without claiming a proven reflection."""
 
 
 def _contains_secret(value: Any, secret: str, depth: int = 0) -> bool:
     """Exact `secret` anywhere in a decoded JSON value: object keys and values, list items, and strings that are
     themselves JSON documents (decoded and searched again, depth-bounded). Partial or split reflections are out of
     scope by design and stated as such in ADR-017."""
-    if depth > _SCAN_DEPTH:
-        return False
-    if isinstance(value, str):
-        if secret in value:
-            return True
-        head = value.lstrip()[:1]
-        if head in ('{', '[', '"'):
-            try:
-                return _contains_secret(json.loads(value), secret, depth + 1)
-            except ValueError:
-                return False
-        return False
-    if isinstance(value, dict):
-        return any(_contains_secret(k, secret, depth + 1) or _contains_secret(v, secret, depth + 1) for k, v in value.items())
-    if isinstance(value, list):
-        return any(_contains_secret(v, secret, depth + 1) for v in value)
+    # Structural nesting does not consume the encoded-string depth budget: valid tool arguments can
+    # already be deeply nested before their completion.content JSON string is decoded. Scan every string,
+    # including object keys, and refuse an uninspectable body rather than silently skipping its tail.
+    pending = [(value, depth)]
+    nodes = decoded_chars = 0
+    while pending:
+        current, encoded_depth = pending.pop()
+        nodes += 1
+        if nodes > _SCAN_NODE_LIMIT:
+            raise _CredentialScanLimit
+        if isinstance(current, str):
+            if secret in current:
+                return True
+            if current.lstrip()[:1] in ('{', '[', '"'):
+                decoded_chars += len(current)
+                if encoded_depth >= _SCAN_DEPTH or decoded_chars > _SCAN_DECODE_CHAR_LIMIT:
+                    raise _CredentialScanLimit
+                try:
+                    decoded = json.loads(current)
+                except ValueError:
+                    continue
+                except RecursionError:
+                    raise _CredentialScanLimit from None
+                pending.append((decoded, encoded_depth + 1))
+        elif isinstance(current, dict):
+            if nodes + len(pending) + 2 * len(current) > _SCAN_NODE_LIMIT:
+                raise _CredentialScanLimit
+            pending.extend((item, encoded_depth) for pair in current.items() for item in pair)
+        elif isinstance(current, list):
+            if nodes + len(pending) + len(current) > _SCAN_NODE_LIMIT:
+                raise _CredentialScanLimit
+            pending.extend((item, encoded_depth) for item in current)
     return False
 
 

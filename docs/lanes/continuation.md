@@ -1,5 +1,19 @@
 # Solo continuation — seat 2/3, 2026-09-13
 
+## Secure-input follow-up, 2026-09-13
+
+Anthony requested "add a secure api input window" after the browser-friction
+unit reached `origin/main` at `0af7935`. The same continuation branch/worktree
+now implements ADR-022's masked DeepSeek input, isolated server-memory override
+and authenticated nonreflecting credential routes. The prior environment-only
+diagnosis describes that earlier server; it is superseded as an input workflow.
+Evidence and final tip measurement belong to `docs/receipts/S7-secure-api-input.json`.
+No real key is used in tests and no paid model call is authorized by saving one.
+
+Operator server at the start of this follow-up: PID 54942, loopback port 8787,
+serving `0af7935` from the integration checkout, with 17 retained runs. Next:
+measure, integrate, push and relaunch this follow-up, then return control.
+
 ## Browser-exercise update, 2026-09-13
 
 This entry supersedes the earlier unit/process/next-action descriptions below.

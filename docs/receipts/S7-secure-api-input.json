@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "kind": "secure_api_input",
+  "date": "2026-09-13",
+  "base": "0af7935fac47ea1751ba9e8916421caab37ae508",
+  "review": "assistant SELF-REVIEW; no independent acceptance or matrix promotion",
+  "review_path": "docs/reviews/UI-secure-api-input-2026-09-13.md",
+  "decision": "docs/decisions/ADR-022-secure-provider-input.md",
+  "final_main_tip": {
+    "resolve": "git log --first-parent --diff-filter=A -1 --format=%H -- docs/receipts/S7-secure-api-input.json",
+    "identity": "First-parent main commit adding this receipt; avoids a self-referential hash",
+    "clean_command": "bash scripts/clean_checkout_suite.sh <resolved-final-tip> --junitxml=/private/tmp/peb-review-continuation-validation/secure-final-junit.xml",
+    "push_condition": "Before push, require the resolved final main tip clean-checkout measurement to show 930 passing tests, no failures/errors/skips, and the literal Ruff All checks passed! line. Also require final credentials browser receipt to report 23 passing checks. Retain command output and parsed JUnit under /private/tmp/peb-review-continuation-validation/.",
+    "expected": {
+      "tests": 930,
+      "passed": 930,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "ruff": "All checks passed!"
+    }
+  },
+  "development_measurement": {
+    "command": ".venv/bin/python -m pytest -o addopts= -q --junitxml=/private/tmp/peb-secure-input-agent-full-junit.xml",
+    "passed": 930,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "junit_seconds": 28.614,
+    "junit_sha256": "888d63c1a59936ae7b7788c6211c1c6266cd0760f7f64b91db6dc21d245c6b12"
+  },
+  "browser": {
+    "credential_script": "tests/browser/credentials.cjs",
+    "required_final_checks": 23,
+    "existing_friction_checks": 23,
+    "existing_full_harness_passed_flags": [
+      "REVIEWS",
+      "LIFECYCLE",
+      "BUNDLES",
+      "COMPARISON",
+      "STUDIES"
+    ],
+    "artifacts": "/private/tmp/peb-credentials-browser-results/ (local temporary receipts, not durable external evidence)",
+    "screenshots": "Desktop, mobile and pending dialog inspected with blank input only",
+    "fixture": "temporary scripted/mock transport; no operator database tests or paid provider calls"
+  },
+  "scanner_finding": {
+    "regression": "tests/adversarial/test_credential_override_evidence.py",
+    "before": "During implementation, 9 cases passed and the escaped action-argument list case failed: synthetic key could reach report data and next model context.",
+    "after": "All 10 cases pass; combined hosted adversarial suite 39 passed; matching key is refused before effect or further call.",
+    "bound_refusal": "Incomplete inspection is distinct from actual reflection; no frozen contract changes."
+  },
+  "limits": [
+    "Entered keys remain only in that service instance until clear/restart; not keychain storage or guaranteed memory zeroization",
+    "Existing environment fallback remains available after forgetting the entered override",
+    "Saving credentials neither contacts the provider nor authorizes inference",
+    "Loopback/browser trust boundary unchanged; partial/split/arbitrarily transformed upstream secret encodings are outside exact-match/JSON-escape scan coverage"
+  ]
+}
