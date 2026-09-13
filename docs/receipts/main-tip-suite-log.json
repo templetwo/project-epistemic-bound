@@ -255,6 +255,28 @@
       "skipped": 0,
       "tests": 710,
       "tip": "5e33917"
+    },
+    {
+      "errors": 0,
+      "failed": 0,
+      "measured_at_local": "2026-09-12T22:5x-0400",
+      "passed": 710,
+      "receipt": "docs-only commit (self-review, merge receipt, tip log entry, HANDOFF); product tree = 5e33917, verified by path diff (git diff --name-only 5e33917 <tip> touches docs/ only)",
+      "ruff": "All checks passed",
+      "skipped": 0,
+      "tests": 710,
+      "tip": "42cd119"
+    },
+    {
+      "errors": 0,
+      "failed": 0,
+      "measured_at_local": "2026-09-12T22:5x-0400",
+      "passed": 710,
+      "receipt": "docs-only commit (hosted catalog verified against the live provider; the retired-name limit recorded); product tree = 5e33917, verified by path diff (git diff --name-only 5e33917 <tip> touches docs/ only)",
+      "ruff": "All checks passed",
+      "skipped": 0,
+      "tests": 710,
+      "tip": "9ce129a"
     }
   ]
 }
