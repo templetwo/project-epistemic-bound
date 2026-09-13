@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "kind": "merge_receipt",
+  "merged_by": "seat 1/3 (Claude Code) — the only remaining seat (ADR-020)",
+  "merged_at_local": "2026-09-13 ~05:2x EDT",
+  "lane_commit": "f0f31ee",
+  "main_tip": "bedff6c",
+  "reviewed_by": "SELF-REVIEW by seat 1/3 — the seat that wrote the code. NOT an independent verdict. Design advice came from a Fable advisor agent, which is advice, not a review.",
+  "asked_for_by": {
+    "who": "Anthony",
+    "verbatim": "there is to big wait after starting a run. is it possible to stream the responces to the dashboard as they come in. like a little visual flare. would love to see like the thought processes streaming thought. then colapsing into a expandable window. get a fable advisor to help"
+  },
+  "what_it_is_not": "NOT provider token streaming. ADR-017's stream:false stands: the whole response body is scanned for the credential before anything reaches the record. Within one call there is still a wait; the lane is honest about it rather than filling it.",
+  "interfaces": {
+    "operations_before": 26,
+    "operations_after": 26,
+    "server_changes": "none",
+    "reads": "the existing GET /api/runs/{id}/events?cursor=N",
+    "precedent": "ADR-019 decision 2 (real time = observation of committed evidence by cursor polling) and the existing study.start poll in app.js"
+  },
+  "measurement_that_the_feature_rests_on": {
+    "how": "a real local ollama run driven through WorkroomService on a temporary state root, polling runs.list and run.get concurrently",
+    "observed": "run_created and model_request committed at t+0.4s; model_response, decision_invalid, run_finished at t+28.3s; the run visible in the inventory at t+0.4s with status running; run.get served fine mid-flight",
+    "conclusion": "events are committed individually (begin_write per write, WAL), so a browser can follow a run live with no server change"
+  },
+  "verified_live": {
+    "how": "a real browser against a throwaway state root on a spare port (127.0.0.1:8792); the operator's own state was never touched",
+    "observed": [
+      "the waiting state appears on model_request and clears on model_response",
+      "reasoning opens beside the decision and collapses when the next step opens; exact content stays collapsed",
+      "a provider error ends the step with its typed code and no retry language",
+      "the poll advances its cursor 0 to 5 across two ticks and reaches BOUNDARY REACHED",
+      "a launch that settles with no terminal event stops reading and reports UNCONFIRMED"
+    ],
+    "defects_found_by_this_testing_and_fixed_before_commit": [
+      "the finish line reused the pulsing wait style and was then swept by the wait-clearing pass",
+      "the poll stopped the moment the launch settled, which could drop events committed just before it returned and never show the boundary"
+    ]
+  },
+  "measured": {
+    "ref": "bedff6c (the merge tip itself)",
+    "command": "bash scripts/clean_checkout_suite.sh bedff6c",
+    "passed": 712, "failed": 0, "errors": 0, "skipped": 0,
+    "ruff": "All checks passed (whole tree)",
+    "note": "unchanged from the previous tip: the lane is browser-only and the Python suite does not exercise it."
+  },
+  "not_claimed": [
+    "the browser harness was NOT executed by this seat; the lane's assertions were added and syntax-checked only, and the live verification above was performed directly through a browser instead",
+    "no acceptance-matrix row is promoted",
+    "the lane is not a provider stream and does not reduce the time any single model call takes"
+  ]
+}

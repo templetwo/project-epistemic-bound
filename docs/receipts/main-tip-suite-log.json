@@ -288,6 +288,17 @@
       "skipped": 0,
       "tests": 712,
       "tip": "b2d2724"
+    },
+    {
+      "errors": 0,
+      "failed": 0,
+      "measured_at_local": "2026-09-13T05:2x-0400",
+      "passed": 712,
+      "receipt": "docs/receipts/S7-live-lane-merge.json (merges f0f31ee: the live observation lane \u2014 a run in flight read back from its own committed events, no server change)",
+      "ruff": "All checks passed",
+      "skipped": 0,
+      "tests": 712,
+      "tip": "bedff6c"
     }
   ]
 }
