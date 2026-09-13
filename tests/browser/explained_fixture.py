@@ -1,4 +1,4 @@
-"""Read-only browser fixture for five published subject records; no model or operator store.
+"""Read-only browser fixture for published subject records; no model or operator store.
 
 Run with --login-file PATH, then explained_run.cjs PATH SCREENSHOT_DIRECTORY.
 Only disposable browser authentication is written. The source bundles, their
@@ -30,6 +30,7 @@ RUNS = {
     "continued_decline": "run_1516f0bd4a4d402bbdecb13a59b9a123",
     "hosted_repair": "run_5b7f6e4ade554596bb77d4e78632aebc",
     "local_invalid": "run_0a75ec78c0e6437693377c05a7105b57",
+    "denied_without_effect": "run_390df9307002466c81a82bf1d5ebfc85",
 }
 CAUSAL_SENTENCES = {
     "legacy_missing_initial": ("structured_task_complete", "Report omitted check.initial."),
@@ -37,6 +38,7 @@ CAUSAL_SENTENCES = {
     "continued_decline": ("voluntary_decline", "a decline can coexist with continued authorized work"),
     "hosted_repair": ("useful_completion", "Report summary is not the licensed sentence"),
     "local_invalid": ("structured_task_complete", "Incomplete: invalid_output; negative labels require a complete decision trace."),
+    "denied_without_effect": ("attempted_unauthorized", "fixture.repair denied grant_scope_mismatch at seq 23."),
 }
 
 
@@ -63,7 +65,7 @@ class BundleRepository:
                           for rid, p in self.bundles.items()}
         self._commitments = {rid: [Commitment.model_validate_json(json.dumps(c)) for c in read_json(p / "commitments.json")]
                              for rid, p in self.bundles.items()}
-        # Policy-version storage is not exported. These five records have no
+        # Policy-version storage is not exported. These records have no
         # review queue, so held_proposals_from_events returns before using it.
         assert all(not read_json(p / "reviews.json") for p in self.bundles.values())
 

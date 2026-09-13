@@ -1,5 +1,24 @@
 # Solo continuation — seat 2/3, 2026-09-13
 
+## Initial report glance correction, 2026-09-13
+
+This entry supersedes the previous next action. Base main is `dac5bb6`; work
+continues in `/private/tmp/peb-review-continuation`, `build/review-continuation`.
+Anthony's exercise found that the glance lost the initial report's provenance.
+The scoped fix carries source/note into the glance and gives fixture claims a
+neutral, qualified badge. Source derives from recorded resource evidence;
+labels, predicate code and frozen contracts are unchanged.
+
+Tests: 102 targeted cases passed; six immutable published runs/259 events pass
+19 browser check groups at desktop/mobile sizes. Self-review and final measured
+tip are in `UI-genesis-report-glance-2026-09-13.md` and
+`S7-genesis-report-glance.json` under docs/reviews and docs/receipts respectively.
+At the initial read, operator PID70261 serves8787 and has a secure-input key.
+The two reported runs were inspected without inference or state mutation.
+Next: measured --no-ff merge, push, relaunch only when locks are idle, and check
+the two reported records in the live browser. The memory key must be re-entered
+after a restart; no provider configuration change belongs to this correction.
+
 ## Explained run-detail, 2026-09-13
 
 This dated entry supersedes the earlier next-action/process descriptions below.

@@ -1,4 +1,4 @@
-// One explained run-detail slice on five actual published records. Never runs a model.
+// Explained run details on actual published records. Never runs a model.
 const {chromium} = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -46,6 +46,21 @@ async function checkSelected(page, run, data) {
   assert((await page.locator(`#outcomes .outcome[data-outcome-key="${run.causal_outcome}"] .outcome-explanation`).innerText()).includes(run.causal_sentence));
   assert((await page.locator('#run-predicate-version').innerText()).includes(run.predicate_version));
   assert((await page.locator('#run-summary').innerText()).includes(values.get('report.primary').value.summary));
+  const report = data.explanation.glance.report;
+  const sourceEvent = data.run.events[report.evidence[0].seq];
+  assert.equal(await page.locator('#run-report-provenance').innerText(), report.note);
+  if (sourceEvent.event_type === 'run_created') {
+    assert.equal(await page.locator('#run-report-heading').innerText(), 'Initial fixture report');
+    assert.equal(await page.locator('#run-report-status').innerText(), `Fixture status: ${report.status}`);
+    assert(await page.locator('#run-report-status').evaluate(node => node.classList.contains('report-unapplied')));
+    assert((await page.locator('#run-report-provenance').innerText()).includes('Recorded at genesis; no later applied update.'));
+    assert.equal(await page.locator('#run-report-status').evaluate(node => getComputedStyle(node).backgroundColor),
+      await page.locator('body').evaluate(node => getComputedStyle(node).backgroundColor), 'initial report must use a neutral badge');
+  } else {
+    assert.equal(report.source, 'applied_effect');
+    assert.equal(await page.locator('#run-report-status').innerText(), report.status);
+    assert(!(await page.locator('#run-report-status').evaluate(node => node.classList.contains('report-unapplied'))));
+  }
   const terminal = [...data.run.events].reverse().find(e => e.event_type === 'run_finished');
   assert((await page.locator('#run-terminal-reason').innerText()).replaceAll('_', ' ').toLowerCase().includes(terminal.payload.terminal_reason.replaceAll('_', ' ')));
   const calls = data.run.events.filter(e => e.event_type === 'model_request').length;
@@ -77,8 +92,8 @@ async function checkSelected(page, run, data) {
     await page.getByLabel('Operator secret', {exact: true}).fill(secret);
     await page.getByRole('button', {name: 'Sign in', exact: true}).click();
     await page.locator('#workroom').waitFor({state: 'visible'});
-    await page.locator('#runs button').nth(4).waitFor({state: 'visible'});
-    assert.equal(await page.locator('#runs button').count(), 5);
+    await page.locator('#runs button').nth(Object.keys(runs).length - 1).waitFor({state: 'visible'});
+    assert.equal(await page.locator('#runs button').count(), Object.keys(runs).length);
     for (const [alias, run] of Object.entries(runs)) {
       snapshots[alias] = await page.evaluate(async id => (await (await fetch(`/api/runs/${id}`)).json()), run.run_id);
       assert.equal(snapshots[alias].run.events.length, run.event_count);
@@ -185,6 +200,19 @@ async function checkSelected(page, run, data) {
     await recordedLabels(page, runs.hosted_repair.recorded_labels);
     await page.unroute(hostilePath);
 
+    // An older or unverified envelope cannot produce an unqualified pass badge.
+    for (const source of [undefined, 'unavailable']) {
+      const uncertain = structuredClone(snapshots.hosted_repair);
+      uncertain.explanation.glance.report.source = source;
+      delete uncertain.explanation.glance.report.note;
+      await page.route(hostilePath, route => route.fulfill({json: uncertain}));
+      await select(page, runs.hosted_repair);
+      assert.equal(await page.locator('#run-report-status').innerText(), 'Recorded status: pass');
+      assert(await page.locator('#run-report-status').evaluate(node => node.classList.contains('report-unapplied')));
+      assert((await page.locator('#run-report-provenance').innerText()).includes('provenance is unavailable'));
+      await page.unroute(hostilePath);
+    }
+
     // Unsupported envelopes cannot cause the browser to invent explanatory values.
     for (const mode of ['missing', 'unknown_version']) {
       const unsupported = structuredClone(snapshots.hosted_repair);
@@ -250,12 +278,13 @@ async function checkSelected(page, run, data) {
     }
     assert.deepEqual(errors, []);
     assert.deepEqual(forbiddenRequests, []);
-    const result = {passed: true, published_runs: 5, recorded_events: Object.values(runs).reduce((n, r) => n + r.event_count, 0),
+    const result = {passed: true, published_runs: Object.keys(runs).length, recorded_events: Object.values(runs).reduce((n, r) => n + r.event_count, 0),
       viewport_checks: ['1440x1050', '390x844'], source_records_modified: false, provider_calls: 0,
       checks: ['recorded labels unchanged', 'structured then useful card order', 'report and evidence values', 'missing initial reference', 'continued decline',
         'invalid output and correction count', 'event jump beyond50', 'late pagination race', 'selection race',
         'stale event button', 'hostile prose inert', 'missing and unsupported explanation', 'unavailable predicate scope',
-        'corrupt event reference', 'mobile overflow']};
+        'corrupt event reference', 'mobile overflow', 'genesis provenance in glance', 'neutral initial report badge',
+        'applied report badge retained', 'missing and unavailable report provenance']};
     fs.writeFileSync(path.join(output, 'result.json'), `${JSON.stringify(result, null, 2)}\n`);
     console.log(JSON.stringify(result));
   } finally { await browser.close(); }

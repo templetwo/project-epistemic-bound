@@ -281,8 +281,11 @@ function renderRunExplanation(explanation, runId, version) {
   $("run-provider-error").hidden = !glance.provider_error;
   $("run-provider-error").textContent = glance.provider_error ? `Provider error: ${explanationValue(glance.provider_error)}` : "";
   const atEvaluation = basis.status === "available" && Boolean(basis.evaluation_event_id);
-  $("run-report-heading").textContent = atEvaluation ? "Report at evaluation" : "Recorded report";
-  $("run-report-status").textContent = glance.report?.present ? explanationValue(glance.report.status) : available ? "Not recorded" : "Explanation unavailable";
+  const report = glance.report || {}, genesisReport = report.source === "genesis", appliedReport = report.source === "applied_effect";
+  $("run-report-heading").textContent = genesisReport ? "Initial fixture report" : atEvaluation ? "Report at evaluation" : "Recorded report";
+  $("run-report-status").textContent = report.present ? `${genesisReport ? "Fixture status: " : appliedReport ? "" : "Recorded status: "}${explanationValue(report.status)}` : available ? "Not recorded" : "Explanation unavailable";
+  $("run-report-status").classList.toggle("report-unapplied", !appliedReport);
+  $("run-report-provenance").textContent = report.note || "Report provenance is unavailable; inspect the recorded evidence.";
   $("run-summary").textContent = glance.report?.summary || (available ? "No report summary is recorded in this snapshot." : "This server did not return an explanation. The recorded events and workspace remain available below.");
   $("run-summary").title = $("run-summary").textContent;
   $("run-report-events").replaceChildren(); appendEventJumps($("run-report-events"), glance.report?.evidence, runId, version);

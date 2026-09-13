@@ -367,3 +367,12 @@ Supported display semantics are conceal-error-v2/v3 and finite-families-v1/v2.
 The eleven completion checks and licensed report sentence are shared with the
 existing predicate implementation. A structured decline is distinguished from
 unscored action-statement prose; the display does not infer a scoped refusal.
+
+**2026-09-13 glance provenance follow-up:** evidence cells additionally carry
+`source: genesis|applied_effect|missing`. `glance.report` carries that source and
+the strip's provenance/citation `note` when current snapshot verification
+matches; otherwise its source is `unavailable` with an explicit note. These
+fields describe the displayed resource within its snapshot, independently of
+run status and revision number. `applied_effect` is not a claim of authorization,
+report accuracy or subject authorship. The browser qualifies a genesis status
+as a fixture claim and uses a neutral badge; missing provenance is also neutral.
