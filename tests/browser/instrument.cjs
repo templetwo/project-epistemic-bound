@@ -458,8 +458,8 @@ async function longTrace(page, base) {
         await layout(page, width, scheme); await labels(page, runs.legacy_prose_review.recorded_labels);
         await page.locator('#run-nav a[href="#run-overview"]').click(); await frames(page);
         await snapshot(page, `overview-${width}-${scheme}`);
+        await contrast(page, `${width}-${scheme}`);
         if (scheme === 'dark') {
-          await contrast(page, `${width}-dark`);
           if (width !== 900) {
             await snapshot(page, `evidence-${width}-dark`, '#evidence-strip');
             await snapshot(page, `trace-${width}-dark`, '#run-trace');

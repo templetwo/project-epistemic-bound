@@ -1,0 +1,214 @@
+{
+  "unit": "Workroom instrument presentation",
+  "date": "2026-09-13",
+  "base_main": "07da692a6685e5f9b143bf0e02f0f8d991c5d14d",
+  "product_commit": "ceb840b8b7d70cd426ddcf602d420bbf3f265c52",
+  "review": "assistant SELF-REVIEW with bounded agent code checks; no independent acceptance or matrix promotion",
+  "review_path": "docs/reviews/UI-workroom-instrument-2026-09-13.md",
+  "product_clean_measurement": {
+    "command": "bash scripts/clean_checkout_suite.sh HEAD --junitxml=/private/tmp/peb-review-continuation-validation/instrument-product-junit.xml",
+    "tests": 1069,
+    "passed": 1069,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "ruff": "All checks passed!",
+    "stdout_sha256": "6e3a262df14376329e962ce0b9e71621d6c9abccdf097c029fb48e328387e8fb",
+    "junit_sha256": "8105e8368927e218536d5feb3ea34a95a2a34dadeb99c2bccad2182353bca2d0",
+    "guard": "Normal repository isolation guard enabled."
+  },
+  "targeted_web": {
+    "passed": 70,
+    "command": "pytest -q -o addopts= tests/web",
+    "isolation": "Targeted process set DEFAULT_STATE_ROOT to a temporary absent guard before importing pytest; all test state is temporary."
+  },
+  "instrument_browser": {
+    "script": "tests/browser/instrument.cjs",
+    "fixture": "tests/browser/explained_fixture.py",
+    "published_runs": 6,
+    "recorded_events": 259,
+    "source_records_unchanged": true,
+    "model_calls": 0,
+    "server_mutation_requests": 0,
+    "intercepted_browser_only_verification_posts": 2,
+    "checks": [
+      "exact stored outcome labels",
+      "raw-label outcome hierarchy",
+      "sticky source navigation",
+      "compacted hero after selection",
+      "complete actor and gate trace",
+      "exact ledger event jumps",
+      "theme-only persistence",
+      "two-column desktop evidence",
+      "single-column mobile evidence",
+      "dark text contrast including missing explanation",
+      "read-only selected-run polling",
+      "stale verification hidden on append and late completion",
+      "elapsed recorded-request time",
+      "append-only trace motion",
+      "no replay motion",
+      "reduced motion",
+      "hung old poll cannot block new selection",
+      "stale initial ledger cannot overwrite appended evidence",
+      "review draft caret and focus survive append",
+      "202-event trace pagination and polling retention",
+      "hostile unknown actor remains inert"
+    ],
+    "viewport_widths": [
+      1440,
+      900,
+      768,
+      390
+    ],
+    "theme_modes": [
+      "system",
+      "light",
+      "dark"
+    ],
+    "screenshots": [
+      "overview-1440-light.png",
+      "overview-1440-dark.png",
+      "evidence-1440-dark.png",
+      "trace-1440-dark.png",
+      "overview-900-light.png",
+      "overview-900-dark.png",
+      "overview-768-light.png",
+      "overview-768-dark.png",
+      "evidence-768-dark.png",
+      "trace-768-dark.png",
+      "overview-390-light.png",
+      "overview-390-dark.png",
+      "evidence-390-dark.png",
+      "trace-390-dark.png",
+      "running-request-dark.png"
+    ],
+    "screenshot_count": 15,
+    "artifact_directory": "/private/tmp/peb-instrument-browser",
+    "browser": "Google Chrome 152.0.7977.83",
+    "result_sha256": "cbce0de9417e34a53092df045fd386f9d95cff3a0414a2dea0ae241cc772f8c6",
+    "contrast": {
+      "sample_count": 387,
+      "contexts": [
+        "dark-missing-explanation",
+        "1440-light",
+        "1440-dark",
+        "900-light",
+        "900-dark",
+        "768-light",
+        "768-dark",
+        "390-light",
+        "390-dark"
+      ],
+      "minimum_small_text": 5.805374140625872,
+      "minimum_large_text": 5.262956207636815,
+      "thresholds": {
+        "small": 4.5,
+        "large": 3.0
+      },
+      "method": "Computed CSS foreground and ancestor solid-background alpha composition; decorative background images are not sampled. Screenshots also inspected."
+    },
+    "layout": [
+      {
+        "viewport": 1440,
+        "theme": "light",
+        "scroll_width": 1440,
+        "report_width": 454.5
+      },
+      {
+        "viewport": 1440,
+        "theme": "dark",
+        "scroll_width": 1440,
+        "report_width": 454.5
+      },
+      {
+        "viewport": 900,
+        "theme": "light",
+        "scroll_width": 900,
+        "report_width": 236.5
+      },
+      {
+        "viewport": 900,
+        "theme": "dark",
+        "scroll_width": 900,
+        "report_width": 236.5
+      },
+      {
+        "viewport": 768,
+        "theme": "light",
+        "scroll_width": 768,
+        "report_width": 318.609375
+      },
+      {
+        "viewport": 768,
+        "theme": "dark",
+        "scroll_width": 768,
+        "report_width": 318.609375
+      },
+      {
+        "viewport": 390,
+        "theme": "light",
+        "scroll_width": 390,
+        "report_width": 313
+      },
+      {
+        "viewport": 390,
+        "theme": "dark",
+        "scroll_width": 390,
+        "report_width": 313
+      }
+    ],
+    "fixture_command": ".venv/bin/python tests/browser/explained_fixture.py --login-file /private/tmp/peb-instrument-login.json",
+    "command": "env PLAYWRIGHT_MODULE=/private/tmp/astra-browser-check/node_modules/playwright PEB_BROWSER_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' /Users/vaquez/.hermes/node/bin/node tests/browser/instrument.cjs /private/tmp/peb-instrument-login.json /private/tmp/peb-instrument-browser"
+  },
+  "explanation_browser": {
+    "script": "tests/browser/explained_run.cjs",
+    "passed": true,
+    "published_runs": 6,
+    "recorded_events": 259,
+    "check_groups": 19,
+    "viewports": [
+      "1440x1050",
+      "390x844"
+    ],
+    "source_records_modified": false,
+    "provider_calls": 0,
+    "artifact_directory": "/private/tmp/peb-instrument-explained-browser"
+  },
+  "full_browser": {
+    "script": "tests/browser/workroom.cjs",
+    "passed": true,
+    "page_errors": [],
+    "temporary_scripted_state": true,
+    "flags": [
+      "PEB_TEST_REVIEWS=1",
+      "PEB_TEST_LIFECYCLE=1",
+      "PEB_TEST_BUNDLES=1",
+      "PEB_TEST_COMPARISON=1",
+      "PEB_TEST_STUDIES=1"
+    ],
+    "fixture_command": "env -u DEEPSEEK_API_KEY .venv/bin/python tests/browser/fixture_server.py --mock-model --login-file /private/tmp/peb-instrument-full2-login.json",
+    "artifact_directory": "/private/tmp/peb-instrument-full-browser"
+  },
+  "unchanged_boundary_command": "git diff --exit-code 07da692 -- src/peb/contracts.py src/peb/boundary/canonical.py src/peb/evidence/events.py src/peb/evaluation docs/evidence/operator-exercise-2026-09-13",
+  "final_main_tip": {
+    "resolve": "git log --first-parent --diff-filter=A -1 --format=%H -- docs/receipts/S7-workroom-instrument.json",
+    "clean_command": "bash scripts/clean_checkout_suite.sh <resolved-final-tip> --junitxml=/private/tmp/peb-review-continuation-validation/instrument-final-junit.xml",
+    "expected": {
+      "tests": 1069,
+      "passed": 1069,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "ruff": "All checks passed!"
+    },
+    "push_condition": "Exact resolved final main tip must pass the normal clean-checkout suite, strict whole-tree Ruff and the recorded counts; retain parsed output outside repository."
+  },
+  "limits": [
+    "Presence is recorded-request age, not a provider heartbeat or token stream.",
+    "Actor trace ordering does not assert causation; applied marks require recorded status applied.",
+    "Every stored label remains unchanged; prominence is display only.",
+    "No new evaluator, frozen interface amendment, matrix promotion or ADR-020 ruling.",
+    "No new subject inference or operator evidence publication.",
+    "A secure-input key expires on server restart; presence is checked without copying the key."
+  ]
+}
