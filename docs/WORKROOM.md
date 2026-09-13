@@ -49,6 +49,17 @@ a start. This UI does not independently verify pricing. Changing selections requ
 another preview. Tokens expire after five minutes. Hosted resume is held in the
 web transport pending a separate preview-bound resume flow.
 
+**Watching a run as it happens.** Launching a run, stepping one decision, or running to a boundary opens a live
+lane above the record. It is not a stream from the provider: it is this workroom reading back its own committed
+events by cursor, which is what ADR-019 decision 2 already defines real time to mean here. The runtime commits
+`model_request` before the call leaves and `model_response` after it returns, so a step shows as *awaiting the
+model* for exactly as long as the model is working, and says nothing about that gap it cannot support. Reasoning,
+where the provider returns it, is shown open beside the decision and collapses when the next step begins; a local
+model never returns one and the lane says so rather than leaving a blank. The lane writes nothing, retries no
+mutation, and stops on its own: at a recorded boundary, after three failed reads, or when the launch settles with
+no terminal event — in which case it reads UNCONFIRMED and tells you to inspect rather than relaunch, because a
+`running` status is not by itself evidence that anything is still in flight.
+
 Authentication uses an in-memory HttpOnly SameSite=Strict cookie and independent
 CSRF token. Exact Host and Origin checks, bounded strict JSON and a restrictive
 self-only content security policy protect the local HTTP interface. Sessions
