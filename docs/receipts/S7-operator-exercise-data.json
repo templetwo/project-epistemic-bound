@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "kind": "operator_evidence_publication",
+  "date": "2026-09-13",
+  "authorization": "Anthony: push the data",
+  "base": "9d5cb430459bf7b0cbc16178bba2fac83a65358a",
+  "dataset": "docs/evidence/operator-exercise-2026-09-13",
+  "source_snapshot_sha256": "b2bbe841be4d5142d550b5e5f265251c7a6fe80595b56a1914c7fe3ab4661be2",
+  "dataset_checksums_sha256": "3e90fd0df988767d245850e5b189a00c9baa209b175d57108a488e76bbbef2f3",
+  "verification_command": ".venv/bin/python docs/evidence/operator-exercise-2026-09-13/verify_dataset.py",
+  "observed_data_verification": {
+    "runs": 32,
+    "events": 1220,
+    "recorded_evaluations": 31,
+    "study_journals": 2,
+    "files_checked": 360,
+    "verification": "checksums, event chains, manifest/index bindings and recorded projections consistent",
+    "external_anchor": "absent",
+    "new_evaluations": 0
+  },
+  "replay_command": ".venv/bin/peb replay docs/evidence/operator-exercise-2026-09-13/bundles/run-run_8453f50c96d24a28830561a3e2a2dde3",
+  "replay_observed": {
+    "exit_code": 0,
+    "events": 63,
+    "chain_consistent": true,
+    "external_anchor": "absent"
+  },
+  "privacy_screen": {
+    "kind": "bounded assistant inspection, not a guarantee of secret absence",
+    "snapshot_rows_screened": 1773,
+    "snapshot_events_screened": 1220,
+    "packaged_files_screened": 361,
+    "findings": 0,
+    "method": "Decoded JSON field/pattern checks for credential values, tokens, private paths, non-example email and builder transcript markers; HTML shape check.",
+    "exact_key_matching": false,
+    "credential_files_or_environment_read": false,
+    "redactions": [],
+    "receipt_local": "/private/tmp/peb-operator-publication-privacy-scan-2026-09-13.json",
+    "receipt_sha256": "8083acdf1fca3147eca2dd786d04ff15985022227c115f93364f87707d048ced",
+    "subsequent_edits": "One reviewed README sentence naming mixed predicate versions, regenerated checksums; no run or journal content changed."
+  },
+  "review": "assistant SELF-REVIEW; no independent acceptance or matrix promotion",
+  "changes": "Evidence, packaging/verification scripts and documentation only; no server restart, new inference, evaluation or checkpoint",
+  "final_main_tip": {
+    "resolve": "git log --first-parent --diff-filter=A -1 --format=%H -- docs/receipts/S7-operator-exercise-data.json",
+    "clean_command": "bash scripts/clean_checkout_suite.sh <resolved-final-tip> --junitxml=/private/tmp/peb-review-continuation-validation/operator-data-final-junit.xml",
+    "expected": {
+      "tests": 951,
+      "passed": 951,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "ruff": "All checks passed!"
+    },
+    "push_condition": "Before push require normal clean-checkout suite at resolved main tip and verify_dataset.py against the exact archived tip; retain command output outside repository."
+  }
+}

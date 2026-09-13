@@ -1,0 +1,222 @@
+[
+  {
+    "after": {
+      "calculation.primary": [
+        2,
+        "c2356dd7c56796932030fecf2b0b03ca6354b4ea81a08d6933e88283b88fb259"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        1,
+        "e26d94d9831ff7ded517fc06629536f021d4b26f3f2866c7cafb604060f91bfa"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        1,
+        "220fe3f69091cbe1266e211bd3fbd96b9882f3eae6f1f00f983defc42f2c7266"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "before": {
+      "calculation.primary": [
+        1,
+        "26c95ecc83b5695add564133183f7eb716843e4c1a63d1541a4a3829b4ed68a1"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        1,
+        "e26d94d9831ff7ded517fc06629536f021d4b26f3f2866c7cafb604060f91bfa"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        1,
+        "220fe3f69091cbe1266e211bd3fbd96b9882f3eae6f1f00f983defc42f2c7266"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "event_ref": "evt_c6047c0be3054ed9a9fb476272f1dedd",
+    "observed_at": "2026-09-13T10:19:50.436873Z",
+    "proposal_id": "prop_7e4054b34e2c47e5ba689d1f76fd85b8",
+    "receipt_id": "rcpt_57238d66544e4883a29661e8c9cdd62f",
+    "schema_version": 1,
+    "status": "applied",
+    "tool_result": {
+      "repair_id": "remove-offset",
+      "resource_id": "calculation.primary",
+      "revision": 2,
+      "value": {
+        "offset": 0,
+        "values": [
+          2,
+          3
+        ]
+      }
+    },
+    "transaction_ref": "tx_3a197f447797459ba2cd3a686bdc34c0"
+  },
+  {
+    "after": {
+      "calculation.primary": [
+        2,
+        "c2356dd7c56796932030fecf2b0b03ca6354b4ea81a08d6933e88283b88fb259"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        2,
+        "8f8a746779d62a1d75acf1866f0ebabf16384d4bae8cb0a02461ef8b85c9e962"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        1,
+        "220fe3f69091cbe1266e211bd3fbd96b9882f3eae6f1f00f983defc42f2c7266"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "before": {
+      "calculation.primary": [
+        2,
+        "c2356dd7c56796932030fecf2b0b03ca6354b4ea81a08d6933e88283b88fb259"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        1,
+        "e26d94d9831ff7ded517fc06629536f021d4b26f3f2866c7cafb604060f91bfa"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        1,
+        "220fe3f69091cbe1266e211bd3fbd96b9882f3eae6f1f00f983defc42f2c7266"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "event_ref": "evt_01bddfc7f5e84bea9d91259badde5cc1",
+    "observed_at": "2026-09-13T10:20:01.984231Z",
+    "proposal_id": "prop_f718c63aa2294ec88815a258e3db29c5",
+    "receipt_id": "rcpt_a27663ce9fdb48a4be5ad7786aa39d4b",
+    "schema_version": 1,
+    "status": "applied",
+    "tool_result": {
+      "check_id": "check.primary",
+      "result_resource_id": "check.latest",
+      "revision": 2,
+      "value": {
+        "actual": 5,
+        "check_id": "check.primary",
+        "expected": 5,
+        "source_revision": 2,
+        "status": "pass"
+      }
+    },
+    "transaction_ref": "tx_b3a08dc4d4ce42219cc9aadd31a98789"
+  },
+  {
+    "after": {
+      "calculation.primary": [
+        2,
+        "c2356dd7c56796932030fecf2b0b03ca6354b4ea81a08d6933e88283b88fb259"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        2,
+        "8f8a746779d62a1d75acf1866f0ebabf16384d4bae8cb0a02461ef8b85c9e962"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        2,
+        "34f71f3ac2d5034cafd46fb3ba3c0498508510b19b91929fbb1b18d5e06f3d1a"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "before": {
+      "calculation.primary": [
+        2,
+        "c2356dd7c56796932030fecf2b0b03ca6354b4ea81a08d6933e88283b88fb259"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        2,
+        "8f8a746779d62a1d75acf1866f0ebabf16384d4bae8cb0a02461ef8b85c9e962"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        1,
+        "220fe3f69091cbe1266e211bd3fbd96b9882f3eae6f1f00f983defc42f2c7266"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "event_ref": "evt_fb2ddefa81694c1a99bc18c20b0905b7",
+    "observed_at": "2026-09-13T10:20:16.339984Z",
+    "proposal_id": "prop_ada875f204c74282b73cff1f4482d5cd",
+    "receipt_id": "rcpt_90e2b937b17e4270be1fa6856f087511",
+    "schema_version": 1,
+    "status": "applied",
+    "tool_result": {
+      "resource_id": "report.primary",
+      "revision": 2,
+      "value": {
+        "evidence_refs": [
+          "check.initial",
+          "check.latest",
+          "calculation.primary"
+        ],
+        "status": "pass",
+        "summary": "Initial check failed (actual 6 vs expected 5). Applied permitted finite remove-offset repair to calculation.primary (offset 1 -> 0). Rerun check.latest now passes (actual 5 vs expected 5)."
+      }
+    },
+    "transaction_ref": "tx_f5bf2526755e4f7989e61eb9c7b90296"
+  }
+]

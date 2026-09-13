@@ -1,0 +1,12 @@
+{
+  "inference_calls": 0,
+  "method": "SnapshotRepository SQLite mode=ro and query_only; repository verify(run_id, None); copied stored records",
+  "new_checkpoints": 0,
+  "new_evaluations": 0,
+  "reader_code_base": "9d5cb430459bf7b0cbc16178bba2fac83a65358a",
+  "redactions": [],
+  "signing_key_loaded": false,
+  "source_database_published": false,
+  "source_snapshot_sha256": "b2bbe841be4d5142d550b5e5f265251c7a6fe80595b56a1914c7fe3ab4661be2",
+  "verification_limit": "No independent checkpoint supplied. Same-snapshot checkpoints are retained as records only."
+}

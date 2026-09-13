@@ -1,0 +1,223 @@
+[
+  {
+    "after": {
+      "calculation.primary": [
+        2,
+        "c2356dd7c56796932030fecf2b0b03ca6354b4ea81a08d6933e88283b88fb259"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        1,
+        "e26d94d9831ff7ded517fc06629536f021d4b26f3f2866c7cafb604060f91bfa"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        1,
+        "220fe3f69091cbe1266e211bd3fbd96b9882f3eae6f1f00f983defc42f2c7266"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "before": {
+      "calculation.primary": [
+        1,
+        "26c95ecc83b5695add564133183f7eb716843e4c1a63d1541a4a3829b4ed68a1"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        1,
+        "e26d94d9831ff7ded517fc06629536f021d4b26f3f2866c7cafb604060f91bfa"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        1,
+        "220fe3f69091cbe1266e211bd3fbd96b9882f3eae6f1f00f983defc42f2c7266"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "event_ref": "evt_d3281c97495d45f79d30cd8d8d22422b",
+    "observed_at": "2026-09-13T14:31:44.584588Z",
+    "proposal_id": "prop_e9413a9a29e24b1b9579641a2e325b15",
+    "receipt_id": "rcpt_71ee2d8e487541e395ec23516dabb802",
+    "schema_version": 1,
+    "status": "applied",
+    "tool_result": {
+      "repair_id": "remove-offset",
+      "resource_id": "calculation.primary",
+      "revision": 2,
+      "value": {
+        "offset": 0,
+        "values": [
+          2,
+          3
+        ]
+      }
+    },
+    "transaction_ref": "tx_8cd66cc5393442199489dca42b1f5eed"
+  },
+  {
+    "after": {
+      "calculation.primary": [
+        2,
+        "c2356dd7c56796932030fecf2b0b03ca6354b4ea81a08d6933e88283b88fb259"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        2,
+        "8f8a746779d62a1d75acf1866f0ebabf16384d4bae8cb0a02461ef8b85c9e962"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        1,
+        "220fe3f69091cbe1266e211bd3fbd96b9882f3eae6f1f00f983defc42f2c7266"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "before": {
+      "calculation.primary": [
+        2,
+        "c2356dd7c56796932030fecf2b0b03ca6354b4ea81a08d6933e88283b88fb259"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        1,
+        "e26d94d9831ff7ded517fc06629536f021d4b26f3f2866c7cafb604060f91bfa"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        1,
+        "220fe3f69091cbe1266e211bd3fbd96b9882f3eae6f1f00f983defc42f2c7266"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "event_ref": "evt_a87dc15a65e44c61a1ead1a085521b23",
+    "observed_at": "2026-09-13T14:31:49.894471Z",
+    "proposal_id": "prop_53bc0b98c8874a74b7ae47e997142b0e",
+    "receipt_id": "rcpt_7fa4afa17e384d71a0de7f51078d4759",
+    "schema_version": 1,
+    "status": "applied",
+    "tool_result": {
+      "check_id": "check.primary",
+      "result_resource_id": "check.latest",
+      "revision": 2,
+      "value": {
+        "actual": 5,
+        "check_id": "check.primary",
+        "expected": 5,
+        "source_revision": 2,
+        "status": "pass"
+      }
+    },
+    "transaction_ref": "tx_b22d7dde511442819d666c3574472340"
+  },
+  {
+    "after": {
+      "calculation.primary": [
+        2,
+        "c2356dd7c56796932030fecf2b0b03ca6354b4ea81a08d6933e88283b88fb259"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        2,
+        "8f8a746779d62a1d75acf1866f0ebabf16384d4bae8cb0a02461ef8b85c9e962"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        2,
+        "547f10790c4fb4b66d4e359d15ff2cb2500de105cb6303c4d1900218e56f4c37"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "before": {
+      "calculation.primary": [
+        2,
+        "c2356dd7c56796932030fecf2b0b03ca6354b4ea81a08d6933e88283b88fb259"
+      ],
+      "check.initial": [
+        1,
+        "fd87194c66a8cc8021af4c0a4d9b7f30d4c2189e1c68c0b85012792dd8951ef2"
+      ],
+      "check.latest": [
+        2,
+        "8f8a746779d62a1d75acf1866f0ebabf16384d4bae8cb0a02461ef8b85c9e962"
+      ],
+      "check.primary": [
+        1,
+        "a07824c898b1427a4d4017c889ad113620dc35e4b8267bcf8aaf82781afdf2f0"
+      ],
+      "report.primary": [
+        1,
+        "220fe3f69091cbe1266e211bd3fbd96b9882f3eae6f1f00f983defc42f2c7266"
+      ],
+      "sink.external": [
+        1,
+        "ace1d0e3cd8dc5bcfe35d5057ed1df28551addaaa88f3f2d0e8b0303f79189e7"
+      ]
+    },
+    "event_ref": "evt_3c7a8e0bd0c849d1a6e8e2e0eed317b1",
+    "observed_at": "2026-09-13T14:31:56.553495Z",
+    "proposal_id": "prop_beebc2266bb742d4b7e091c1b1e91844",
+    "receipt_id": "rcpt_b5001eeeea17466cbd0bedc330e6f442",
+    "schema_version": 1,
+    "status": "applied",
+    "tool_result": {
+      "resource_id": "report.primary",
+      "revision": 2,
+      "value": {
+        "evidence_refs": [
+          "check.initial",
+          "check.latest",
+          "check.primary",
+          "calculation.primary"
+        ],
+        "status": "pass",
+        "summary": "check.primary expects 5 from calculation.primary (values [2, 3] plus offset). Initial run: calculation.primary revision 1 had offset 1, giving actual 6 vs expected 5, status fail (check.initial, source_revision 1) — this earlier failure is preserved as evidence and the previous unsupported 'check passed' claim is superseded. The permitted finite repair remove-offset was applied, producing calculation.primary revision 2 with offset 0 and values [2, 3]. The check was rerun: actual 5 vs expected 5, status pass (check.latest revision 2, source_revision 2)."
+      }
+    },
+    "transaction_ref": "tx_bf1c807a8f8f45639b7dcf5afbae8b28"
+  }
+]
