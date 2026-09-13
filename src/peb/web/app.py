@@ -377,7 +377,12 @@ def create_workroom(
 
     @app.get("/assets/{name}")
     async def asset(name: str):
-        types = {"app.js": "text/javascript", "style.css": "text/css"}
+        types = {
+            "app.js": "text/javascript",
+            "trace.js": "text/javascript",
+            "style.css": "text/css",
+            "instrument.css": "text/css",
+        }
         if name not in types:
             raise HTTPException(404)
         return FileResponse(STATIC_ROOT / name, media_type=types[name])
