@@ -23,6 +23,19 @@ so rather than showing a stale or invented list. A hosted id is checked again
 against the provider's own catalog before any paid call, so the menu is a
 convenience, never the guarantee.
 
+The catalog check reads the key from the environment of the `peb serve` process
+itself. Started without one it reports `key_absent` and lists nothing, which is
+the honest answer rather than an invented menu; inject the variable into that one
+process if you want the menu (never source a whole credential file). Verified
+against the live provider on 2026-09-12: the catalog is exactly `deepseek-flash`
+and `deepseek-v4-pro`. **A known limit:** the check is stricter than the provider's
+own accept list. DeepSeek's documentation says the retired names `deepseek-v4-flash`
+and `deepseek-v4-flash-vision-exp` are still accepted and served by the Flash model,
+but they are absent from `/models`, so both this check and the launch-time probe
+refuse them. Refusing a name the provider would have honoured is the safe direction
+of that error, and it is the provider's catalog deciding, not this workroom's
+opinion — but it is a refusal, not an outage, and it is recorded here as such.
+
 Hosted starts require a server-issued, one-use preview token bound to the
 operator session and exact normalized start request. Preview performs no network
 request and needs no API key. Thinking is an explicit selection, enabled by
