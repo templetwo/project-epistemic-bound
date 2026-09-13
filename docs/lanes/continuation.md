@@ -1,5 +1,35 @@
 # Solo continuation — seat 2/3, 2026-09-13
 
+## Explained run-detail, 2026-09-13
+
+This dated entry supersedes the earlier next-action/process descriptions below.
+Anthony requested one explained run-detail, with unchanged deterministic labels,
+an applied-resource evidence strip and a separate Needs review list. Base main:
+`c8acebc8f7a77e4f893133a06717924f38f20fe5`; worktree and branch remain
+`/private/tmp/peb-review-continuation`, `build/review-continuation`.
+
+Owned changes in this unit: shared predicate fact extraction, runtime display
+projection and service envelope, three web static files, matching tests and
+additive interface/review/receipt documentation. Frozen contracts and old lane
+worktrees are untouched. The self-review is
+`docs/reviews/UI-explained-run-detail-2026-09-13.md`; exact-tip measurement is
+resolved by `docs/receipts/S7-explained-run-detail.json`.
+
+The combined runtime/evaluation/web/TUI check passed 431 cases; all 32 before/
+after evaluator output hashes and stored display labels are checked. Five
+published traces are browser-checked in a read-only fixture. The published data
+still verifies as 32 runs, 1,220 events, 31 evaluations and two study journals.
+
+At the pre-integration check, operator PID10888 serves port8787; 33 current
+runs are terminal (22 completed, 11 failed), and all supervisor/inference/study
+locks are free. A secure-input key is present, with server-process lifetime.
+Next: measure, merge with --no-ff, push, recheck all locks, relaunch and verify
+the serving source and five existing run-detail envelopes. Restart requires
+the operator to enter the memory key again. No paid inference is needed.
+
+Repeat-config, study-grid and prose-review work remain subsequent slices.
+No new evaluator, matrix promotion or ADR-020 ruling is part of this unit.
+
 ## Operator data push, 2026-09-13
 
 Anthony explicitly requested "push the data" after the read-only cross-check

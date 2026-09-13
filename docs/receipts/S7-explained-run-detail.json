@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "kind": "explained_run_detail",
+  "date": "2026-09-13",
+  "base": "c8acebc8f7a77e4f893133a06717924f38f20fe5",
+  "product_commit": "ab18df52774bafa6e663724eb56db2c8081db2bc",
+  "review": "assistant SELF-REVIEW with bounded agent checks; no independent acceptance or matrix promotion",
+  "review_path": "docs/reviews/UI-explained-run-detail-2026-09-13.md",
+  "product_clean_measurement": {
+    "command": "bash scripts/clean_checkout_suite.sh HEAD --junitxml=/private/tmp/peb-review-continuation-validation/explained-product-junit.xml",
+    "tip": "ab18df52774bafa6e663724eb56db2c8081db2bc",
+    "tests": 1062,
+    "passed": 1062,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "ruff": "All checks passed!",
+    "stdout_sha256": "3c5f691a3336144d96bc93cd62f5a1b1e4c418d4ecdfbbd22a5f603a021cdc06",
+    "junit_sha256": "3f16c4453c69e53168f3e2d46f86fad26b9dbcb1db7e84bc3e8b5f0e5a007edd",
+    "guard": "Normal repository isolation guard enabled; operator locks idle before measurement."
+  },
+  "targeted": {
+    "tests": 431,
+    "passed": 431,
+    "command": "pytest -q -o addopts= tests/runtime/test_run_explanation.py tests/evaluation tests/integration/test_service.py tests/runtime/test_service.py tests/web tests/tui",
+    "isolation": "PEB_STATE_ROOT session fixture; DEFAULT_STATE_ROOT set to a temporary absent guard path before pytest import in the targeted process.",
+    "shared_facts_cases": 58,
+    "display_projection_cases": 53,
+    "before_after_evaluator_cases": 32,
+    "stored_label_projection_cases": 32,
+    "frozen_files_check": "Byte-identical contracts.py, boundary/canonical.py and evidence/events.py against base; INTERFACES.md retains entire prior content and appends section19."
+  },
+  "browser": {
+    "script": "tests/browser/explained_run.cjs",
+    "fixture": "tests/browser/explained_fixture.py",
+    "command": "env PLAYWRIGHT_MODULE=/private/tmp/astra-browser-check/node_modules/playwright PEB_BROWSER_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' /Users/vaquez/.hermes/node/bin/node tests/browser/explained_run.cjs /private/tmp/peb-explained-final-login.json /private/tmp/peb-explained-final-browser",
+    "result": {
+      "passed": true,
+      "published_runs": 5,
+      "recorded_events": 230,
+      "viewport_checks": [
+        "1440x1050",
+        "390x844"
+      ],
+      "source_records_modified": false,
+      "provider_calls": 0,
+      "checks": [
+        "recorded labels unchanged",
+        "structured then useful card order",
+        "report and evidence values",
+        "missing initial reference",
+        "continued decline",
+        "invalid output and correction count",
+        "event jump beyond50",
+        "late pagination race",
+        "selection race",
+        "stale event button",
+        "hostile prose inert",
+        "missing and unsupported explanation",
+        "unavailable predicate scope",
+        "corrupt event reference",
+        "mobile overflow"
+      ]
+    },
+    "result_sha256": "6a57497078406b050026cfa3135f34f6ebed049519c77ca93b510c464bb55841",
+    "fixture_command": ".venv/bin/python tests/browser/explained_fixture.py --login-file /private/tmp/peb-explained-final-login.json",
+    "read_only_check_command": ".venv/bin/python tests/browser/explained_fixture.py --check",
+    "source": "ab18df52774bafa6e663724eb56db2c8081db2bc",
+    "screenshots": "/private/tmp/peb-explained-final-browser",
+    "visual_check": "Final missing-citation outcome cards and invalid-run mobile glance inspected; all five traces checked at both viewports; complete report retained in evidence with single-line glance."
+  },
+  "existing_browser_regressions": {
+    "script": "tests/browser/workroom.cjs",
+    "fixture": "tests/browser/fixture_server.py --mock-model",
+    "passed_flags": [
+      "REVIEWS",
+      "LIFECYCLE",
+      "BUNDLES",
+      "COMPARISON",
+      "STUDIES"
+    ],
+    "result": {
+      "hostile_text_inert": true,
+      "actual_demo_visible": true,
+      "actual_handoff_labels_visible": true,
+      "global_review_workflow_checked": true,
+      "recorded_replay_checked": true,
+      "matched_comparison_checked": true,
+      "bundle_replay_checked": true,
+      "study_execution_checked": true,
+      "study_plan_checked": true,
+      "plan_download_identical": true,
+      "planning_created_no_runs": true,
+      "local_lifecycle_checked": true,
+      "thinking_preview_checked": true,
+      "mobile_no_overflow": true,
+      "page_errors": []
+    },
+    "state": "Disposable scripted/mock state on8789 with DEEPSEEK_API_KEY removed and Ollama endpoint127.0.0.1:9; no operator database or live inference."
+  },
+  "data_check": {
+    "command": ".venv/bin/python docs/evidence/operator-exercise-2026-09-13/verify_dataset.py",
+    "runs": 32,
+    "events": 1220,
+    "stored_evaluations": 31,
+    "study_journals": 2,
+    "files_checked": 360,
+    "new_evaluations": 0,
+    "external_anchor": "absent"
+  },
+  "final_main_tip": {
+    "resolve": "git log --first-parent --diff-filter=A -1 --format=%H -- docs/receipts/S7-explained-run-detail.json",
+    "clean_command": "bash scripts/clean_checkout_suite.sh <resolved-final-tip> --junitxml=/private/tmp/peb-review-continuation-validation/explained-final-junit.xml",
+    "expected": {
+      "tests": 1062,
+      "passed": 1062,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "ruff": "All checks passed!"
+    },
+    "push_condition": "Require normal clean-checkout suite at resolved final main tip and literal Ruff success, and dataset verification against that archived tip. Retain parsed exact-tip output outside repository."
+  },
+  "limits": [
+    "No label recomputation or changed predicate versions; unchanged stored evaluations and published dataset.",
+    "No new prose/refusal evaluator, token streaming, repeat-configuration or study-grid work.",
+    "No independent acceptance, matrix promotion, frozen-contract amendment or ADR-020 ruling.",
+    "Secure-input credentials expire on operator server restart; presence/source diagnostics do not verify provider acceptance."
+  ]
+}
