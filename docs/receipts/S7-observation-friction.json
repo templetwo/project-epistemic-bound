@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "kind": "observation_friction_integration",
+  "date": "2026-09-13",
+  "review": "assistant SELF-REVIEW; no independent acceptance or matrix promotion",
+  "review_path": "docs/reviews/UI-observation-friction-2026-09-13.md",
+  "decision": "docs/decisions/ADR-021-observation-format-corrections.md",
+  "base": "8cc2e5e718f3f5cf0e698e2c5dcab442848e79c0",
+  "product_commit": "7f84d9a68b16b73964959970e625d58254a575bc",
+  "product_merge": "76294567cf84cee21eedc88ed77f7313708a16bb",
+  "product_merge_tree_check": "git diff --exit-code 7f84d9a68b16b73964959970e625d58254a575bc 76294567cf84cee21eedc88ed77f7313708a16bb (exit 0)",
+  "clean_product_measurement": {
+    "command": "bash scripts/clean_checkout_suite.sh 7f84d9a68b16b73964959970e625d58254a575bc --junitxml=/private/tmp/peb-review-continuation-validation/friction-lane-junit.xml",
+    "exit_code": 0,
+    "tests": 851,
+    "passed": 851,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "ruff": "All checks passed!",
+    "junit_seconds": 28.95,
+    "stdout_sha256": "07a0b21734acd108414883ded4c666ca0a4fb8f1c36f25a6bca67e0f5c7d2d87",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "final_tip": {
+    "identity": "First-parent main commit introducing this receipt; resolves without a self-referential hash",
+    "resolve": "git log --first-parent --diff-filter=A -1 --format=%H -- docs/receipts/S7-observation-friction.json",
+    "clean_check_command": "bash scripts/clean_checkout_suite.sh <resolved-final-tip> --junitxml=/private/tmp/peb-review-continuation-validation/friction-final-junit.xml",
+    "push_condition": "Run the clean check at the resolved final tip; require 851 tests, zero failures/errors/skips, and the literal All checks passed! from Ruff before pushing. Retain stdout/stderr and parsed JUnit under /private/tmp/peb-review-continuation-validation/.",
+    "expected": {
+      "tests": 851,
+      "passed": 851,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "ruff": "All checks passed!"
+    }
+  },
+  "lint_limit": "The inherited clean-checkout script does not propagate Ruff exit status. This continuation separately checks the literal success line and the full development tree passed strict Ruff.",
+  "browser": {
+    "focused_script": "tests/browser/friction.cjs",
+    "focused_checks": 23,
+    "page_errors": [],
+    "full_script": "tests/browser/workroom.cjs",
+    "passed_flags": [
+      "REVIEWS",
+      "LIFECYCLE",
+      "BUNDLES",
+      "COMPARISON",
+      "STUDIES"
+    ],
+    "mobile_overflow": false,
+    "fixture": "temporary scripted/mock transport; operator database not used for tests; no paid inference",
+    "artifact_limit": "Local temporary screenshots and JSON are not durable external evidence; checked-in browser assertions are reproducible."
+  },
+  "earlier_review_response_receipt": "docs/receipts/S7-review-continuation.json",
+  "open_limits": [
+    "ADR-020 item (a) independent reviewer ruling / F12 unchanged",
+    "F9 frozen EvaluationRecord provenance amendment unchanged",
+    "A missing server-environment DeepSeek credential cannot be reconstructed by a code relaunch; no new hosted catalog success or paid inference claimed",
+    "Invalid raw statements are inspectable evidence, not executed behavior or automatically awarded factual-correction credit"
+  ]
+}
