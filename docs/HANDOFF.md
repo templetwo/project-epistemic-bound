@@ -150,6 +150,13 @@ running terminal, or `peb cancel <run-id>` from another one; both are recorded a
 
 ## What was actually tested
 
+**Current measurement of record:** the tip of `main`, measured on a clean checkout with
+`bash scripts/clean_checkout_suite.sh <tip>`. The per-tip series with its receipts is
+`docs/receipts/main-tip-suite-log.json`, and that file — not this section — is the one to read for current
+state. The bullets below are the S6-era measurements, kept as history and superseded (ordering corrected
+2026-09-13 after the external review of `6d56684`, F20, which noted that leading with them invites
+misreading them as current).
+
 - `scripts/clean_checkout_suite.sh 9ef4923` (the product tree; the docs commit on top changes no code; git archive → `uv sync --locked` → whole-tree ruff →
   `uv run --locked pytest -o addopts='' -q`): **562 passed, 0 failed, 0 skipped** (JUnit, 2026-09-11 23:49 EDT). Whole-tree `ruff check`: All checks passed.
 - `scripts/check_release.py` at `0dd24d4` (clean archive): tests collected 560 / passed 560 / failed 0 /

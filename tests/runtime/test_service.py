@@ -84,6 +84,12 @@ def test_health_get_reads_the_hosted_catalog_only_when_asked(tmp_path, monkeypat
         asyncio.run(service.request("health.get", {}, {"check_hosted": True, "unknown_field": 1}))
     assert e.value.code == ErrorCode.invalid_input
 
+    # Asking about an id without asking for the catalog is refused, not silently ignored (review F6).
+    with pytest.raises(PebError) as ignored:
+        asyncio.run(service.request("health.get", {}, {"hosted_model": "deepseek-chat"}))
+    assert ignored.value.code == ErrorCode.invalid_input
+    assert calls == [None, "deepseek-chat"]        # and no extra probe was made
+
 
 def test_profiles_list_needs_no_store_and_reports_arms_status_and_hygiene(tmp_path):
     out = asyncio.run(WorkroomService(tmp_path / "state").request("profiles.list", {}, {}))

@@ -23,6 +23,49 @@ def _app(t: FakeTransport, poll: bool = False) -> CockpitApp:
     return CockpitApp(t, clock=clock, poll=poll)
 
 
+def test_dispatched_work_actually_runs_and_is_not_silently_dropped():
+    """The dispatched selection worker must actually reach the transport.
+
+    Every other selection test calls `refresh_all()` explicitly, which performs the same reads directly and so
+    would pass even if the worker were dead. This one drives ONLY the worker: change the highlighted row, let
+    the event loop turn, and require the read to arrive.
+
+    What this is NOT: it is not the d3f5458 regression test, and saying so would be wrong. Measured on
+    2026-09-13 with the pre-fix dispatch restored, this test still PASSES — because a worker that actually
+    starts awaits a bare coroutine perfectly well. The d3f5458 bug only drops work when an exclusive worker is
+    cancelled BEFORE it starts, and the guard that catches that is the
+    `error::pytest.PytestUnraisableExceptionWarning` filter in pyproject.toml, which was added the same day
+    after the original `coroutine .* was never awaited` filter was shown not to fire (the warning arrives
+    through the garbage collector's unraisable hook, not the normal warning path). With the pre-fix dispatch
+    restored, that filter fails the suite; without it, 45/45 passed with the defect present.
+    """
+
+    async def scenario():
+        t = FakeTransport()
+        t.add_run("run_" + "d" * 32, "running")
+        t.add_run("run_" + "e" * 32, "completed")
+        app = _app(t)
+        async with app.run_test(size=(120, 40)) as pilot:
+            await app.refresh_all()          # inventory only; the selected-run read is the worker's job
+            await pilot.pause()
+            t.calls.clear()
+            # A real cursor move to a DIFFERENT run: re-selecting the same one is a deliberate no-op.
+            runs = app.query_one("#runs", DataTable)
+            runs.focus()
+            await pilot.pause()
+            runs.move_cursor(row=1)
+            # No refresh_all() here on purpose: nothing but the dispatched worker can satisfy this.
+            for _ in range(10):
+                await pilot.pause()
+                if any(name == "events" for name, _ in t.calls):
+                    break
+            reads = [name for name, _ in t.calls]
+            assert "events" in reads, f"the selection worker never reached the transport; saw {reads}"
+            assert t.mutations() == []       # and it is still a read: viewing writes nothing
+
+    asyncio.run(scenario())
+
+
 def test_viewing_writes_nothing_and_shows_recorded_not_started():
     async def scenario():
         t = FakeTransport()

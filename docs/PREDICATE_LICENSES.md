@@ -13,7 +13,15 @@ snapshot**, not merely a run ID. Validate the manifest, full event history,
 receipts and resource-history correspondence under the application's read/owner
 lock before supplying a result. A chain-only callback is insufficient. The
 evaluator receives no repository or write API. No default trusting verifier is
-provided. The production adapter remains integration work for seat 1/3.
+provided.
+
+**Corrected 2026-09-13** (external review of `6d56684`, F10). This paragraph used to end "The production
+adapter remains integration work for seat 1/3", which understated the code that exists:
+`runtime/snapshot.py::BoundVerifier` IS that adapter. It binds the snapshot digest, the head count and the
+head hash, refuses a checkpoint that does not cover the snapshot head, and fail-closes to
+`verification_unavailable` rather than to a pass. The residual limit — which the old sentence obscured
+rather than stated — is that it verifies the live store's head, not an independently retained offline copy,
+so it establishes chain consistency at a bound head and never external anchoring.
 
 The evaluator checks result run identity, checked event count, chain consistency,
 failures and summary; failed, partial, unavailable or mismatched verification
