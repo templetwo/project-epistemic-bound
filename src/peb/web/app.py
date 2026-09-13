@@ -84,7 +84,7 @@ async def _json_body(request: Request, *, limit: int = BODY_LIMIT) -> dict:
         data.extend(chunk)
     try:
         value = strict_json_loads(data.decode("utf-8"), ceiling_bytes=limit)
-    except (ValueError, UnicodeError):
+    except (ValueError, UnicodeError, RecursionError):
         raise _WebError(400, "Invalid JSON object.", ErrorCode.invalid_input) from None
     if not isinstance(value, dict):
         raise _WebError(400, "Expected a JSON object.", ErrorCode.invalid_input)
@@ -93,6 +93,9 @@ async def _json_body(request: Request, *, limit: int = BODY_LIMIT) -> dict:
 
 ROUTES = (
     ("GET", "/api/health", "health.get"),
+    ("GET", "/api/credentials/deepseek", "credential.get"),
+    ("POST", "/api/credentials/deepseek", "credential.set"),
+    ("POST", "/api/credentials/deepseek/clear", "credential.clear"),
     # The same operation. A GET carries no body, and asking for the hosted catalog is an explicit, CSRF-guarded
     # request that leaves the machine — so it is a POST, not a query string bolted onto a read.
     ("POST", "/api/health", "health.get"),
@@ -222,9 +225,15 @@ def create_workroom(
     def bind(operation: str, method: str):
         async def endpoint(request: Request):
             current_session = session(request)
+            credential_operation = operation.startswith("credential.")
+            # Credentials have no URL/query encoding and a much smaller body than run/evidence requests.
+            # Reject without reflecting parameter names or values, including malformed requests.
+            if credential_operation and request.query_params:
+                raise _WebError(400, "Provider credential requests do not accept query parameters.", ErrorCode.invalid_input)
             if method == "POST":
                 csrf(request)
-                payload = await _json_body(request, limit=STUDY_BODY_LIMIT if operation == "study.start" else BODY_LIMIT)
+                limit = 4096 if credential_operation else STUDY_BODY_LIMIT if operation == "study.start" else BODY_LIMIT
+                payload = await _json_body(request, limit=limit)
             else:
                 items = list(request.query_params.multi_items())
                 if (len(items) > 8 or len({k for k, _ in items}) != len(items)
@@ -269,10 +278,17 @@ def create_workroom(
                         raise _WebError(409, "Hosted resume requires a new budget preview; use the reviewed CLI flow.", ErrorCode.conflict)
                 result = await service.request(operation, path_ids, payload)
                 return JSONResponse(jsonable_encoder(result))
-            except PebError:
+            except PebError as exc:
+                if credential_operation:
+                    # Service validation can ordinarily describe offending fields. Neither names, input
+                    # values, exception context nor nested details from this channel may be returned.
+                    raise PebError(exc.code, "Provider credential request failed. Check the key format and try again.") from None
                 raise
             except Exception:  # noqa: BLE001 — never expose stack traces, credentials or host paths
                 raise PebError(ErrorCode.internal, "The workroom operation failed.") from None
+            finally:
+                if credential_operation:
+                    payload.clear()  # release the plaintext request reference; never record or retain its body
         return endpoint
 
     @app.post("/api/runs/preview")

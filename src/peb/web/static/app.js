@@ -14,6 +14,7 @@ let hostedModels = null, hostedStatus = "", hostedHost = "the pinned hosted endp
 let studyReadFailures = 0;
 let modelBusy = "", capabilityVersion = 0;
 const busyButtons = new Set(), inferenceRuns = new Set();
+let credentialBusy = false, credentialVersion = 0, credentialStatus = null, credentialOpener = null, hostedCredentialVersion = 0;
 const attemptedStudies = new Set();
 const pretty = (value) => JSON.stringify(value, null, 2);
 function note(text, error = false) { $("notice").textContent = text; $("notice").classList.toggle("error", error); }
@@ -29,7 +30,88 @@ async function api(path, body, method) {
   }
   return result;
 }
-function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; if (!yes) { csrf = ""; liveReset(); invalidatePreview(); invalidateStudy(); clearStudyRead(); invalidateComparison(); invalidateBundle(); reviewQueueVersion++; $("global-reviews").replaceChildren(); $("global-review-count").textContent = "Not loaded"; } }
+function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; $("open-credentials").hidden = !yes; if (!yes) { clearCredentialDialog(); csrf = ""; liveReset(); invalidatePreview(); invalidateStudy(); clearStudyRead(); invalidateComparison(); invalidateBundle(); reviewQueueVersion++; $("global-reviews").replaceChildren(); $("global-review-count").textContent = "Not loaded"; } }
+
+function credentialMessage(message, error = false) {
+  $("credential-message").textContent = message;
+  $("credential-message").classList.toggle("error", error);
+}
+function credentialControls() {
+  $("credential-form").setAttribute("aria-busy", String(credentialBusy));
+  $("credential-key").disabled = credentialBusy;
+  $("credential-save").disabled = credentialBusy || !$("credential-key").value;
+  $("credential-forget").disabled = credentialBusy || credentialStatus?.can_clear !== true;
+  $("credential-refresh").disabled = credentialBusy;
+}
+function clearCredentialDialog() {
+  credentialVersion++; $("credential-key").value = ""; credentialStatus = null;
+  if ($("credential-dialog").open) $("credential-dialog").close();
+  credentialControls();
+}
+function invalidateHostedCredentials() {
+  hostedCredentialVersion++;
+  hostedModels = null; hostedStatus = "";
+  invalidatePreview(); invalidateStudyPreview();
+  renderModelChoices(); renderStudyModelChoices();
+}
+function renderCredentialStatus(status) {
+  // Only these enums/bools are accepted from the credential route. Never display its free text or JSON.
+  if (status.provider !== "deepseek" || !["present", "absent"].includes(status.key) || !["secure_input", "environment", "absent"].includes(status.source) || status.lifetime !== "server_process" || typeof status.can_clear !== "boolean") throw new Error("invalid credential status");
+  credentialStatus = {key: status.key, source: status.source, can_clear: status.can_clear};
+  const message = status.key === "absent" ? "No DeepSeek key is available to this server." : status.source === "secure_input" ? "DeepSeek key present · entered for this running server." : "DeepSeek key present · inherited from the server environment.";
+  $("credential-status").textContent = message;
+  $("credential-note").textContent = `${message} Use Secure API input to manage the entered key. The operator secret is separate.`;
+}
+async function credentialOperation(operation, encodedBody) {
+  if (credentialBusy) return;
+  credentialBusy = true; const version = credentialVersion, session = csrf; credentialControls();
+  credentialMessage(operation === "get" ? "Checking this server's credential status…" : "Updating this server's credential…");
+  try {
+    const options = {method: operation === "get" ? "GET" : "POST", credentials: "same-origin", cache: "no-store", headers: {}};
+    if (operation !== "get") { options.headers["Content-Type"] = "application/json"; options.headers["X-Peb-CSRF"] = csrf; options.body = encodedBody; }
+    // This request deliberately bypasses api()/action(): no arbitrary credential error is copied to a notice.
+    const pending = fetch(`/api/credentials/deepseek${operation === "clear" ? "/clear" : ""}`, options);
+    encodedBody = undefined; delete options.body;
+    const response = await pending;
+    if (response.status === 401) { if (session === csrf) signedIn(false); return; }
+    if (!response.ok) throw new Error("credential operation refused");
+    const status = await response.json();
+    if (session !== csrf) return;
+    if (operation !== "get") invalidateHostedCredentials();
+    if (version !== credentialVersion || !$("credential-dialog").open) return;
+    renderCredentialStatus(status);
+    credentialMessage(operation === "get" ? "Status read from this server. No provider request was made." : operation === "clear" ? "Entered key forgotten. An inherited environment key remains available if configured." : "Key available for new runs and catalog checks. No catalog check or paid run was started.");
+  } catch (_) {
+    if (operation !== "get" && session === csrf) invalidateHostedCredentials();
+    if (version === credentialVersion && session === csrf && $("credential-dialog").open) {
+      credentialStatus = null; $("credential-status").textContent = "Credential status not confirmed.";
+      credentialMessage("The credential operation was not confirmed; check status before trying again. Nothing is retried automatically.", true);
+    }
+  } finally { encodedBody = undefined; credentialBusy = false; credentialControls(); }
+}
+function openCredentialDialog(button) {
+  if (!csrf) return;
+  credentialVersion++; credentialOpener = button; credentialStatus = null; $("credential-key").value = "";
+  $("credential-status").textContent = "Credential status not yet checked.";
+  $("credential-dialog").showModal(); credentialControls();
+  if (credentialBusy) credentialMessage("A credential request is still pending. Check status when it finishes.");
+  else credentialOperation("get").then(() => { if ($("credential-dialog").open && !credentialBusy) $("credential-key").focus(); });
+}
+for (const id of ["open-credentials", "hosted-credentials"]) $(id).addEventListener("click", () => openCredentialDialog($(id)));
+$("credential-key").addEventListener("input", credentialControls);
+$("credential-form").addEventListener("submit", event => {
+  event.preventDefault();
+  let value = $("credential-key").value; $("credential-key").value = ""; credentialControls();
+  if (credentialBusy) { value = ""; return; }
+  if (!/^[\x21-\x7E]{1,512}$/.test(value)) { value = ""; credentialMessage("Use 1–512 visible ASCII characters, with no spaces. The input has been cleared.", true); return; }
+  const pending = credentialOperation("set", JSON.stringify({api_key: value})); value = ""; void pending;
+});
+$("credential-refresh").addEventListener("click", () => { $("credential-key").value = ""; credentialOperation("get"); });
+$("credential-forget").addEventListener("click", () => { $("credential-key").value = ""; credentialOperation("clear", "{}"); });
+$("credential-cancel").addEventListener("click", clearCredentialDialog);
+$("credential-dialog").addEventListener("cancel", event => { event.preventDefault(); clearCredentialDialog(); });
+$("credential-dialog").addEventListener("close", () => { credentialVersion++; $("credential-key").value = ""; credentialStatus = null; credentialControls(); if (credentialOpener?.isConnected && !credentialOpener.hidden) credentialOpener.focus(); credentialOpener = null; });
+window.addEventListener("pagehide", clearCredentialDialog);
 async function action(button, task) {
   if (busyButtons.has(button)) return;
   busyButtons.add(button); button.disabled = true; activeRequests++;
@@ -78,7 +160,9 @@ function catalogNote(provider) {
   return `${installedModels.length} installed, read from ${ollamaEndpoint}. Nothing is downloaded from here.`;
 }
 async function loadHostedCatalog() {
+  const credentialVersion = hostedCredentialVersion, session = csrf;
   const report = await api("/api/health", {check_hosted: true});
+  if (credentialVersion !== hostedCredentialVersion || session !== csrf) return {status: "credentials_changed"};
   const hosted = report.hosted || {};
   hostedStatus = hosted.status || "no status reported";
   hostedHost = hosted.endpoint_host || "the pinned hosted endpoint";
@@ -88,7 +172,7 @@ async function loadHostedCatalog() {
 }
 function hostedCatalogNotice(hosted) {
   if (hostedModels && hostedModels.length) return `${hostedModels.length} models currently offered by ${hostedHost}. Choosing one changes nothing about the check: the id is verified again before any paid call.`;
-  if (hosted.status === "key_absent") return `No catalog: ${hosted.key_env || "the API key variable"} is absent from the running server's environment. The operator secret signs you into the workroom; it is not a provider API key. Set the API key in the environment that launches the server, then restart that server. An exact id can still be typed and is checked at launch.`;
+  if (hosted.status === "key_absent") return `No catalog: no DeepSeek key is available. Open Secure API input to enter one for this server, or set ${hosted.key_env || "the API key variable"} in the running server's environment and restart that server. The operator secret signs you into the workroom; it is not a provider API key. An exact id can still be typed and is checked at launch.`;
   return `No catalog from ${hostedHost}: ${hostedStatus}. An exact id can still be typed and is checked at launch.`;
 }
 function renderModelChoices() {
@@ -111,7 +195,7 @@ async function loadHealth() {
   const provider = report.provider || {};
   ollamaEndpoint = provider.endpoint || "";
   installedModels = Array.isArray(provider.installed_models) ? provider.installed_models : null;
-  $("credential-note").textContent = report.credentials?.deepseek?.note || "The operator secret opens this workroom. Hosted provider credentials must be set in the running server's environment; signing in does not configure them.";
+  $("credential-note").textContent = "The operator secret opens this workroom. Use Secure API input to enter a DeepSeek key for this running server, or inherit one from its environment. Saving a key makes no provider call.";
   renderModelChoices(); renderStudyModelChoices();
 }
 async function loadProfiles() {

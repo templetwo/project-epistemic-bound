@@ -1,5 +1,13 @@
 # HANDOFF — project-epistemic-bound v0.1 (integration state, not a release)
 
+**2026-09-13 secure-input follow-up.** Anthony requested a secure API-input
+window after the environment-key diagnosis. [ADR-022](decisions/ADR-022-secure-provider-input.md)
+records the new masked, authenticated DeepSeek input and per-service memory
+override. It supersedes earlier environment-only entry instructions. Saving a
+key performs no inference; hosted preview and confirmation remain required.
+Named non-disclosure and boundary assertions are in the ADR. Final measurements
+are appended to the tip log; no acceptance-matrix promotion is made.
+
 **2026-09-13 browser-exercise continuation.** This dated entry supersedes the
 current-unit description below. Anthony authorized addressing the exercise
 friction, pushing and relaunching. [ADR-021](decisions/ADR-021-observation-format-corrections.md)

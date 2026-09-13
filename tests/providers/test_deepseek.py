@@ -285,7 +285,7 @@ def test_an_escaped_key_in_a_catalog_id_or_error_message_is_refused_whole(monkey
 
 
 def test_the_decoded_scan_is_exact_and_bounded(monkeypatch):
-    from peb.providers.deepseek import _contains_secret
+    from peb.providers.deepseek import _contains_secret, _CredentialScanLimit
 
     assert _contains_secret({"a": [{"b": KEY}]}, KEY)
     assert _contains_secret({KEY: 1}, KEY)  # object keys too
@@ -303,7 +303,9 @@ def test_the_decoded_scan_is_exact_and_bounded(monkeypatch):
         return text
 
     assert _contains_secret(escaped_levels(3), KEY)  # within the bound: found through three decodes
-    assert not _contains_secret(escaped_levels(12), KEY)  # beyond the bound: the scan stops (bounded, not recursive forever)
+    # Beyond the bound is incomplete inspection, never evidence that the secret is absent.
+    with pytest.raises(_CredentialScanLimit):
+        _contains_secret(escaped_levels(12), KEY)
     # A legitimate completion that merely mentions the word "key" is not a reflection.
     p = provider(completion('{"kind": "finish", "statement": "the key result is 6"}'), monkeypatch)
     assert asyncio.run(p.generate(request())).error is None

@@ -107,14 +107,11 @@ async def probe_ollama_model(cfg: AppConfig, model: str, *, transport: Any = Non
 
 
 def _credential_report(cfg: AppConfig) -> dict[str, Any]:
-    """Presence only, from this process; browser authentication cannot change inherited credentials."""
-    return {"deepseek": {
-        "key_env": cfg.deepseek_api_key_env,
-        "key": "present" if os.environ.get(cfg.deepseek_api_key_env) else "absent",
-        "source": "server process environment (CLI: the command process environment)",
-        "note": "Operator login unlocks local controls; it does not load provider credentials. "
-                "A server started without the key must be relaunched from an environment where it is present.",
-    }}
+    """Presence/source only, from the same request snapshot that providers use."""
+    from .providers.credentials import credential_status, resolve_credential
+
+    return {"deepseek": {**credential_status(resolve_credential(cfg.deepseek_api_key_env)),
+                         "key_env": cfg.deepseek_api_key_env}}
 
 
 def _service_identity() -> dict[str, Any]:
@@ -159,7 +156,7 @@ async def probe_hosted_catalog(cfg: AppConfig, model: str | None = None, *, tran
     does is move that same check earlier, to where the operator is still choosing, instead of letting them find
     out at launch (Anthony, live in the workroom: "make sure the deepseek model choices are validated to actual
     current models"). Free metadata, never an inference call, no retry, no fallback, host pinned by the provider.
-    The key is read by the provider from its environment variable and is never returned here.
+    The key is captured by the provider from this request's credential snapshot and is never returned here.
 
     `model=None` asks for the catalog alone, so no verdict about any id is reported.
     """
@@ -232,10 +229,10 @@ def cmd_providers_list(args: argparse.Namespace) -> int:
     cfg = load_config(args.state_root)
     ollama: dict[str, Any] = _probe_ollama(cfg)
     ollama["selectable_for_measured_runs"] = ollama["status"] == "ok"
-    import os as _os
+    credential = _credential_report(cfg)["deepseek"]
     deepseek = {"kind": "deepseek", "endpoint": cfg.deepseek_endpoint, "key_env": cfg.deepseek_api_key_env,
-                "key": "present" if _os.environ.get(cfg.deepseek_api_key_env) else "absent",
-                "status": "configured" if _os.environ.get(cfg.deepseek_api_key_env) else "key_absent",
+                "key": credential["key"], "source": credential["source"],
+                "status": "configured" if credential["key"] == "present" else "key_absent",
                 "network": "not contacted by this command", "paid": True, "selectable_for_measured_runs": True,
                 "note": "hosted; explicit https endpoint and model id; no fallback; run `peb run --provider deepseek "
                         "--dry-run ...` to see the outbound-data scope and maximum budget before any paid request (ADR-017)"}

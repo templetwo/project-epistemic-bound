@@ -1,5 +1,9 @@
 # INTERFACES — frozen at the S1 contract commit (BUILD_SPEC §8, §19 S1)
 
+**2026-09-13 subsequent amendment:** [ADR-022](decisions/ADR-022-secure-provider-input.md)
+records Anthony's secure-input request. §18 adds an authenticated operator key
+channel; frozen subject contracts and §§1–12 are unchanged.
+
 **2026-09-13 scoped amendment:** [ADR-021](decisions/ADR-021-observation-format-corrections.md)
 records Anthony's subsequent browser-exercise direction and the additive service,
 evaluation-envelope and provider changes below. It supersedes the blanket
@@ -297,3 +301,26 @@ maximum budget with no network and no state change; it is the gate before any pa
   value, process environment, template or raw model parameters are returned.
 - Ollama may populate the existing optional response `reasoning` field from
   `message.thinking`. It remains bounded evidence, never authorization.
+
+## 18. ADR-022 operator credential input (2026-09-13)
+
+| Operation | HTTP route | Payload | Return |
+|---|---|---|---|
+| `credential.get` | `GET /api/credentials/deepseek` | `{}` | Presence/source only; no stored key value |
+| `credential.set` | `POST /api/credentials/deepseek` | `{"api_key": "<bounded token>"}` | Presence/source after installing this service's memory override |
+| `credential.clear` | `POST /api/credentials/deepseek/clear` | `{}` | Presence/source after removing the override; environment fallback may remain |
+
+All three have no path ids. Their flat status includes `provider: deepseek`,
+`key: present|absent`, `source: secure_input|environment|absent`,
+`lifetime: server_process`, `can_clear: bool` and an explanatory `note`.
+Validation is strict with generic, nonreflecting errors; credential routes
+accept no query fields, cap the JSON body at 4 KiB and require a printable ASCII
+token of 1–512 characters without whitespace. No provider/store/evidence action
+is performed by these operations. `health.get` retains presence-only credential
+diagnostics and reports the effective source for this service request.
+
+DeepSeek provider construction and CLI credential diagnostics share a scoped
+resolver: a service's request snapshot takes precedence over the existing named
+environment variable. No new secret-bearing model/provider dataclass field is
+serialized. Clearing/replacing the stored override affects new requests; an
+already constructed provider retains its credential for its in-flight operation.

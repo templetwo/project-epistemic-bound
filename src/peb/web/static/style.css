@@ -17,3 +17,7 @@ details.rates{border-top:1px solid var(--line);margin-top:16px;padding-top:4px}d
 .live-done{font-weight:600;color:var(--green)}
 
 .response-check{border-top:1px solid var(--line);padding:12px 0}.response-check h4{margin:0 0 8px}#model-progress:empty{display:none}#response-checks{border-left:3px solid var(--red)}
+
+#credential-dialog{width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;border:1px solid var(--line);border-radius:8px;padding:26px;background:var(--card);color:var(--ink);box-shadow:0 16px 70px #20342e33}#credential-dialog::backdrop{background:#16292188}#credential-dialog .actions{margin-top:14px}#credential-dialog p{font-size:13px}#credential-dialog p.fine{font-size:11px}#credential-message:empty{display:none}#credential-message.error{color:var(--red)}#credential-dialog .credential-fallback{margin:16px 0 0}#credential-dialog input{margin-bottom:6px}.header-right{flex-wrap:wrap;justify-content:flex-end}@media(max-width:680px){.header-right .local{width:100%;text-align:right}.header-right{gap:5px;max-width:205px}.header-right button{padding:7px 9px;font-size:11px}#credential-dialog{padding:20px}}
+
+.sidebar,.sidebar fieldset,.main-column{min-width:0}.sidebar select{min-width:0;max-width:100%}@media(max-width:680px){.grid{grid-template-columns:minmax(0,1fr)}.outcomes{grid-template-columns:repeat(3,minmax(0,1fr))}.outcome{min-width:0;overflow-wrap:anywhere}}

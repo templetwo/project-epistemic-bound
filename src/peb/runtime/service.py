@@ -17,7 +17,14 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import Field, TypeAdapter, ValidationError, field_validator, model_validator
+from pydantic import (
+    Field,
+    SecretStr,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from ..config import DEFAULT_OLLAMA_ENDPOINT
 from ..contracts import Actor, Checkpoint, PebId, StrictModel
@@ -26,6 +33,9 @@ from ..errors import ErrorCode, PebError
 
 class Operation(StrEnum):
     health_get = "health.get"
+    credential_get = "credential.get"
+    credential_set = "credential.set"
+    credential_clear = "credential.clear"
     demo_run = "demo.run"
     run_start = "run.start"
     run_preview = "run.preview"
@@ -81,6 +91,17 @@ def _registered_task(value: str) -> str:
 
 class EmptyPayload(StrictModel):
     pass
+
+
+class CredentialSetPayload(StrictModel):
+    api_key: SecretStr = Field(repr=False)
+
+    @field_validator("api_key", mode="before")
+    @classmethod
+    def _strict_printable_key(cls, value: Any) -> str:
+        if type(value) is not str or not 1 <= len(value) <= 512 or any(not 33 <= ord(c) <= 126 for c in value):
+            raise ValueError("invalid credential")
+        return value
 
 
 class HealthGetPayload(StrictModel):
@@ -282,6 +303,8 @@ class CommitmentRevisePayload(StrictModel):
 
 
 PAYLOADS: dict[Operation, type[StrictModel]] = {
+    Operation.credential_get: EmptyPayload, Operation.credential_set: CredentialSetPayload,
+    Operation.credential_clear: EmptyPayload,
     Operation.health_get: HealthGetPayload, Operation.demo_run: DemoRunPayload, Operation.run_start: RunStartPayload,
     Operation.run_preview: RunPreviewPayload,
     Operation.run_create: RunCreatePayload, Operation.run_step: ConfirmPayload, Operation.run_begin: ConfirmPayload,
@@ -296,6 +319,7 @@ PAYLOADS: dict[Operation, type[StrictModel]] = {
     Operation.evidence_verify: VerifyPayload, Operation.evidence_export: ExportPayload,
 }
 PATH_IDS: dict[Operation, tuple[str, ...]] = {
+    Operation.credential_get: (), Operation.credential_set: (), Operation.credential_clear: (),
     Operation.health_get: (), Operation.demo_run: (), Operation.run_start: (), Operation.run_preview: (),
     Operation.run_create: (), Operation.run_step: ("run_id",), Operation.run_begin: ("run_id",),
     Operation.commitment_accept: ("run_id", "commitment_id"), Operation.commitment_revise: ("run_id", "commitment_id"),
@@ -317,6 +341,16 @@ def parse_request(operation: Any, path_ids: Any, payload: Any) -> tuple[Operatio
     except ValueError:
         raise PebError(ErrorCode.invalid_input, "unknown operation",
                        {"operation": str(operation)[:80], "known": [o.value for o in Operation]}) from None
+    if op in (Operation.credential_get, Operation.credential_set, Operation.credential_clear):
+        # Secret input can be in an unexpected field name or path-id key, not only api_key. Do not expose
+        # ValidationError input, location, message, or JSON serialization details for this operation family.
+        if not isinstance(path_ids, dict) or path_ids or not isinstance(payload, dict):
+            raise PebError(ErrorCode.invalid_input, "invalid credential request")
+        try:
+            body = PAYLOADS[op].model_validate_json(json.dumps(payload))
+        except (ValidationError, TypeError, ValueError, RecursionError):
+            raise PebError(ErrorCode.invalid_input, "invalid credential request") from None
+        return op, {}, body
     if not isinstance(path_ids, dict) or set(path_ids) != set(PATH_IDS[op]):
         raise PebError(ErrorCode.invalid_input, "path ids do not match the operation",
                        {"operation": op.value, "expected": list(PATH_IDS[op]),
@@ -373,14 +407,39 @@ class WorkroomService:
         from ..cli import _service_identity
 
         self._process_identity = _service_identity()
+        self._credential_override: SecretStr | None = None
 
     async def request(self, operation: Any, path_ids: Any, payload: Any) -> dict[str, Any]:
+        from ..config import load_config
+        from ..providers.credentials import credential_scope, snapshot_credential
+
         op, ids, body = parse_request(operation, path_ids, payload)
         handler = getattr(self, "_" + op.name)
-        result = handler(ids, body)
-        if inspect.isawaitable(result):
-            result = await result
-        return result
+        snapshot = snapshot_credential(self._credential_override, load_config(self._state_root).deepseek_api_key_env)
+        with credential_scope(snapshot):
+            result = handler(ids, body)
+            if inspect.isawaitable(result):
+                result = await result
+            return result
+
+    def _credential_status(self) -> dict[str, Any]:
+        from ..config import load_config
+        from ..providers.credentials import credential_status, snapshot_credential
+
+        # Read the current slot explicitly: a set/clear response must not report the request's older snapshot.
+        cfg = load_config(self._state_root)
+        return credential_status(snapshot_credential(self._credential_override, cfg.deepseek_api_key_env))
+
+    def _credential_get(self, ids: dict[str, str], body: EmptyPayload) -> dict[str, Any]:
+        return self._credential_status()
+
+    def _credential_set(self, ids: dict[str, str], body: CredentialSetPayload) -> dict[str, Any]:
+        self._credential_override = body.api_key
+        return self._credential_status()
+
+    def _credential_clear(self, ids: dict[str, str], body: EmptyPayload) -> dict[str, Any]:
+        self._credential_override = None
+        return self._credential_status()
 
     # -- store access -----------------------------------------------------------------------------
 

@@ -1,5 +1,20 @@
 # Local workroom
 
+**Secure API input (2026-09-13, [ADR-022](decisions/ADR-022-secure-provider-input.md)).**
+After signing in, open **Secure API input**, paste your DeepSeek key in the masked
+field, and choose **Use key for this server**. The field clears after submission.
+The key is available immediately to new hosted requests; no restart or shell
+export is required. Saving it makes no provider call. Use **Check the hosted
+catalog** separately, then preview and authorize your selected run as usual.
+
+The entered key stays in this server's memory until **Forget entered key** or a
+server restart. It is not written to the application database, browser storage,
+run records or exports. Signing out clears the dialog but leaves the server key
+available for active work. An environment key still works as a fallback, and
+forgetting an entered key does not remove that launch-time fallback. The source
+and availability are shown without returning the key. This supersedes the
+environment-only entry instructions retained below.
+
 Launch `uv run --locked peb serve --host 127.0.0.1 --port 8787`, open
 http://127.0.0.1:8787, and enter `operator.secret` from your selected state
 root. Keep that file private. Stop the foreground server with Ctrl-C. Subject
