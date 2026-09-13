@@ -1,0 +1,117 @@
+{
+  "unit": "Trace reason wrapping and visible actor overview",
+  "date": "2026-09-13",
+  "base_main": "8b90721f6dd8c32a5a50f1fda8f26ca6c6128b80",
+  "product_commit": "53408e8801f1dd5b50e433d4e882b09d8efe80a1",
+  "review": "assistant SELF-REVIEW with bounded agent code checks; no independent acceptance verdict",
+  "review_path": "docs/reviews/UI-trace-readability-2026-09-13.md",
+  "product_clean_measurement": {
+    "command": "bash scripts/clean_checkout_suite.sh 53408e8801f1dd5b50e433d4e882b09d8efe80a1 --junitxml=/private/tmp/peb-review-continuation-validation/trace-followup-product-junit.xml",
+    "tests": 1069,
+    "passed": 1069,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "ruff": "All checks passed!",
+    "stdout_sha256": "0033ea3ce0add6e4620db14ef2eb540860c8a063e214f449fff5110605f5f7d1",
+    "junit_sha256": "c3a131620309c5e95967ce7549e5047f83e856b134aedf0f6d6c4958c251d236",
+    "guard": "Normal repository isolation guard enabled."
+  },
+  "browser": {
+    "fixture": "tests/browser/explained_fixture.py",
+    "script": "tests/browser/instrument.cjs",
+    "command": "env PLAYWRIGHT_MODULE=/private/tmp/astra-browser-check/node_modules/playwright PEB_BROWSER_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' /Users/vaquez/.hermes/node/bin/node tests/browser/instrument.cjs /private/tmp/peb-trace-followup-login.json /private/tmp/peb-trace-followup-browser",
+    "passed": true,
+    "published_runs": 6,
+    "recorded_events": 259,
+    "checks": [
+      "exact stored outcome labels",
+      "raw-label outcome hierarchy",
+      "sticky source navigation",
+      "compacted hero after selection",
+      "complete actor and gate trace",
+      "exact ledger event jumps",
+      "theme-only persistence",
+      "two-column desktop evidence",
+      "single-column mobile evidence",
+      "dark text contrast including missing explanation",
+      "read-only selected-run polling",
+      "stale verification hidden on append and late completion",
+      "elapsed recorded-request time",
+      "append-only trace motion",
+      "no replay motion",
+      "reduced motion",
+      "hung old poll cannot block new selection",
+      "stale initial ledger cannot overwrite appended evidence",
+      "review draft caret and focus survive append",
+      "202-event trace pagination and polling retention",
+      "hostile unknown actor remains inert",
+      "exact reason text wraps between identifier components",
+      "full snapshot actor counts including quiet and off-page actors",
+      "cast stays visible and scroll hint matches overflow",
+      "hostile gate reason remains inert"
+    ],
+    "source_records_unchanged": true,
+    "model_calls": 0,
+    "server_mutation_requests": 0,
+    "intercepted_browser_only_verification_posts": 2,
+    "viewport_widths": [
+      1440,
+      900,
+      768,
+      390
+    ],
+    "themes": [
+      "system",
+      "light",
+      "dark"
+    ],
+    "result_sha256": "4e5ac17866d5ba362041939b4fbd147cfad20e26a694dead1730bb879d797eb2",
+    "screenshot_count": 15,
+    "artifact_directory": "/private/tmp/peb-trace-followup-browser",
+    "contrast_samples": 583,
+    "contrast_contexts": [
+      "light-quiet-cast",
+      "dark-quiet-cast",
+      "dark-missing-explanation",
+      "1440-light",
+      "1440-dark",
+      "900-light",
+      "900-dark",
+      "768-light",
+      "768-dark",
+      "390-light",
+      "390-dark"
+    ]
+  },
+  "explanation_browser": {
+    "script": "tests/browser/explained_run.cjs",
+    "passed": true,
+    "published_runs": 6,
+    "recorded_events": 259,
+    "checks": 19,
+    "artifact_directory": "/private/tmp/peb-trace-followup-explained",
+    "provider_calls": 0
+  },
+  "boundary_command": "git diff --exit-code 8b90721 -- src/peb/contracts.py src/peb/boundary/canonical.py src/peb/evidence/events.py src/peb/evaluation docs/INTERFACES.md docs/evidence/operator-exercise-2026-09-13",
+  "final_main_tip": {
+    "resolve": "git log --first-parent --diff-filter=A -1 --format=%H -- docs/receipts/S7-trace-readability.json",
+    "clean_command": "bash scripts/clean_checkout_suite.sh <resolved-final-tip> --junitxml=/private/tmp/peb-review-continuation-validation/trace-followup-final-junit.xml",
+    "expected": {
+      "tests": 1069,
+      "passed": 1069,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "ruff": "All checks passed!"
+    },
+    "push_condition": "Exact resolved tip must pass the normal clean suite and strict whole-tree Ruff; parsed final output retained outside repository."
+  },
+  "limits": [
+    "Five fixed lanes retain horizontal scrolling on narrow screens; the actor overview itself fits.",
+    "Actor counts describe committed events in the full supplied snapshot, not actions or effects.",
+    "Reason text and title remain exact; wbr elements only add wrap opportunities.",
+    "Live motion is measured with synthetic browser GET responses; this receipt does not claim observation during real inference.",
+    "No evaluator, protocol, frozen interface, stored outcome or acceptance status change."
+  ]
+}

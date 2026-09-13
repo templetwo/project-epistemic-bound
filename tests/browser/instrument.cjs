@@ -131,7 +131,7 @@ async function layout(page, width, scheme) {
   assert(measured.report.width >= 220, `report cell is only ${measured.report.width}px wide`);
   const traceLayout = await page.evaluate(() => {
     const cast = [...document.querySelectorAll('#trace-events .trace-cast-item')].map(node => {
-      const r = node.getBoundingClientRect(); return {actor: node.dataset.actor, left: r.left, right: r.right};
+      const r = node.getBoundingClientRect(); return {actor: node.dataset.actor, left: r.left, right: r.right, width: r.width, height: r.height, visible: getComputedStyle(node).visibility !== 'hidden'};
     });
     const scroller = document.querySelector('#trace-events .trace-scroll');
     const hint = document.querySelector('#trace-events .trace-overflow-hint');
@@ -156,7 +156,7 @@ async function layout(page, width, scheme) {
     return {cast, overflow: scroller.scrollWidth > scroller.clientWidth,
       hintVisible: getComputedStyle(hint).display !== 'none', reachable, reasonLines: range.getClientRects().length};
   });
-  assert(traceLayout.cast.length >= 5 && traceLayout.cast.every(item => item.left >= 0 && item.right <= width + 1),
+  assert(traceLayout.cast.length >= 5 && traceLayout.cast.every(item => item.left >= 0 && item.right <= width + 1 && item.width > 0 && item.height > 0 && item.visible),
     `${scheme}/${width}: all five cast summaries fit without horizontal scrolling`);
   assert.equal(traceLayout.hintVisible, traceLayout.overflow, 'overflow instructions appear when lane scrolling is needed');
   assert(traceLayout.reachable, 'executor and evaluator are reachable together at the end of the horizontal scroll');
@@ -174,7 +174,7 @@ async function contrast(page, label) {
     const luminance = color => color.slice(0, 3).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4)
       .reduce((sum, v, i) => sum + v * [.2126, .7152, .0722][i], 0);
     const selectors = ['#run-id', '#provenance', '#run-report-status', '#run-report-provenance', '#run-predicate-version',
-      '#run-presence', '#run-nav a', '#outcomes .outcome > span', '#outcomes .outcome > strong', '#trace-events .trace-header .actor-label', '#trace-events .trace-row-actor .actor-label', '#theme', '#export-path'];
+      '#run-presence', '#run-nav a', '#outcomes .outcome > span', '#outcomes .outcome > strong', '#trace-events .trace-header .actor-label', '#trace-events .trace-row-actor .actor-label', '#trace-events .trace-cast .actor-label', '#trace-events .trace-actor-count', '#theme', '#export-path'];
     return selectors.flatMap(selector => [...document.querySelectorAll(selector)].filter(node => {
       const style = getComputedStyle(node); return node.getClientRects().length && style.visibility !== 'hidden' && !node.disabled;
     }).slice(0, selector.includes('trace-row-actor') ? 12 : 6).map(node => {
@@ -473,6 +473,12 @@ async function longTrace(page, base) {
       assert(await page.locator('body').evaluate(node => node.classList.contains('operator-focus')));
       assert((await page.locator('.intro').evaluate(node => node.getBoundingClientRect().height)) < introBefore, 'selected run compacts the introductory hero');
       assert(!/awaiting|\d+s since/i.test(await page.locator('#run-presence').innerText()), 'historical run does not imply live inference');
+    }
+    await selected(page, runs.local_invalid);
+    assert(await page.locator('#trace-events .trace-actor-quiet').count() > 0);
+    for (const scheme of ['light', 'dark']) {
+      await page.locator('#theme').selectOption(scheme); await dark(page, scheme === 'dark');
+      await contrast(page, `${scheme}-quiet-cast`);
     }
     const fallbackRun = runs.legacy_missing_initial, fallbackUrl = `${origin}/api/runs/${fallbackRun.run_id}`;
     const fallback = structuredClone(snapshots.legacy_missing_initial); delete fallback.explanation;

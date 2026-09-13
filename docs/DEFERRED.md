@@ -75,3 +75,20 @@ why not now.
   (Residual, also from that review, F14: the underlying cancelled-worker race still has no direct regression test.)
 - 2026-09-12, seat 2/3 (board #28715, #28746, #28775, #28833) - two pre-existing unawaited-refresh coroutine warnings in the Textual cockpit (`src/peb/tui/`), observed by seat 2/3 in exact-archive runs at 64e4290, 9a57144 and 84b2ad1. Attested by 2/3 on the board; not re-measured by 1/3 at this entry. Never reproduced into a test, a `docs/TUI.md` limit or a matrix row - 'recorded' meant recorded on the board, which is the conversation, not the durable record.
 - 2026-09-12, seat 1/3 - `docs/evidence/s6-demo/` and `docs/evidence/live-01/` keep the pre-`11551d3` `evaluation.json = {\"present\": false}` stub. The exporter was corrected at `11551d3` and `docs/evidence/deepseek-01/export-at-22a0359/` is the proof; the other bundles were never re-exported and, with seat 3/3's lane vacant, will not be by that seat. The evaluator's record for those runs remains in `events.jsonl` (`evaluation_recorded`) and `summary.json`, as their READMEs state. This is a permanent limit, not a pending follow-up.
+
+
+## Correction-feedback diagnostics follow-up (2026-09-13)
+
+- Compact complete field-path/error-type diagnostics for format correction,
+  without echoing input values. `contracts.py:parse_decision` currently retains
+  only `str(e)[:500]`, and `runtime/engine.py` appends the resulting reason to
+  the correction prompt. Reproduction of the source limitation:
+  `rg -n 'str\(e\)\[:500\]|feedback\["reason"\]' src/peb/contracts.py src/peb/runtime/engine.py`.
+  Preserve the frozen parser and original invalid record; version any new
+  correction assistance and keep its calls inside the existing cap. Measure
+  completeness and non-convergence separately; shortening feedback does not by
+  itself establish why a subject failed.
+- Provider diagnostics: Ollama `_err` discards detail, and its HTTP400 path maps
+  to `unsupported_setting`. A recorded classification alone does not identify
+  which setting was rejected. A future bounded diagnostic must avoid leaking
+  provider text or credentials; no change is made in the trace display unit.
