@@ -233,6 +233,17 @@
       "skipped": 0,
       "tests": 707,
       "tip": "1faf784"
+    },
+    {
+      "errors": 0,
+      "failed": 0,
+      "measured_at_local": "2026-09-12T21:2x-0400",
+      "passed": 707,
+      "receipt": "docs/receipts/S7-room-closed.json \u2014 the pushed tip of the close, measured directly. The earlier 1faf784 entry is the same product tree except src/peb/__init__.py's docstring.",
+      "ruff": "All checks passed",
+      "skipped": 0,
+      "tests": 707,
+      "tip": "de0d2da"
     }
   ]
 }

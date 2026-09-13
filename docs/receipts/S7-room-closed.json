@@ -6,14 +6,14 @@
   "decision_record": "docs/decisions/ADR-020-build-room-closed.md",
   "product_tip_when_the_room_closed": "a5a95db (2026-09-12 08:15:52 -0400, pushed)",
   "measured": {
-    "ref": "1faf784",
-    "command": "bash scripts/clean_checkout_suite.sh 1faf784",
+    "ref": "de0d2da (the pushed tip itself)",
+    "command": "bash scripts/clean_checkout_suite.sh de0d2da",
     "passed": 707,
     "failed": 0,
     "errors": 0,
     "skipped": 0,
     "ruff": "All checks passed (whole tree)",
-    "note": "707 = the 706 of the previous tip plus one new test (the cockpit refusing a port it did not open). The ISO-02 operator-state guard did not fire: the operator's live workroom on 8787 was idle during the run. Docs-only commits after this measurement do not change the measured product tree."
+    "note": "707 = the 706 of the previous tip plus one new test (the cockpit refusing a port it did not open). The ISO-02 operator-state guard did not fire. Measured twice: first at 1faf784 before the closure documentation, then again at de0d2da because that documentation also touched src/peb/__init__.py's docstring \u2014 'docs-only on top of the measured tree' would not have been literally true, and a measurement must cover the tip it is cited for."
   },
   "lanes_closed": [
     {
