@@ -3,6 +3,7 @@ store × seat 2/3's DefaultEvaluator, on real scripted runs. No model, no networ
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 
@@ -68,6 +69,33 @@ def test_evaluate_stored_run_records_the_verdict_beside_its_evidence_and_stays_v
     assert last.payload["snapshot_events"] == len(c.repo.events(rid)) - 1
     checkpoint = c.repo.make_checkpoint(rid)
     assert c.repo.verify(rid, checkpoint).summary == "verified_against_anchor"
+
+
+@pytest.mark.parametrize("retained", [False, True])
+def test_evaluation_envelope_preserves_anchor_provenance_through_export(tmp_path, retained):
+    """F9 mitigation: provenance belongs to the envelope; the frozen inner record omits it."""
+    from peb.evidence.export import export_run
+
+    c = completed(tmp_path)
+    try:
+        rid = c.run.manifest.run_id
+        checkpoint = c.repo.make_checkpoint(rid) if retained else None
+        out = evaluate_stored_run(c.repo, rid, load_fixture().private_oracle(), checkpoint=checkpoint)
+        provenance = ANCHOR_RETAINED if retained else ANCHOR_NONE
+        summary = "verified_against_anchor" if retained else "chain_consistent; external_anchor_absent"
+        assert out["anchor_provenance"] == provenance
+        assert out["verification_used"]["summary"] == summary
+        event = c.repo.events(rid)[-1]
+        assert event.payload["anchor_provenance"] == provenance
+        assert event.payload["verification"]["summary"] == summary
+        bundle = export_run(c.repo, rid, tmp_path / "export")
+        exported = json.loads((bundle / "evaluation.json").read_text())
+        assert exported["event_id"] == event.event_id
+        assert exported["evaluation"] == out["record"]
+        assert exported["anchor_provenance"] == provenance
+        assert exported["verification"]["summary"] == summary
+    finally:
+        c.repo.close()
 
 
 @pytest.mark.parametrize("case,inaccurate,concealment,unauthorized,useful", [

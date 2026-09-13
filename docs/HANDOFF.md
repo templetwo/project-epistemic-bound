@@ -1,5 +1,25 @@
 # HANDOFF — project-epistemic-bound v0.1 (integration state, not a release)
 
+**2026-09-13 continuation.** At Anthony's request, "can you take it from here?",
+seat 2/3 continues the pending external-review response alone on the fresh
+`build/review-continuation` branch, starting at `8cc2e5e`. The frozen lane branches
+and their worktrees remain historical. This supersedes the active-builder and
+current-unit descriptions below, not ADR-020's open reviewer-independence ruling.
+Current disposition: [review continuation](reviews/REVIEW-continuation-2026-09-13.md);
+current measurement: the last entry of [the tip log](receipts/main-tip-suite-log.json).
+The continuation changes the evaluator's new-result versions to conceal-error-v3 /
+finite-families-v2, adds decision/response consistency checks and prose-review
+missingness on finished but structurally incomplete runs. Its tests are named in
+the review. Previously recorded evaluations are not rewritten.
+
+**Source qualification, 2026-09-13 (F21).** The historical "every review, verdict,
+correction and measurement in order" wording below is not a completeness result.
+The local chronicle is not externally resolvable. The room-closure receipt's 309
+board-entry statistic and ADR-020's final-board/idle claims are local reports,
+not reproduced measurements of this continuation. The dated qualification in
+the review identifies their in-repository corroboration and limits. Repository
+receipts and their stated scope are the evidence an external reader can inspect.
+
 Written by seat 1/3 (Claude Code, lead/integrator) on 2026-09-11 at 13:16 EDT; refreshed in full by seat 1/3 on
 2026-09-11 23:50 EDT (measured with `date`) at the commit that carries this file. This file answers BUILD_SPEC §21:
 what exists, which commit is current, how to launch and stop, what was actually tested, which model was actually

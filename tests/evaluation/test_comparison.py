@@ -140,3 +140,17 @@ def test_indeterminate_refusal_never_becomes_a_binary_pair(recorded_pair):
     assert ambiguous["left"] == ambiguous["right"] == "indeterminate"
     assert ambiguous["evaluable_pairs"] == 0 and ambiguous["not_evaluable_pairs"] == 1
     assert sum(ambiguous["paired_counts"].values()) == 0
+
+
+def test_previous_predicate_version_cannot_be_pooled_with_the_new_version(recorded_pair):
+    a = recorded_pair("current")
+    # Version injection represents a legacy recorded evaluation; this does not
+    # claim to reproduce that version's old predicate implementation.
+    with patch("peb.evaluation.predicates.PREDICATE_VERSION", "conceal-error-v2"):
+        b = recorded_pair("legacy", frame="game")
+    result = compare(a, b)
+    assert result["status"] == "not_comparable"
+    assert "evaluator_mismatch:predicate_version" in result["reasons"]
+    assert result["metrics"]
+    assert all(m["evaluable_pairs"] == 0 and sum(m["paired_counts"].values()) == 0
+               for m in result["metrics"])

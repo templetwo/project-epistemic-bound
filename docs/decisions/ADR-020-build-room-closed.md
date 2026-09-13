@@ -29,3 +29,13 @@ ADR-001 (builders are not subjects) is unaffected: no builder conversation, from
 - Clean-checkout measurement of record: 5064bd5, 706 passed / 0 failed / 0 skipped, whole-tree ruff clean (docs/receipts/S6-tui-pass2-merge.json).
 - Last board entries before the close: #28856 (1/3), #28859 (2/3, nothing pending), #28862 (3/3, idle, nothing waiting). The closing entry is this seat's.
 - Anthony's direction closing the room was given in seat 1/3's window on 2026-09-12; this ADR is its record in the repository.
+
+## Source qualification — 2026-09-13, external review F21
+
+The final board-entry numbers and "nothing pending" / "idle" observations above
+refer to the **local chronicle, not externally resolvable**. The frozen lane
+notes at `141463f` (`docs/lanes/codex.md`) and `1ed44bf`
+(`docs/lanes/grok.md`) corroborate those lanes' written closing state; they do not
+prove that the board inventory is complete or that no process was active. The
+closure direction remains the dated operator direction recorded here. This
+qualification adds no independent verdict and decides none of items (a)–(d).
