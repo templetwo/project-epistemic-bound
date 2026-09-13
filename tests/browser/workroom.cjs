@@ -106,6 +106,11 @@ fs.mkdirSync(output,{recursive:true});
   if(!await page.locator('#hosted-fields details.rates').evaluate(d => d.open)) throw Error('the cost estimator is unreachable after demotion');
   await page.locator('#hosted-fields details.rates > summary').click();
   if(!await page.isVisible('#check-hosted')) throw Error('no way to check the hosted catalog');
+  // An exact id belongs to the provider it was typed for (external review of 6d56684, F2/F3).
+  await page.fill('#model','carried-across-providers');
+  await page.selectOption('#provider','ollama');
+  if(await page.inputValue('#model') !== '') throw Error('a typed hosted id survived a switch to the local provider');
+  await page.selectOption('#provider','deepseek');
   await page.fill('#model','browser-preview-only');
   if(await page.inputValue('#thinking') !== 'enabled') throw Error('thinking default is not enabled');
   await page.click('#preview'); await page.locator('#scope').waitFor({state:'visible'});
@@ -204,6 +209,12 @@ fs.mkdirSync(output,{recursive:true});
   // Only previewed hosted scope above. All launched trials below are scripted.
   await page.selectOption('#study-provider','scripted');
   if(await page.inputValue('#study-model') !== 'scripted') throw Error('scripted model identity not explicit');
+  // F2: the hosted branch must not pre-fill an identifier the operator never chose.
+  await page.selectOption('#study-provider','deepseek');
+  if(await page.inputValue('#study-model') !== '') throw Error('study form pre-filled a hosted model id');
+  await page.selectOption('#study-provider','ollama');
+  if(await page.inputValue('#study-model') !== '') throw Error('a hosted id survived a switch to the local provider');
+  await page.selectOption('#study-provider','scripted');
   await page.click('#plan-study'); await page.locator('#study-result').waitFor({state:'visible'});
   const executionPlan = JSON.parse(await page.locator('#study-json').textContent());
   if(!await page.locator('#start-study').isDisabled()) throw Error('study launch enabled without authorization');

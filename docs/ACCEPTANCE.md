@@ -16,9 +16,18 @@ This tool cannot infer semantic test sufficiency from a file path.
 **Independence, after 2026-09-12.** Every row promoted on or before that date was reviewed by a
 seat other than the one that implemented it, and `reviewed_by` names which (e.g. UI-01/02/03:
 "seat 1/3 (independent of the implementer seat 2/3)"). Anthony closed the three-seat build room on
-2026-09-12 (ADR-020) and only seat 1/3 remains. Seat 1/3 is still a genuinely independent reviewer
-of code it did not write — seat 2/3's and seat 3/3's lanes — and may promote those rows under the
-unchanged rule. It is **not** independent of its own lane. A row reviewed by the seat that wrote the
+2026-09-12 (ADR-020) and only seat 1/3 remains. **Corrected 2026-09-13** after the external review of `6d56684` (finding F18). This paragraph
+previously read: "Seat 1/3 is still a genuinely independent reviewer of code it did not write —
+seat 2/3's and seat 3/3's lanes — and may promote those rows under the unchanged rule." That
+sentence answered "yes" to a question ADR-020 item 3 and open item (a) explicitly leave open
+("That condition cannot be met on this machine now. They stay needs_review … until Anthony
+rules"), and it did so in the one document the release workflow reads — which, because
+`scripts/check_release.py` cannot tell self-review from independent review, made that sentence the
+only guard on roughly 24 rows. Two governing documents cannot give opposite answers. The standing
+rule is ADR-020's: **every `needs_review` row stays `needs_review` until Anthony rules on the
+independence standard**, whoever did or did not write the code. Whether reviewing a lane one did
+not write restores independence is exactly the open question, and this seat does not get to settle
+it in its own favour. It is **not** independent of its own lane. A row reviewed by the seat that wrote the
 code must say so in `reviewed_by` — "seat 1/3, self-review, no independent verdict" — and that is a
 weaker standard, not the same one. Rows that need a reader who did not write the code stay
 `needs_review` with the reason recorded, until Anthony rules. The checker requires only a non-empty

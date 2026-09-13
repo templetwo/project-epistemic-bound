@@ -35,6 +35,43 @@ def test_doctor_reports_and_uses_temporary_state_root(state_root: Path, capsys):
     assert report["signing_mode"] == "development_local_hmac"
 
 
+def test_the_port_probe_never_calls_a_loopback_it_cannot_resolve_occupied():
+    """External review of 6d56684, F15: AF_INET was hardcoded, so probing ::1 raised gaierror — an OSError
+    subclass — and every `peb tui --serve --host ::1` was refused as occupied on a free port."""
+    from peb.cli import _probe_port
+
+    # The regression guard is the negative: a free IPv6 loopback must never be reported occupied. Whether it
+    # comes back `free` or `unknown` depends on the host's IPv6 support, and both are honest answers.
+    assert _probe_port("::1", 8799)["status"] in ("free", "unknown")
+    assert _probe_port("127.0.0.1", 8799)["status"] == "free"
+    # A name that cannot resolve yields no opinion at all, rather than a guess in either direction.
+    unresolvable = _probe_port("no-such-host.invalid", 8799)
+    assert unresolvable["status"] == "unknown" and "reason" in unresolvable
+
+
+def test_spawn_refuses_only_a_port_proven_occupied(tmp_path):
+    """`unknown` must fall through to the child's own bind; refusing on it is what broke --host ::1."""
+    from peb import cli
+    from peb.errors import ErrorCode, PebError
+
+    calls: list[object] = []
+
+    def never_spawn(*a, **k):
+        calls.append(a)
+        raise AssertionError("should not spawn in this test")
+
+    with pytest.raises(PebError) as occupied:
+        cli._spawn_workroom(tmp_path, "127.0.0.1", 8799, popen=never_spawn,
+                            probe=lambda *_a: {"status": "in_use", "errno": 48})
+    assert occupied.value.code == ErrorCode.conflict and calls == []
+
+    # `unknown` is not a refusal: the spawn proceeds and fails (or succeeds) on the child's real bind.
+    with pytest.raises(Exception) as proceeded:
+        cli._spawn_workroom(tmp_path, "::1", 8799, popen=never_spawn,
+                            probe=lambda *_a: {"status": "unknown", "reason": "gaierror"})
+    assert not isinstance(proceeded.value, PebError) or proceeded.value.code != ErrorCode.conflict
+
+
 def test_doctor_carries_the_installed_model_names_it_already_read(state_root: Path, monkeypatch):
     """The operator cannot choose an explicit model id from a count. An unreachable server lists nothing."""
     import httpx

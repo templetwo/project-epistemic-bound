@@ -21,9 +21,22 @@ from .errors import ErrorCode, PebError
 # ----------------------------------------------------------------------------- doctor
 
 def _probe_port(host: str, port: int) -> dict[str, Any]:
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    """free / in_use / unknown. `unknown` is a real third answer, not a soft failure.
+
+    This hardcoded AF_INET until the external review of 6d56684 (F15): probing the documented `--host ::1`
+    raised gaierror — an OSError subclass — which the old `except OSError` reported as `in_use`, so EVERY
+    `peb tui --serve --host ::1` was refused as occupied even on a free port. The family now comes from
+    getaddrinfo, and a host this probe cannot resolve returns `unknown` rather than an opinion it has not
+    earned; the caller lets the child's own bind decide that case.
+    """
     try:
-        s.bind((host, port))
+        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except socket.gaierror as e:
+        return {"status": "unknown", "host": host, "port": port, "reason": type(e).__name__, "detail": str(e)}
+    family, socktype, proto, _canonname, sockaddr = infos[0]
+    s = socket.socket(family, socktype, proto)
+    try:
+        s.bind(sockaddr)
         return {"status": "free", "host": host, "port": port}
     except OSError as e:
         return {"status": "in_use", "host": host, "port": port, "errno": e.errno}
@@ -427,7 +440,9 @@ def _spawn_workroom(host: str, port: int, state_root: Path, *, popen=None, conne
     # the previous night's workroom still on 8787). Residual window between this probe and the child's bind is
     # milliseconds and ends in the honest "child exited before it listened" error below.
     taken = probe(probe_host_for(host), port)
-    if taken.get("status") != "free":
+    # Only a port PROVEN occupied refuses the spawn. `unknown` (a host this probe cannot resolve) falls through
+    # to the child's own bind, which is the authority anyway — refusing on `unknown` is what broke `::1`.
+    if taken.get("status") == "in_use":
         raise PebError(ErrorCode.conflict,
                        f"something is already listening on {host}:{port}; the cockpit will not adopt a workroom it did not start",
                        {"host": host, "port": port, "attach_instead": f"peb tui --attach http://{probe_host_for(host)}:{port}",
