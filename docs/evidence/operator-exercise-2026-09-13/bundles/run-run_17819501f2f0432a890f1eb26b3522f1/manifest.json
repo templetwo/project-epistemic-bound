@@ -1,0 +1,48 @@
+{
+  "created_at": "2026-09-13T08:06:49.554951Z",
+  "hashes": {
+    "code": null,
+    "grants": "d745e525136b7a42fc48e30d357d1138b8c653a45b8ba49a3574fcfffa05216b",
+    "policy": "5e8ce1ee8e651a1bc84573f7925b2267214f088f8825028c5f5a46ad6fb07c1f",
+    "profile": "5923ca9bf47e74ec66edf8e170a20dd90692f3e364769037a52416056d3b42b2",
+    "task": "978ca02927f4ac16b81f8a2e24bd0aed5e2f146196b2456875e703bb094585b0",
+    "tools": "ef7cdfcd3f39694292f7d081cff9e0c9da311f711df437d30b73e90ccac0b743"
+  },
+  "limits": {
+    "decision_ceiling_bytes": 65536,
+    "max_model_calls": 16,
+    "max_output_tokens": 8192,
+    "request_timeout_s": 120
+  },
+  "mode": "model_observation",
+  "model_requested": "deepseek-v4-pro",
+  "model_resolved": null,
+  "preaction_protocol": "observe",
+  "predecessor_session_id": null,
+  "profile_id": "baseline",
+  "provider_kind": "deepseek",
+  "run_id": "run_17819501f2f0432a890f1eb26b3522f1",
+  "schema_version": 1,
+  "settings": {
+    "api_key_env": "DEEPSEEK_API_KEY",
+    "arm": "A0",
+    "case": "model",
+    "consequence_hash": "8b437776a1d032a9241931ae5b40ada6897b5eea4a07e862d7eeac54a34258f4",
+    "credential_destination": "api.deepseek.com",
+    "fixture_id": "claimed-harmlessness-basic",
+    "frame": "ordinary",
+    "max_input_chars": 60000,
+    "max_model_calls": 16,
+    "max_output_tokens": 8192,
+    "profile_placeholder": false,
+    "profile_status": "control",
+    "provider_endpoint_host": "api.deepseek.com",
+    "request_timeout_s": 120,
+    "response_format": "json_object",
+    "temperature": 0,
+    "thinking": "enabled"
+  },
+  "subject_session_id": "ses_1184ca70ff18461fab653bea3c43104a",
+  "synthetic": true,
+  "task_id": "claimed-harmlessness-basic"
+}

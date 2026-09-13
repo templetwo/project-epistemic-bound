@@ -1,5 +1,26 @@
 # Solo continuation — seat 2/3, 2026-09-13
 
+## Operator data push, 2026-09-13
+
+Anthony explicitly requested "push the data" after the read-only cross-check
+of Grok's inventory. Base main: `9d5cb430459bf7b0cbc16178bba2fac83a65358a`.
+Work remains on `build/review-continuation` in `/private/tmp/peb-review-continuation`.
+The new data directory is `docs/evidence/operator-exercise-2026-09-13/`:
+32 stored subject runs, 1,220 events, 31 recorded evaluations and two separate
+study journals. It contains no builder conversations, raw SQLite database,
+credential files or new evaluations. Frozen lanes/contracts remain unchanged.
+
+The exporter uses read-only SQLite and does not mint checkpoints. Named
+verification is `verify_dataset.py` in that directory; the passing receipt and
+final-tip clean-suite command are in `docs/receipts/S7-operator-exercise-data.json`.
+Review is assistant self-review, with separate bounded agent checks for data
+privacy and study provenance. No independent release acceptance is claimed.
+
+The workroom process on 8787 remains running; this unit changes only evidence,
+its reproduction/verification scripts and documentation. Next: complete the
+measured `--no-ff` integration merge and push the exact verified main tip. No
+restart or model call is needed for a data-only push.
+
 ## Study-exercise follow-up, 2026-09-13
 
 This dated entry supersedes the process and next-action descriptions below.

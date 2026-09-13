@@ -1,0 +1,12 @@
+[
+  {
+    "event_count": 45,
+    "exported_at": "2026-09-13T13:46:23.661050Z",
+    "head_hash": "e2236e06c7c573de6cbce38c9752879602574714c2d69bc780aac118aaf49ec3",
+    "key_id": "dev-key-1",
+    "manifest_hash": "62705a8619088cce651a0f42bccce64c27cc2415d85ded21f52a714027af5612",
+    "run_id": "run_5b7f6e4ade554596bb77d4e78632aebc",
+    "schema_version": 1,
+    "signature": "276da2133171b13d20808493cfcf45faa960560610e65c18a2f3c4d31b5eae72"
+  }
+]

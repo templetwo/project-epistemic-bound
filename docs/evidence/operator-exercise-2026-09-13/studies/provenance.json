@@ -1,0 +1,95 @@
+{
+  "copy_method": "Exact source bytes; no reserialization, relabeling, new study execution, or evaluation.",
+  "journals": [
+    {
+      "content_screen": {
+        "credential_field_or_shape_findings": 0,
+        "local_path_findings": 0,
+        "method": "Structural string/key screen for filesystem paths, credential field names, bearer tokens, sk-prefixed tokens and private-key headers; no operator credential was read or used for comparison.",
+        "slash_containing_string_values": 0
+      },
+      "copied_sha256": "342825b851767bb257d218dc15fb2311ae21a8f4747344a360e64ca6bfc4d05a",
+      "counts": {
+        "dispatched": 8,
+        "planned": 9,
+        "provider_completed": 7,
+        "recorded": 8,
+        "started": 8,
+        "unknown": 0
+      },
+      "file": "study_a8a22a8a0063521c31bcd48cab2023c0.json",
+      "format_correction_limit_in_all_recorded_manifests": 0,
+      "matching_snapshot_run_ids": [
+        "run_8453f50c96d24a28830561a3e2a2dde3",
+        "run_945a9fc72e7b4c99ac9beb52495c2fb2",
+        "run_3f0b566073764fc7a16cf14fd3f61950",
+        "run_2d37ba51766342609391a948e802006b",
+        "run_1516f0bd4a4d402bbdecb13a59b9a123",
+        "run_194ee71884df4ec9af6c2ce87b5da8a4",
+        "run_3ad0f7b95758473cb049cff3d5f8981d",
+        "run_3ab750046c594a358010026cad541b6e"
+      ],
+      "snapshot_compatibility_checked": [
+        "run_id",
+        "manifest_hash",
+        "status",
+        "subject_session_id",
+        "study_id",
+        "trial_id",
+        "pair_id",
+        "condition_hash",
+        "fixture_id",
+        "frame",
+        "profile_id"
+      ],
+      "source_bytes": 48848,
+      "source_sha256": "342825b851767bb257d218dc15fb2311ae21a8f4747344a360e64ca6bfc4d05a",
+      "status": "partial",
+      "study_id": "study_a8a22a8a0063521c31bcd48cab2023c0"
+    },
+    {
+      "content_screen": {
+        "credential_field_or_shape_findings": 0,
+        "local_path_findings": 0,
+        "method": "Structural string/key screen for filesystem paths, credential field names, bearer tokens, sk-prefixed tokens and private-key headers; no operator credential was read or used for comparison.",
+        "slash_containing_string_values": 0
+      },
+      "copied_sha256": "ef6b5d5e9166b22122684616b107ec330b51639d6fa6773e7cbc46509a516a4f",
+      "counts": {
+        "dispatched": 3,
+        "planned": 3,
+        "provider_completed": 3,
+        "recorded": 3,
+        "started": 3,
+        "unknown": 0
+      },
+      "file": "study_6057e5e5560b21c150c7787ad23b1793.json",
+      "format_correction_limit_in_all_recorded_manifests": 0,
+      "matching_snapshot_run_ids": [
+        "run_cb4337e5044049cd85ffed82ea6d12a3",
+        "run_73a63b7d941842d8801f373dcd8d46e2",
+        "run_213a99ea78c94132ab2bf9e7889d2065"
+      ],
+      "snapshot_compatibility_checked": [
+        "run_id",
+        "manifest_hash",
+        "status",
+        "subject_session_id",
+        "study_id",
+        "trial_id",
+        "pair_id",
+        "condition_hash",
+        "fixture_id",
+        "frame",
+        "profile_id"
+      ],
+      "source_bytes": 20069,
+      "source_sha256": "ef6b5d5e9166b22122684616b107ec330b51639d6fa6773e7cbc46509a516a4f",
+      "status": "completed",
+      "study_id": "study_6057e5e5560b21c150c7787ad23b1793"
+    }
+  ],
+  "schema_version": 1,
+  "source_kind": "Existing operator study journals, read-only; source locations intentionally omitted.",
+  "source_snapshot_sha256": "b2bbe841be4d5142d550b5e5f265251c7a6fe80595b56a1914c7fe3ab4661be2"
+}
