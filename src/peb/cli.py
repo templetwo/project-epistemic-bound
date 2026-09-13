@@ -56,9 +56,14 @@ def _probe_ollama(cfg: AppConfig) -> dict[str, Any]:
         with httpx.Client(timeout=2.0, trust_env=False) as client:  # trust_env=False: no inherited proxy (§9.2)
             r = client.get(cfg.ollama_endpoint.rstrip("/") + "/api/tags")
         r.raise_for_status()
-        names = [m.get("name") for m in r.json().get("models", [])]
+        names = sorted(str(m.get("name")) for m in r.json().get("models", []) if m.get("name"))
         out["server"] = "reachable"
         out["installed_model_count"] = len(names)
+        # The names, not just how many. The operator cannot choose an explicit model id from a count, and this
+        # probe already has them (Anthony, live in the browser workroom: "how is anyone going to know what models
+        # are explicitly available"). Still never a default and never a pull: this is what IS installed, read-only,
+        # bounded. An unreachable server reports no list at all rather than a stale or guessed one.
+        out["installed_models"] = names[:200]
         if cfg.ollama_model is None:
             out["status"] = "model_not_configured"
         elif cfg.ollama_model in names:
@@ -69,6 +74,35 @@ def _probe_ollama(cfg: AppConfig) -> dict[str, Any]:
         out["server"] = "unreachable"
         out["status"] = "server_unreachable"
         out["error"] = type(e).__name__
+    return out
+
+
+HOSTED_CATALOG_ONLY = "catalog-listing-only"
+
+
+async def probe_hosted_catalog(cfg: AppConfig, model: str | None = None, *, transport: Any = None) -> dict[str, Any]:
+    """DeepSeek's CURRENT catalog, read from the pinned host — only when the operator explicitly asks.
+
+    This grants no new authority. A hosted run ALREADY refuses a model the provider does not list: bootstrap
+    probes `/models` before the run is composed and raises `provider_unavailable` on anything but `ok`. All this
+    does is move that same check earlier, to where the operator is still choosing, instead of letting them find
+    out at launch (Anthony, live in the workroom: "make sure the deepseek model choices are validated to actual
+    current models"). Free metadata, never an inference call, no retry, no fallback, host pinned by the provider.
+    The key is read by the provider from its environment variable and is never returned here.
+
+    `model=None` asks for the catalog alone, so no verdict about any id is reported.
+    """
+    from .providers.deepseek import DeepSeekProvider
+
+    provider = DeepSeekProvider(endpoint=cfg.deepseek_endpoint, model=model or HOSTED_CATALOG_ONLY,
+                                api_key_env=cfg.deepseek_api_key_env, transport=transport)
+    out: dict[str, Any] = dict(await provider.probe())
+    if model is None:
+        # Nothing was asked about an id, so nothing is reported about one: an absent id is not an unknown model.
+        out["model"] = None
+        if out.get("status") == "unknown_model":
+            out["status"] = "listed"
+    out["reads"] = "the provider's own current catalog; no inference and no charge"
     return out
 
 

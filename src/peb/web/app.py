@@ -93,6 +93,9 @@ async def _json_body(request: Request, *, limit: int = BODY_LIMIT) -> dict:
 
 ROUTES = (
     ("GET", "/api/health", "health.get"),
+    # The same operation. A GET carries no body, and asking for the hosted catalog is an explicit, CSRF-guarded
+    # request that leaves the machine — so it is a POST, not a query string bolted onto a read.
+    ("POST", "/api/health", "health.get"),
     ("GET", "/api/profiles", "profiles.list"),
     ("GET", "/api/runs", "runs.list"),
     ("GET", "/api/reviews", "reviews.list"),

@@ -57,6 +57,34 @@ def test_health_get_is_the_doctor_report_and_needs_no_store(tmp_path):
     assert out["ready"]["local_model"] is False and out["provider"]["endpoint"] == "http://127.0.0.1:1"
 
 
+def test_health_get_reads_the_hosted_catalog_only_when_asked(tmp_path, monkeypatch):
+    """The one readiness fact that leaves the machine is opt-in, and it is reported apart from local readiness."""
+    from peb import cli
+
+    calls: list[object] = []
+
+    async def fake_catalog(cfg, model=None, **kw):
+        calls.append(model)
+        return {"kind": "deepseek", "status": "listed", "model": None, "available_models": ["deepseek-chat"]}
+
+    monkeypatch.setattr(cli, "probe_hosted_catalog", fake_catalog)
+    service = WorkroomService(tmp_path / "state", ollama_endpoint="http://127.0.0.1:1")
+
+    plain = asyncio.run(service.request("health.get", {}, {}))
+    assert "hosted" not in plain and calls == []  # a default readiness read contacts no hosted provider
+
+    asked = asyncio.run(service.request("health.get", {}, {"check_hosted": True}))
+    assert asked["hosted"]["available_models"] == ["deepseek-chat"] and calls == [None]
+    assert asked["provider"]["endpoint"] == "http://127.0.0.1:1"  # local readiness is unchanged beside it
+
+    asyncio.run(service.request("health.get", {}, {"check_hosted": True, "hosted_model": "deepseek-chat"}))
+    assert calls == [None, "deepseek-chat"]
+
+    with pytest.raises(PebError) as e:
+        asyncio.run(service.request("health.get", {}, {"check_hosted": True, "unknown_field": 1}))
+    assert e.value.code == ErrorCode.invalid_input
+
+
 def test_profiles_list_needs_no_store_and_reports_arms_status_and_hygiene(tmp_path):
     out = asyncio.run(WorkroomService(tmp_path / "state").request("profiles.list", {}, {}))
     by_id = {p["profile_id"]: p for p in out["profiles"]}
