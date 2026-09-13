@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "kind": "external_review_response_receipt",
+  "recorded_by": "seat 1/3 (Claude Code) — the only remaining seat (ADR-020)",
+  "recorded_at_local": "2026-09-13 ~07:0x EDT",
+  "responds_to": "docs/reviews/EXTERNAL-6d56684-kimi.md (second pass; the first is docs/receipts/S7-external-review-response.json)",
+  "lane_commit": "3e25d2e",
+  "main_tip": "9b0519d",
+  "reviewed_by": "SELF-REVIEW by seat 1/3. The external verdict is independent; this response is not.",
+  "addressed": ["F14", "F6", "F10", "F20"],
+  "f14_verification": {
+    "claim_under_test": "the cancelled-worker failure mode has no direct regression test",
+    "method": "restored the pre-d3f5458 dispatch at all five run_worker sites in a throwaway copy of HEAD, leaving today's tests intact, and ran tests/tui",
+    "result": "45/45 PASSED with the defect present — the finding is confirmed, and stronger than stated",
+    "why_existing_tests_miss_it": "the cancel_run and demo assertions call refresh_all() explicitly, which performs the same reads directly and masks a dead worker"
+  },
+  "self_correction": {
+    "false_claim": "d3f5458 and its receipt stated that pyproject's filterwarnings entry made 'coroutine ... was never awaited' a suite failure",
+    "truth": "it does not fire. The un-awaited coroutine is collected by the garbage collector, so the warning arrives through the unraisable hook wrapped as PytestUnraisableExceptionWarning and never passes through that filter.",
+    "how_found": "the F14 experiment above; the guard was written, looked correct, and did nothing",
+    "replacement": "error::pytest.PytestUnraisableExceptionWarning, measured FAILING the suite with the pre-fix dispatch restored before being called a guard"
+  },
+  "new_test_labelled_honestly": "tests/tui/test_app.py::test_dispatched_work_actually_runs_and_is_not_silently_dropped drives the selection worker with no refresh_all() to mask it. Its docstring states it is NOT the d3f5458 regression test and gives the measurement: it passes with the pre-fix dispatch too, because a worker that actually starts awaits a bare coroutine fine.",
+  "measured": {
+    "ref": "9b0519d (the merge tip itself)",
+    "command": "bash scripts/clean_checkout_suite.sh 9b0519d",
+    "passed": 713, "failed": 0, "errors": 0, "skipped": 0,
+    "ruff": "All checks passed (whole tree)"
+  },
+  "still_open": {
+    "findings": ["F7", "F8", "F9", "F11", "F12", "F13", "F21"],
+    "why": "each needs its own technical disposition, and F12/F13 additionally depend on Anthony's ruling on ADR-020 open item (a), which is unmade. Nothing in this commit promotes an acceptance-matrix row."
+  }
+}

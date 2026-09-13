@@ -299,6 +299,17 @@
       "skipped": 0,
       "tests": 712,
       "tip": "bedff6c"
+    },
+    {
+      "errors": 0,
+      "failed": 0,
+      "measured_at_local": "2026-09-13T07:0x-0400",
+      "passed": 713,
+      "receipt": "docs/receipts/S7-review-findings-2.json (merges 3e25d2e: F14/F6/F10/F20 closed; the d3f5458 warning guard was shown not to fire and was replaced with one measured firing)",
+      "ruff": "All checks passed",
+      "skipped": 0,
+      "tests": 713,
+      "tip": "9b0519d"
     }
   ]
 }
