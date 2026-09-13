@@ -83,6 +83,16 @@ class EmptyPayload(StrictModel):
     pass
 
 
+class HealthGetPayload(StrictModel):
+    """Readiness, unchanged by default. `check_hosted` opts in to ONE extra read: the hosted provider's current
+    catalog from its pinned host. Omitted (the default) means no hosted network call at all, so a plain readiness
+    read still leaves this machine only for the configured loopback. `hosted_model` additionally asks whether that
+    exact id is in the catalog; absent, only the catalog is reported and no id is judged."""
+
+    check_hosted: bool = False
+    hosted_model: str | None = Field(default=None, max_length=200)
+
+
 class NotePayload(StrictModel):
     note: str = Field(default="", max_length=500)
 
@@ -255,7 +265,7 @@ class CommitmentRevisePayload(StrictModel):
 
 
 PAYLOADS: dict[Operation, type[StrictModel]] = {
-    Operation.health_get: EmptyPayload, Operation.demo_run: DemoRunPayload, Operation.run_start: RunStartPayload,
+    Operation.health_get: HealthGetPayload, Operation.demo_run: DemoRunPayload, Operation.run_start: RunStartPayload,
     Operation.run_preview: RunPreviewPayload,
     Operation.run_create: RunCreatePayload, Operation.run_step: ConfirmPayload, Operation.run_begin: ConfirmPayload,
     Operation.commitment_accept: CommitmentAcceptPayload, Operation.commitment_revise: CommitmentRevisePayload,
@@ -366,14 +376,21 @@ class WorkroomService:
 
     # -- operations -------------------------------------------------------------------------------
 
-    def _health_get(self, ids: dict[str, str], body: StrictModel) -> dict[str, Any]:
+    async def _health_get(self, ids: dict[str, str], body: HealthGetPayload) -> dict[str, Any]:  # type: ignore[override]
         """The `peb doctor` report, unchanged: versions, state root, storage, port, provider readiness. No writes
-        beyond what doctor itself does (it may create the state root directory)."""
-        from ..cli import doctor_report
+        beyond what doctor itself does (it may create the state root directory).
+
+        With `check_hosted`, and only then, one further read is made: the hosted provider's current catalog from
+        its pinned endpoint. It is reported under `hosted`, separately from local readiness, because it is the one
+        part of this report that leaves the machine."""
+        from ..cli import doctor_report, probe_hosted_catalog
         from ..config import load_config
 
         cfg = dataclasses.replace(load_config(self._state_root), ollama_endpoint=self._endpoint)
-        return doctor_report(cfg)
+        report = doctor_report(cfg)
+        if body.check_hosted:
+            report["hosted"] = await probe_hosted_catalog(cfg, body.hosted_model or None)
+        return report
 
     async def _demo_run(self, ids: dict[str, str], body: DemoRunPayload) -> dict[str, Any]:  # type: ignore[override]
         """Exactly `peb demo --provider scripted --case <case>`: the same bootstrap path, the same summary."""

@@ -9,3 +9,5 @@
 .bundle-panel>summary{font:24px Georgia,serif}.bundle-panel{min-width:0}#bundle-provenance{overflow-wrap:anywhere}#bundle-result{margin-top:20px}
 
 .study-panel{min-width:0}#study-launch-form,#study-inspect-form,#study-execution-result{margin-top:24px}#study-execution-identity,#study-execution-provenance{overflow-wrap:anywhere}
+
+details.rates{border-top:1px solid var(--line);margin-top:16px;padding-top:4px}details.rates>summary{color:var(--muted);font-weight:600}details.rates .study-fields{margin-top:12px}#model-note,#study-model-note{margin:7px 0 0}

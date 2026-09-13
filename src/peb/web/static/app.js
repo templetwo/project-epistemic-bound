@@ -7,6 +7,10 @@ let replayEvents = [], comparisonVersion = 0;
 let bundleEvents = [], bundleVersion = 0;
 let activeStudyId = null, studyReadVersion = 0, studyReportStatus = null, studyPollBusy = false;
 let studyPreview = null, studyPreviewVersion = 0;
+const TYPED_MODEL = "__typed__";
+let installedModels = null, ollamaEndpoint = "";
+// The hosted catalog is never read without the operator asking: it is the one readiness fact that leaves this machine.
+let hostedModels = null, hostedStatus = "", hostedHost = "the pinned hosted endpoint", studyModelProvider = "deepseek";
 let studyReadFailures = 0;
 const attemptedStudies = new Set();
 const pretty = (value) => JSON.stringify(value, null, 2);
@@ -31,7 +35,58 @@ async function action(button, task) {
 }
 function invalidatePreview() { previewVersion++; preview = null; $("scope").hidden = true; $("approve-start").checked = false; updateStart(); }
 function updateStart() { const hosted = $("provider").value === "deepseek"; $("hosted-fields").hidden = !hosted; $("create-model").disabled = hosted; $("start-model").disabled = !$("approve-start").checked || (hosted && !preview?.preview_token); }
-function startPayload() { return {provider: $("provider").value, model: $("model").value.trim(), profile: $("profile").value, task: $("model-task").value, max_model_calls: Number($("calls").value), max_output_tokens: Number($("tokens").value), thinking: $("thinking").value, confirm: true}; }
+function startPayload() { return {provider: $("provider").value, model: resolveModel(), profile: $("profile").value, task: $("model-task").value, max_model_calls: Number($("calls").value), max_output_tokens: Number($("tokens").value), thinking: $("thinking").value, confirm: true}; }
+// The identifier stays explicit and exact; the operator no longer has to guess it from nothing. The list is
+// what the doctor probe already read from Ollama's /api/tags: never a default, never a download, and never the
+// only way in — an id we did not happen to see is still a legal id, so the typed escape is always present.
+function fillModelSelect(select, catalog) {
+  const prior = select.value;
+  select.replaceChildren();
+  const typed = el("option", "Type an exact model id…"); typed.value = TYPED_MODEL; select.append(typed);
+  for (const name of catalog || []) { const option = el("option", name); option.value = name; select.append(option); }
+  select.value = (catalog || []).includes(prior) ? prior : TYPED_MODEL;
+  return select.value;
+}
+function catalogNote(provider) {
+  if (provider === "deepseek") {
+    if (hostedModels === null) return "Every id is checked against the provider's current catalog before any paid call. Check the catalog to choose from it rather than typing one.";
+    if (!hostedModels.length) return `${hostedHost} returned no catalog (${hostedStatus}). Type an exact id; it is still checked before any paid call.`;
+    return `${hostedModels.length} offered right now by ${hostedHost}, read without an inference call and at no charge.`;
+  }
+  if (installedModels === null) return `No installed list: Ollama did not answer at ${ollamaEndpoint || "the configured endpoint"}. Type an exact id; readiness is reported below.`;
+  if (!installedModels.length) return `Ollama answered at ${ollamaEndpoint} with nothing installed. Nothing is downloaded from here.`;
+  return `${installedModels.length} installed, read from ${ollamaEndpoint}. Nothing is downloaded from here.`;
+}
+async function loadHostedCatalog() {
+  const report = await api("/api/health", {check_hosted: true});
+  const hosted = report.hosted || {};
+  hostedStatus = hosted.status || "no status reported";
+  hostedHost = hosted.endpoint_host || "the pinned hosted endpoint";
+  hostedModels = Array.isArray(hosted.available_models) ? hosted.available_models : null;
+  renderModelChoices(); renderStudyModelChoices();
+  return hosted;
+}
+function hostedCatalogNotice(hosted) {
+  if (hostedModels && hostedModels.length) return `${hostedModels.length} models currently offered by ${hostedHost}. Choosing one changes nothing about the check: the id is verified again before any paid call.`;
+  if (hosted.status === "key_absent") return `No catalog: ${hosted.key_env || "the API key variable"} is not set for this workroom. An exact id can still be typed and is checked at launch.`;
+  return `No catalog from ${hostedHost}: ${hostedStatus}. An exact id can still be typed and is checked at launch.`;
+}
+function renderModelChoices() {
+  const provider = $("provider").value, hosted = provider === "deepseek";
+  const select = $("model-choice"), input = $("model");
+  const chosen = fillModelSelect(select, hosted ? hostedModels : installedModels);
+  input.hidden = chosen !== TYPED_MODEL; input.required = chosen === TYPED_MODEL;
+  $("check-hosted").hidden = !hosted;
+  $("model-note").textContent = catalogNote(provider);
+}
+function resolveModel() { const select = $("model-choice"); return select.value === TYPED_MODEL ? $("model").value.trim() : select.value; }
+async function loadHealth() {
+  const report = await api("/api/health"); $("health").textContent = pretty(report);
+  const provider = report.provider || {};
+  ollamaEndpoint = provider.endpoint || "";
+  installedModels = Array.isArray(provider.installed_models) ? provider.installed_models : null;
+  renderModelChoices(); renderStudyModelChoices();
+}
 async function loadProfiles() {
   const data = await api("/api/profiles"); $("profile").replaceChildren();
   for (const p of data.profiles) { const option = el("option", `${p.profile_id} · ${p.arm} · ${p.status}`); option.value = p.profile_id; option.disabled = !p.runnable; $("profile").append(option); }
@@ -168,11 +223,14 @@ for (const [verb, route] of [["step", "step"], ["begin", "start"]]) $(verb).addE
   if (id === selectedId) await selectRun(id); note(`Observed status: ${result.status}. Model calls this operation: ${result.steps_taken}.`);
 }));
 
-$("login-form").addEventListener("submit", (event) => { event.preventDefault(); action(event.submitter, async () => { const data = await api("/api/auth/login", {secret: $("secret").value}); $("secret").value = ""; csrf = data.csrf_token; signedIn(true); note("Operator session opened."); await Promise.all([loadRuns(), loadProfiles()]); }); });
+$("login-form").addEventListener("submit", (event) => { event.preventDefault(); action(event.submitter, async () => { const data = await api("/api/auth/login", {secret: $("secret").value}); $("secret").value = ""; csrf = data.csrf_token; signedIn(true); note("Operator session opened."); await Promise.all([loadRuns(), loadProfiles(), loadHealth()]); }); });
 $("logout").addEventListener("click", () => action($("logout"), async () => { await api("/api/auth/logout", {}); signedIn(false); note("Signed out."); }));
-$("refresh").addEventListener("click", () => action($("refresh"), async () => { await loadRuns(); if (selectedId) await selectRun(selectedId); $("health").textContent = pretty(await api("/api/health")); note("Records refreshed."); }));
+$("refresh").addEventListener("click", () => action($("refresh"), async () => { await loadRuns(); if (selectedId) await selectRun(selectedId); await loadHealth(); note("Records refreshed."); }));
 $("demo-form").addEventListener("submit", (event) => { event.preventDefault(); action(event.submitter, async () => { note("Running scripted control…"); const result = await api("/api/demos", {case: $("case").value, frame: $("frame").value}); await selectRun(result.run_id); note("Scripted control recorded. Inspect the observed outcome below."); }); });
 $("model-form").addEventListener("input", (event) => { if (event.target.id !== "approve-start") invalidatePreview(); else updateStart(); });
+$("provider").addEventListener("change", renderModelChoices);
+$("model-choice").addEventListener("change", renderModelChoices);
+$("check-hosted").addEventListener("click", () => action($("check-hosted"), async () => { note(hostedCatalogNotice(await loadHostedCatalog()), !hostedModels); }));
 $("preview").addEventListener("click", () => action($("preview"), async () => {
   if (!$("model-form").reportValidity()) return;
   const version = previewVersion;
@@ -180,7 +238,7 @@ $("preview").addEventListener("click", () => action($("preview"), async () => {
   if (payload.provider === "deepseek" && $("input-rate").value !== "" && $("output-rate").value !== "") { payload.input_rate = Number($("input-rate").value); payload.output_rate = Number($("output-rate").value); if ($("rate-source").value.trim()) payload.rates_provenance = $("rate-source").value.trim(); }
   const result = await api("/api/runs/preview", payload);
   if (version !== previewVersion) throw new Error("Selection changed during preview. Preview again.");
-  preview = result; $("scope").hidden = false; $("scope-text").textContent = pretty(preview.scope); updateStart(); note("Scope ready. Review it and explicitly authorize before starting. Rates are informational.");
+  preview = result; $("scope").hidden = false; $("scope-text").textContent = pretty(preview.scope); updateStart(); note("Scope ready. Review exactly what leaves this machine, then authorize the run.");
 }));
 $("model-form").addEventListener("submit", (event) => { event.preventDefault(); action(event.submitter, async () => {
   if (!$("approve-start").checked) throw new Error("Explicit authorization is required.");
@@ -196,7 +254,7 @@ for (const verb of ["pause", "cancel", "resume"]) $(verb).addEventListener("clic
 $("verify").addEventListener("click", () => action($("verify"), async () => { const data = await api(`/api/runs/${selectedId}/verify`, {}); $("verification").hidden = false; $("verification").textContent = pretty(data); note("Verification recorded in view. Check anchor coverage and failures."); }));
 $("more-events").addEventListener("click", () => action($("more-events"), () => loadEvents()));
 $("export-form").addEventListener("submit", (event) => { event.preventDefault(); action(event.submitter, async () => { const data = await api(`/api/runs/${selectedId}/export`, {out: $("export-path").value}); $("export-result").hidden = false; $("export-result").textContent = pretty(data); note("Local evidence bundle exported."); }); });
-(async () => { try { const session = await api("/api/auth/session"); csrf = session.csrf_token; signedIn(true); await Promise.all([loadRuns(), loadProfiles()]); } catch (_) { signedIn(false); } })();
+(async () => { try { const session = await api("/api/auth/session"); csrf = session.csrf_token; signedIn(true); await Promise.all([loadRuns(), loadProfiles(), loadHealth()]); } catch (_) { signedIn(false); } })();
 setInterval(() => { if (csrf && activeRequests > 0) loadRuns().catch(() => {}); }, 3000);
 
 function studyChoice(container, value, title, checked, disabled = false) {
@@ -209,10 +267,27 @@ for (const [id, title] of [["conceal-error-basic", "Conceal an error"], ["fictio
   const option = el("option", title); option.value = id; $("model-task").append(option);
 }
 for (const frame of ["ordinary", "game", "roleplay", "evaluation"]) studyChoice("study-frames", frame, frame, ["ordinary", "game"].includes(frame));
+function renderStudyModelChoices() {
+  const provider = $("study-provider").value, select = $("study-model-choice"), input = $("study-model");
+  const scripted = provider === "scripted", hosted = provider === "deepseek";
+  // An explicit id belongs to the provider it was chosen for: carrying a hosted id into a local plan would be a
+  // different run than the one displayed. Changing provider clears it rather than silently reusing it.
+  if (provider !== studyModelProvider) { input.value = scripted ? "scripted" : hosted ? "deepseek-flash" : ""; studyModelProvider = provider; }
+  input.readOnly = scripted;
+  select.hidden = scripted;
+  const chosen = scripted ? TYPED_MODEL : fillModelSelect(select, hosted ? hostedModels : installedModels);
+  input.hidden = chosen !== TYPED_MODEL; input.required = chosen === TYPED_MODEL && !scripted;
+  $("study-check-hosted").hidden = !hosted;
+  $("study-model-note").textContent = scripted
+    ? "Scripted trials run registered controls under the planned text. Instrument verification, never a model observation."
+    : catalogNote(provider);
+}
+function resolveStudyModel() { const select = $("study-model-choice"); return select.hidden || select.value === TYPED_MODEL ? $("study-model").value.trim() : select.value; }
+$("study-check-hosted").addEventListener("click", () => action($("study-check-hosted"), async () => { note(hostedCatalogNotice(await loadHostedCatalog()), !hostedModels); }));
 function invalidateStudy() { studyVersion++; studyPlan = null; $("study-result").hidden = true; invalidateStudyPreview(); }
 function studyConfig() {
   const choices = id => [...$(id).querySelectorAll("input:checked:not(:disabled)")].map(input => input.value);
-  const config = {schema_version: 1, fixture_ids: choices("study-fixtures"), frames: choices("study-frames"), profile_ids: choices("study-profiles"), provider: $("study-provider").value, model: $("study-model").value.trim(), thinking: $("study-thinking").value};
+  const config = {schema_version: 1, fixture_ids: choices("study-fixtures"), frames: choices("study-frames"), profile_ids: choices("study-profiles"), provider: $("study-provider").value, model: resolveStudyModel(), thinking: $("study-thinking").value};
   for (const [key, id] of [["seed", "seed"], ["repeats", "repeats"], ["max_model_calls_per_trial", "calls"], ["max_output_tokens", "tokens"], ["max_trials", "max-trials"], ["max_total_model_calls", "total-calls"]]) config[key] = Number($("study-" + id).value);
   if (!config.fixture_ids.length || !config.frames.length || !config.profile_ids.length) throw new Error("Select at least one family, presentation and profile.");
   return config;
@@ -258,14 +333,11 @@ $("preview-study").addEventListener("click", () => action($("preview-study"), as
   const result = await api("/api/studies/preview", body);
   if (version !== studyPreviewVersion || !csrf) throw new Error("Study selections changed. Preview again.");
   studyPreview = result; $("study-scope-text").textContent = pretty(result.scope); $("study-scope").hidden = false;
-  updateStudyLaunch(); note("Study scope ready. Review every condition, then authorize the exact plan and ceiling. Rates are informational.");
+  updateStudyLaunch(); note("Study scope ready. Review every condition, then authorize the exact plan and ceiling.");
 }));
 $("study-approve").addEventListener("change", updateStudyLaunch);
-$("study-provider").addEventListener("change", () => {
-  if ($("study-provider").value === "scripted") $("study-model").value = "scripted";
-  else if ($("study-model").value === "scripted") $("study-model").value = "";
-  invalidateStudy();
-});
+$("study-provider").addEventListener("change", () => { renderStudyModelChoices(); invalidateStudy(); });
+$("study-model-choice").addEventListener("change", renderStudyModelChoices);
 function clearStudyRead() {
   activeStudyId = null; studyReportStatus = null; studyReadVersion++; studyReadFailures = 0;
   $("study-execution-result").hidden = true;
@@ -457,3 +529,5 @@ function renderBundleReplay() {
   renderResources(bundleEvents.slice(0, index + 1), "bundle-resources");
 }
 $("bundle-position").addEventListener("input", renderBundleReplay);
+renderModelChoices();
+renderStudyModelChoices();

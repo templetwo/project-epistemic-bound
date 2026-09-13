@@ -35,7 +35,9 @@ possible: today they say **blocked** (`docs/acceptance-matrix.json`, `scripts/ch
 - **Runs three providers**: `scripted` (instrument tests, never a measured result), **Ollama** on the loopback
   only (an explicitly named installed model; no pull, no fallback), and **DeepSeek** hosted (https only, host pinned,
   key read only from `DEEPSEEK_API_KEY`, every response scanned for the key, no fallback, no automatic retry,
-  thinking retained as evidence). A paid call happens only after an explicit dry run and confirmation.
+  thinking retained as evidence). A paid call happens only after an explicit dry run and confirmation. The model
+  is always an exact id and never a default: the workroom offers the installed list it measured, and on request
+  the hosted provider's current catalog, but an id is checked against the provider itself before any paid call.
 - **Evaluates from records** with a deterministic evaluator over six development scenario families, counting
   missingness instead of hiding it, and compares matched runs only under equal conditions.
 - **Plans and executes bounded studies**: a seeded, capped schedule is displayed first; execution needs an explicit

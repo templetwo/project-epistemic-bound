@@ -35,6 +35,79 @@ def test_doctor_reports_and_uses_temporary_state_root(state_root: Path, capsys):
     assert report["signing_mode"] == "development_local_hmac"
 
 
+def test_doctor_carries_the_installed_model_names_it_already_read(state_root: Path, monkeypatch):
+    """The operator cannot choose an explicit model id from a count. An unreachable server lists nothing."""
+    import httpx
+
+    from peb import cli
+    from peb.config import load_config
+
+    real_client = httpx.Client
+
+    def tags(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/tags"
+        return httpx.Response(200, json={"models": [{"name": "b:2"}, {"name": "a:1"}, {"name": ""}, {}]})
+
+    monkeypatch.setattr(httpx, "Client", lambda **kw: real_client(transport=httpx.MockTransport(tags), **kw))
+    reachable = cli._probe_ollama(load_config(state_root))
+    # Sorted, nameless entries dropped, and the count still agrees with the list it came from.
+    assert reachable["installed_models"] == ["a:1", "b:2"]
+    assert reachable["installed_model_count"] == 2
+    # No model is chosen for the operator: an installed list is not a default.
+    assert reachable["status"] == "model_not_configured"
+    assert "model" not in reachable or reachable["model_configured"] is None
+
+    def refused(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused", request=request)
+
+    monkeypatch.setattr(httpx, "Client", lambda **kw: real_client(transport=httpx.MockTransport(refused), **kw))
+    unreachable = cli._probe_ollama(load_config(state_root))
+    assert unreachable["status"] == "server_unreachable"
+    assert "installed_models" not in unreachable and "installed_model_count" not in unreachable
+
+
+def test_hosted_catalog_is_the_providers_own_current_list_and_only_on_request(state_root: Path, monkeypatch):
+    """Anthony: "make sure the deepseek model choices are validated to actual current models"."""
+    import asyncio
+
+    import httpx
+
+    from peb import cli
+    from peb.config import load_config
+
+    seen: list[str] = []
+
+    def catalog(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.path)
+        assert request.url.host == "api.deepseek.com"  # the pinned host, never a redirect target
+        return httpx.Response(200, json={"data": [{"id": "deepseek-reasoner"}, {"id": "deepseek-chat"}]})
+
+    cfg = load_config(state_root)
+    monkeypatch.setenv(cfg.deepseek_api_key_env, "not-a-real-key-for-this-test")
+
+    # The catalog alone: a listing is not a question about any id, so no id is judged.
+    listed = asyncio.run(cli.probe_hosted_catalog(cfg, None, transport=httpx.MockTransport(catalog)))
+    assert listed["available_models"] == ["deepseek-chat", "deepseek-reasoner"]
+    assert listed["status"] == "listed" and listed["model"] is None
+    assert seen == ["/models"]
+
+    # An id that IS current, and one that is not — the same verdict the run path reaches, reached earlier.
+    current = asyncio.run(cli.probe_hosted_catalog(cfg, "deepseek-chat", transport=httpx.MockTransport(catalog)))
+    assert current["status"] == "ok" and current["model"] == "deepseek-chat"
+    stale = asyncio.run(cli.probe_hosted_catalog(cfg, "deepseek-v2-imagined", transport=httpx.MockTransport(catalog)))
+    assert stale["status"] == "unknown_model" and stale["available_models"] == ["deepseek-chat", "deepseek-reasoner"]
+
+    # The key is never returned, only whether one is present.
+    assert set(listed) & {"key", "endpoint_host"} == {"key", "endpoint_host"}
+    assert "not-a-real-key-for-this-test" not in json.dumps(listed)
+
+    # No key: no network call at all, and an honest reason rather than an empty list.
+    monkeypatch.delenv(cfg.deepseek_api_key_env)
+    seen.clear()
+    absent = asyncio.run(cli.probe_hosted_catalog(cfg, None, transport=httpx.MockTransport(catalog)))
+    assert absent["status"] == "key_absent" and "available_models" not in absent and seen == []
+
+
 def test_peb_console_script_help_and_doctor_start(state_root: Path):
     """RELEASE-01: green suite must not hide a dead `peb` entrypoint (#27490 / #27507)."""
     cwd = Path(__file__).resolve().parents[2]

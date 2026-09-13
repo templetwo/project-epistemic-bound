@@ -85,7 +85,28 @@ fs.mkdirSync(output,{recursive:true});
  }
  if(process.env.PEB_TEST_LIFECYCLE){
   await page.locator('.model-panel > summary').click();
-  await page.selectOption('#provider','deepseek'); await page.fill('#model','browser-preview-only');
+  // The menu is exactly what the readiness probe measured, plus the typed escape that is always available.
+  // Asserted against the live report rather than a fixed number, so an absent Ollama is a pass, not a skip.
+  const installed = await page.evaluate(async () => ((await (await fetch('/api/health')).json()).provider || {}).installed_models || null);
+  if(await page.locator('#model-choice option').count() !== (installed ? installed.length : 0) + 1) throw Error('model menu does not match the measured installed list');
+  if(await page.locator('#model-choice option').first().getAttribute('value') !== '__typed__') throw Error('typed escape is not always present');
+  if(installed && installed.length){
+   await page.selectOption('#model-choice', installed[0]);
+   if(await page.isVisible('#model')) throw Error('a chosen installed model still demanded a typed id');
+   await page.selectOption('#model-choice','__typed__');
+   if(!await page.isVisible('#model')) throw Error('typed escape did not restore the exact-id field');
+  }
+  // Cost is out of the primary flow but not gone: kept, optional, behind a disclosure that starts closed.
+  // Asserted structurally — a closed <details> still reports a client rect, so isVisible() cannot decide this.
+  await page.selectOption('#provider','deepseek');
+  if(await page.locator('#hosted-fields details.rates #input-rate').count() !== 1) throw Error('rate inputs are not behind a disclosure');
+  if(await page.locator('#hosted-fields details.rates').evaluate(d => d.open)) throw Error('the cost estimator is open by default');
+  if(await page.locator('#hosted-fields > label[for=thinking]').count() !== 1) throw Error('thinking was demoted along with cost');
+  await page.locator('#hosted-fields details.rates > summary').click();
+  if(!await page.locator('#hosted-fields details.rates').evaluate(d => d.open)) throw Error('the cost estimator is unreachable after demotion');
+  await page.locator('#hosted-fields details.rates > summary').click();
+  if(!await page.isVisible('#check-hosted')) throw Error('no way to check the hosted catalog');
+  await page.fill('#model','browser-preview-only');
   if(await page.inputValue('#thinking') !== 'enabled') throw Error('thinking default is not enabled');
   await page.click('#preview'); await page.locator('#scope').waitFor({state:'visible'});
   await page.check('#approve-start');

@@ -11,11 +11,26 @@ labels, pause/cancel/local resume, a global review queue, per-run resolution, re
 Events are ordered and paginated with displayed totals. Model and fixture text
 uses text nodes; it is never HTML or an operator command.
 
+The model identifier is chosen, not guessed. For a local run the menu is exactly
+the installed list the readiness probe already read from Ollama; for a hosted run
+it is empty until the operator presses **Check the hosted catalog**, which is the
+only control here that contacts a provider — it reads the current catalog from the
+pinned endpoint, makes no inference call and costs nothing. Either menu always
+carries a **Type an exact model id** option, because an id this workroom did not
+happen to see is still a legal id, and neither menu is ever pre-selected: no model
+is chosen for the operator. When the probe cannot reach a provider the menu says
+so rather than showing a stale or invented list. A hosted id is checked again
+against the provider's own catalog before any paid call, so the menu is a
+convenience, never the guarantee.
+
 Hosted starts require a server-issued, one-use preview token bound to the
 operator session and exact normalized start request. Preview performs no network
-request and needs no API key. Rates and provenance are optional information supplied by the operator; missing
-rates do not block a run (#28101). Thinking is an explicit selection, enabled by
-default, and is bound into the exact start request. The default launch limits are
+request and needs no API key. Thinking is an explicit selection, enabled by
+default, and is bound into the exact start request. Cost estimation is kept and
+kept optional: rates and provenance sit behind a closed **Optional cost estimate**
+disclosure in both the run and study forms, out of the primary flow. They are
+operator-supplied information only; missing rates do not block a run (#28101), and
+this workroom neither verifies nor supplies pricing. The default launch limits are
 16 calls and 8,192 output tokens per call; scope and limits remain visible before
 a start. This UI does not independently verify pricing. Changing selections requires
 another preview. Tokens expire after five minutes. Hosted resume is held in the
