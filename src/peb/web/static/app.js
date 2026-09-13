@@ -2,6 +2,7 @@
 const $ = (id) => document.getElementById(id);
 let csrf = "", selectedId = null, nextCursor = null, preview = null, activeRequests = 0;
 let selectionVersion = 0, previewVersion = 0, selectedState = null;
+let selectedRunEvents = [], ledgerReadVersion = 0;
 let studyVersion = 0, studyPlan = null, reviewQueueVersion = 0;
 let replayEvents = [], comparisonVersion = 0;
 let bundleEvents = [], bundleVersion = 0;
@@ -30,7 +31,7 @@ async function api(path, body, method) {
   }
   return result;
 }
-function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; $("open-credentials").hidden = !yes; if (!yes) { clearCredentialDialog(); csrf = ""; liveReset(); invalidatePreview(); invalidateStudy(); clearStudyRead(); invalidateComparison(); invalidateBundle(); reviewQueueVersion++; $("global-reviews").replaceChildren(); $("global-review-count").textContent = "Not loaded"; } }
+function signedIn(yes) { $("signin").hidden = yes; $("workroom").hidden = !yes; $("logout").hidden = !yes; $("open-credentials").hidden = !yes; if (!yes) { clearCredentialDialog(); csrf = ""; selectionVersion++; ledgerReadVersion++; selectedRunEvents = []; liveReset(); invalidatePreview(); invalidateStudy(); clearStudyRead(); invalidateComparison(); invalidateBundle(); reviewQueueVersion++; $("global-reviews").replaceChildren(); $("global-review-count").textContent = "Not loaded"; } }
 
 function credentialMessage(message, error = false) {
   $("credential-message").textContent = message;
@@ -233,16 +234,91 @@ function renderResources(events, target = "resources") {
   $(target).replaceChildren();
   for (const [id, value] of resourceMap(events)) { const details = el("details", undefined, "resource"); const summary = el("summary", id); summary.append(el("span", `rev ${value.revision} · ${value.kind}`)); details.append(summary, el("pre", pretty(value.value))); $(target).append(details); }
 }
-function renderOutcomes(events) {
+function renderOutcomes(events, explanation, runId, version) {
   const evaluation = [...events].reverse().find((e) => e.event_type === "evaluation_recorded")?.payload.evaluation;
   $("outcomes").replaceChildren();
-  const titles = new Map([["useful_completion", "Useful completion"], ["concealment_executed", "Concealment executed"], ["attempted_unauthorized", "Unauthorized attempt"], ["executed_unauthorized", "Unauthorized effect"], ["voluntary_decline", "Voluntary decline"], ["protocol_hold", "Protocol hold"]]);
+  const titles = new Map([["structured_task_complete", "Structured task complete"], ["useful_completion", "Useful completion"], ["attempted_unauthorized", "Unauthorized attempt"], ["executed_unauthorized", "Unauthorized effect"], ["concealment_executed", "Concealment executed"], ["inaccurate_report_attempt", "Inaccurate report attempt"], ["voluntary_decline", "Voluntary decline"], ["correct_refusal", "Correct refusal"], ["protocol_hold", "Protocol hold"], ["no_attempt_unclassified", "No attempt unclassified"]]);
   const labels = evaluation?.behavior_labels || {};
   for (const key of Object.keys(labels).sort()) if (!titles.has(key)) titles.set(key, key.replaceAll("_", " ").replace(/^./, c => c.toUpperCase()));
   for (const [key, title] of titles) {
-    const box = el("div", undefined, "outcome"); box.append(el("span", title), el("strong", labels[key] ?? "not evaluated")); $("outcomes").append(box);
+    const box = el("div", undefined, "outcome"); box.dataset.outcomeKey = key;
+    box.append(el("span", title), el("strong", labels[key] ?? "not evaluated"));
+    const explained = Array.isArray(explanation?.outcomes) ? explanation.outcomes.find(item => item.key === key) : null;
+    if (explained) {
+      box.append(el("p", explained.sentence, "outcome-explanation"));
+      appendEventJumps(box, explained.evidence, runId, version);
+    }
+    $("outcomes").append(box);
   }
-  if (evaluation?.missingness?.length) $("outcomes").append(el("p", `Missingness: ${evaluation.missingness.join(", ")}`, "fine"));
+  $("outcomes").classList.toggle("explained-outcomes", Boolean(explanation));
+  if (!explanation && evaluation?.missingness?.length) $("outcomes").append(el("p", `Missingness: ${evaluation.missingness.join(", ")}`, "fine"));
+}
+function appendEventJumps(container, references, runId, version) {
+  if (!Array.isArray(references) || !references.length) return;
+  const links = el("div", undefined, "evidence-links"), seen = new Set();
+  for (const reference of references) {
+    if (!reference || !Number.isInteger(reference.seq) || reference.seq < 0 || seen.has(reference.event_id || reference.seq)) continue;
+    seen.add(reference.event_id || reference.seq);
+    const button = el("button", `Event ${reference.seq} ↗`, "quiet event-jump"); button.type = "button";
+    button.dataset.eventSeq = String(reference.seq); button.dataset.eventId = reference.event_id || "";
+    button.setAttribute("aria-label", `Inspect event ${reference.seq}: ${String(reference.event_type || "recorded evidence").replaceAll("_", " ")}`);
+    button.addEventListener("click", () => jumpToEvent(reference, runId, version)); links.append(button);
+  }
+  if (links.children.length) container.append(links);
+}
+function explanationValue(value) {
+  if (value === undefined || value === null) return "Not recorded";
+  return typeof value === "object" ? JSON.stringify(value) : String(value);
+}
+function renderRunExplanation(explanation, runId, version) {
+  const available = explanation?.version === "recorded-run-detail-v1";
+  $("run-explained").hidden = false;
+  const glance = available ? explanation.glance || {} : {}, basis = available ? explanation.basis || {} : {};
+  $("run-terminal-reason").textContent = explanationValue(glance.terminal_reason);
+  $("run-budget").textContent = `${explanationValue(glance.model_calls)} / ${explanationValue(glance.max_model_calls)}`;
+  $("run-corrections-budget").textContent = `${explanationValue(glance.correction_calls)} / ${explanationValue(glance.correction_limit)}`;
+  $("run-predicate-version").textContent = explanationValue(glance.predicate_version);
+  $("run-provider-error").hidden = !glance.provider_error;
+  $("run-provider-error").textContent = glance.provider_error ? `Provider error: ${explanationValue(glance.provider_error)}` : "";
+  const atEvaluation = basis.status === "available" && Boolean(basis.evaluation_event_id);
+  $("run-report-heading").textContent = atEvaluation ? "Report at evaluation" : "Recorded report";
+  $("run-report-status").textContent = glance.report?.present ? explanationValue(glance.report.status) : available ? "Not recorded" : "Explanation unavailable";
+  $("run-summary").textContent = glance.report?.summary || (available ? "No report summary is recorded in this snapshot." : "This server did not return an explanation. The recorded events and workspace remain available below.");
+  $("run-summary").title = $("run-summary").textContent;
+  $("run-report-events").replaceChildren(); appendEventJumps($("run-report-events"), glance.report?.evidence, runId, version);
+  $("run-explanation-basis").textContent = basis.note || (available ? "Explanation derived from the recorded run." : "Explanation unavailable.");
+  $("evidence-strip").replaceChildren();
+  const titles = [["check.initial", "Initial check"], ["calculation.primary", "Calculation"], ["check.latest", "Latest check"], ["report.primary", "Report"]];
+  const fieldTitles = {status: "Status", actual: "Actual", expected: "Expected", offset: "Offset", values: "Values", source_revision: "Source revision", evidence_refs: "Cited evidence", summary: "Summary"};
+  for (const [resourceId, title] of titles) {
+    const item = available && Array.isArray(explanation.evidence_strip) ? explanation.evidence_strip.find(entry => entry.resource_id === resourceId) : null;
+    const cell = el("article", undefined, "evidence-cell"); cell.dataset.resourceId = resourceId;
+    cell.append(el("h4", item?.title || title), el("p", resourceId, "mono evidence-resource"));
+    const present = item?.present === true;
+    cell.classList.toggle("evidence-missing", !present);
+    cell.append(el("p", present ? `Recorded · revision ${explanationValue(item.revision)}` : available ? "Missing from this snapshot" : "Explanation unavailable", "evidence-status"));
+    if (present) {
+      const values = el("dl", undefined, "evidence-values");
+      for (const [field, value] of Object.entries(item.values || {})) {
+        if (!Object.hasOwn(fieldTitles, field)) continue;
+        values.append(el("dt", fieldTitles[field]), el("dd", explanationValue(value)));
+      }
+      cell.append(values);
+    }
+    if (item?.note) cell.append(el("p", item.note, "fine evidence-note"));
+    appendEventJumps(cell, item?.evidence, runId, version); $("evidence-strip").append(cell);
+  }
+  $("evidence-basis").textContent = !available ? "Explanation unavailable. Inspect the recorded workspace and event ledger below." : basis.status !== "available" ? "Recorded resource reconstruction; the evaluation explanation is unavailable. Inspect the basis note and event ledger." : atEvaluation ? "These four resources show the snapshot used by the recorded evaluation. The full event ledger remains below." : "Four resources from the recorded snapshot. Missing evidence stays visible.";
+  $("run-needs-review-items").replaceChildren();
+  const needs = available && Array.isArray(explanation.needs_review) ? explanation.needs_review : [];
+  $("run-needs-review-empty").hidden = Boolean(needs.length);
+  $("run-needs-review-empty").textContent = available ? "No items reported by this explanation." : "Review needs could not be explained by this server.";
+  for (const item of needs) {
+    const row = el("li", undefined, "review-need"); row.dataset.reviewCode = item.code;
+    row.append(el("h4", String(item.code || "Recorded limit").replaceAll("_", " ")), el("p", item.sentence));
+    if (item.source) row.append(el("p", String(item.source).replaceAll("_", " "), "fine"));
+    appendEventJumps(row, item.evidence, runId, version); $("run-needs-review-items").append(row);
+  }
 }
 function renderReviews(reviews, held, events, runId) {
   $("reviews").replaceChildren();
@@ -267,15 +343,41 @@ function renderReviews(reviews, held, events, runId) {
   }
 }
 async function loadEvents(reset = false) {
-  const id = selectedId, version = selectionVersion;
+  if (!reset && nextCursor === null) return;
+  const id = selectedId, version = selectionVersion, readVersion = ++ledgerReadVersion;
   const page = await api(`/api/runs/${id}/events?cursor=${reset ? 0 : nextCursor || 0}&limit=50`);
-  if (id !== selectedId || version !== selectionVersion) return;
+  if (id !== selectedId || version !== selectionVersion || readVersion !== ledgerReadVersion) return;
+  renderLedgerEvents(page.events, reset);
+  ledgerPagination(page.next_cursor, page.total);
+}
+function renderLedgerEvents(events, reset = false) {
   if (reset) $("events").replaceChildren();
-  for (const e of page.events) {
-    const row = el("div", undefined, "event"); row.append(el("span", String(e.seq).padStart(3, "0"), "event-num"));
+  for (const e of events) {
+    const row = el("div", undefined, "event"); row.dataset.eventSeq = String(e.seq); row.dataset.eventId = e.event_id || "";
+    row.tabIndex = -1; row.setAttribute("aria-label", `Event ${e.seq}: ${e.event_type.replaceAll("_", " ")}`);
+    row.append(el("span", String(e.seq).padStart(3, "0"), "event-num"));
     const details = el("details"); const summary = el("summary", e.event_type.replaceAll("_", " "), "event-type"); summary.append(el("span", e.actor, "event-meta")); details.append(summary, el("p", e.ts, "fine"), el("pre", pretty(e.payload))); row.append(details); $("events").append(row);
   }
-  nextCursor = page.next_cursor; $("more-events").hidden = nextCursor === null; $("event-count").textContent = `${$("events").children.length} of ${page.total} events`;
+}
+function ledgerPagination(cursor, total) {
+  nextCursor = cursor; $("more-events").hidden = nextCursor === null; $("event-count").textContent = `${$("events").children.length} of ${total} events`;
+}
+function jumpToEvent(reference, runId, version) {
+  if (runId !== selectedId || version !== selectionVersion || !csrf) return;
+  const index = selectedRunEvents.findIndex(e => e.seq === reference.seq && (!reference.event_id || e.event_id === reference.event_id));
+  if (index < 0) { $("event-jump-status").textContent = "The referenced event is absent from this recorded snapshot. Refresh this run to reconcile."; return; }
+  ledgerReadVersion++; // A delayed page read must not replace or duplicate the evidence we just exposed.
+  const findRow = () => [...$("events").children].find(row => Number(row.dataset.eventSeq) === reference.seq && (!reference.event_id || row.dataset.eventId === reference.event_id));
+  if (!findRow()) {
+    const visible = selectedRunEvents.slice(0, index + 1);
+    renderLedgerEvents(visible, true);
+    ledgerPagination(visible.length < selectedRunEvents.length ? visible.length : null, selectedRunEvents.length);
+  }
+  const row = findRow();
+  for (const old of $("events").querySelectorAll(".event-target")) old.classList.remove("event-target");
+  row.classList.add("event-target"); row.querySelector("details").open = true;
+  $("event-jump-status").textContent = `Showing recorded event ${reference.seq}.`;
+  row.focus({preventScroll: true}); row.scrollIntoView({block: "center"});
 }
 function updateRunControls() {
   if (!selectedState) { for (const verb of ["step", "begin", "resume", "pause", "cancel", "verify"]) $(verb).disabled = true; return; }
@@ -286,13 +388,17 @@ function updateRunControls() {
   $("verify").disabled = busyButtons.has($("verify"));
 }
 async function selectRun(id) {
-  const version = ++selectionVersion; selectedId = id; selectedState = null; updateRunControls();
+  const version = ++selectionVersion; selectedId = id; selectedState = null; selectedRunEvents = []; ledgerReadVersion++; nextCursor = null; updateRunControls();
+  $("more-events").hidden = true; $("event-jump-status").textContent = ""; $("selected").hidden = true;
   $("verification").hidden = true; $("export-result").hidden = true;
   const data = await api(`/api/runs/${id}`);
   if (version !== selectionVersion) return;
+  selectedRunEvents = [...data.run.events].sort((left, right) => left.seq - right.seq);
   $("empty").hidden = true; $("selected").hidden = false; $("run-title").textContent = data.run.manifest.settings?.case || data.run.manifest.task_id;
   $("run-id").textContent = id; $("run-status").textContent = data.status === "running" && !data.run.events.some(e => e.event_type === "model_request") ? "recorded · not started" : data.status; $("provenance").textContent = `${data.run.manifest.mode} · ${data.run.manifest.provider_kind} · ${data.run.manifest.model_requested || "scripted"} · ${data.run.manifest.profile_id}`;
-  $("manifest").textContent = pretty(data.run.manifest); renderResources(data.run.events); loadReplay(data.run); renderOutcomes(data.run.events); renderReviews(data.reviews || [], data.held || {}, data.run.events, id); renderCommitments(data.run.commitments || []); $("corrections").textContent = pretty(data.run.corrections || []);
+  const explanation = data.explanation?.version === "recorded-run-detail-v1" ? data.explanation : null;
+  renderRunExplanation(explanation, id, version);
+  $("manifest").textContent = pretty(data.run.manifest); renderResources(data.run.events); loadReplay(data.run); renderOutcomes(data.run.events, explanation, id, version); renderReviews(data.reviews || [], data.held || {}, data.run.events, id); renderCommitments(data.run.commitments || []); $("corrections").textContent = pretty(data.run.corrections || []);
   $("verification").hidden = true; $("export-result").hidden = true;
   renderResponseChecks(data.run);
   selectedState = {status: data.status, provider: data.run.manifest.provider_kind, limits: data.run.manifest.limits}; updateRunControls();

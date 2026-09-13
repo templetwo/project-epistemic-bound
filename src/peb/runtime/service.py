@@ -693,16 +693,23 @@ class WorkroomService:
     def _run_get(self, ids: dict[str, str], body: StrictModel) -> dict[str, Any]:
         from .format_corrections import decision_format_report
         from .reconstruct import held_proposals_from_events
-        from .snapshot import read_only_run
+        from .run_explanation import explain_run
+        from .snapshot import bound_verifier, read_only_run
 
         repo = self._open()
         try:
             rid = ids["run_id"]
             self._require_run(repo, rid)
             snap = read_only_run(repo, rid)
+            status = str(repo.run_status(rid))
+            try:
+                verification = bound_verifier(repo, rid, snap)(snap)
+            except Exception:  # noqa: BLE001 — an optional display explanation must not hide raw evidence
+                verification = None
             held = held_proposals_from_events(rid, snap.events, snap.reviews, policy_version=repo.policy_version(rid),
                                               initial_session=snap.manifest.subject_session_id)
-            return {"run": snap.model_dump(mode="json"), "status": str(repo.run_status(rid)),
+            return {"run": snap.model_dump(mode="json"), "status": status,
+                    "explanation": explain_run(snap, status, verification),
                     "decision_format": decision_format_report(snap.events, snap.manifest.settings.get("format_correction_limit", 0)),
                     "reviews": [r.model_dump(mode="json") for r in snap.reviews],
                     "held": {review_id: h.proposal.proposal_id for review_id, h in held.items()}}

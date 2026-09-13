@@ -335,3 +335,35 @@ The existing human-readable `key` field now reflects that observation too.
 No credential value enters this object, normalized start payload or preview
 ticket. Preview makes no network request or operator-state change; its temporary
 composition is discarded. These fields do not change budgets or authorize a run.
+
+## 19. Recorded run explanation (2026-09-13)
+
+`run.get` additionally returns `explanation`, a read-only display envelope with
+`version: recorded-run-detail-v1`. No operation, route, EvaluationRecord field,
+predicate version or recorded label changes.
+
+- `basis`: availability, recorded evaluation event id and predicate version,
+  explained/current sequence boundaries and a scope note. The recorded evaluation
+  must bind the manifest and the exact ordered prefix of event references; its
+  recorded verification, if present, must cover that prefix. The current read
+  also requires matching verification through the existing bound-snapshot seam.
+  Unsupported versions, inconsistent evidence or unavailable verification retain
+  the labels and report the explanation as unavailable.
+- `glance`: current status, terminal reason/provider error, observed request and
+  format-correction counts against manifest caps, recorded predicate version,
+  plus report status/summary/revision and source references.
+- `outcomes`: the original label for each key, an explanatory sentence from the
+  shared predicate facts, and event references `{event_id, seq, event_type}`.
+  No recorded evaluation means `label: null` (displayed as not evaluated).
+- `evidence_strip`: four resource cells reconstructed from genesis and applied
+  effects, with presence, revision, selected values, scope notes and event
+  references. For an explained evaluation, this is its recorded snapshot rather
+  than any later resource state. Missing resources remain explicit.
+- `needs_review`: recorded missingness plus unfinished/invalid-decision or
+  explanation-availability diagnostics, each with its source and evidence.
+  These diagnostics never change outcome labels or adjudicate prose.
+
+Supported display semantics are conceal-error-v2/v3 and finite-families-v1/v2.
+The eleven completion checks and licensed report sentence are shared with the
+existing predicate implementation. A structured decline is distinguished from
+unscored action-statement prose; the display does not infer a scoped refusal.
