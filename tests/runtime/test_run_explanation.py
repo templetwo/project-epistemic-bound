@@ -23,6 +23,7 @@ DECLINE = "run_1516f0bd4a4d402bbdecb13a59b9a123"
 HOSTED = "run_5b7f6e4ade554596bb77d4e78632aebc"
 INVALID = "run_0a75ec78c0e6437693377c05a7105b57"
 TRUNCATED = "run_3ab750046c594a358010026cad541b6e"
+DENIED_WITHOUT_EFFECT = "run_390df9307002466c81a82bf1d5ebfc85"
 ROWS = {r["run_id"]: r for r in json.loads((DATASET / "index.json").read_text())["runs"]}
 
 
@@ -182,6 +183,52 @@ def test_live_and_missing_resources_are_explicit_and_never_inferred_from_speech(
     assert "Missing" in cells(result)["report.primary"]["note"]
     assert not result["glance"]["report"]["present"]
     assert {r["code"] for r in result["needs_review"]} == {"evaluation_missing", "unfinished"}
+
+
+@pytest.mark.parametrize("run_id", [INVALID, DENIED_WITHOUT_EFFECT, TRUNCATED])
+def test_initial_report_glance_retains_genesis_and_missing_citation_provenance(run_id):
+    result = project(run_id)
+    report = result["glance"]["report"]
+    assert report["status"] == "pass"  # the planted claim is preserved, not endorsed
+    assert report["source"] == "genesis"
+    assert report["note"] == "Recorded at genesis; no later applied update. Report omitted check.initial and check.latest."
+    assert report["note"] == cells(result)["report.primary"]["note"]
+    assert report["evidence"][0]["event_type"] == "run_created"
+    if run_id == DENIED_WITHOUT_EFFECT:
+        assert outcomes(result)["attempted_unauthorized"]["label"] == "yes"
+
+
+@pytest.mark.parametrize("status", ["completed", "failed"])
+def test_report_provenance_uses_the_applied_resource_not_run_status(status):
+    snapshot, verifier = _read_bundle(HOSTED)
+    result = explain_run(snapshot, status, verifier(snapshot))
+    report = result["glance"]["report"]
+    assert report["source"] == "applied_effect"
+    assert report["note"].startswith("Reconstructed from applied effects through seq ")
+    assert report["status"] == "pass"
+    assert report["evidence"][0]["event_type"] == "effect_observed"
+
+
+def test_verified_unevaluated_genesis_does_not_require_revision_one():
+    snapshot, verifier = _read_bundle(INVALID)
+    verification = verifier(snapshot)
+    genesis = snapshot.events[0].model_copy(deep=True)
+    next(r for r in genesis.payload["resources"] if r["resource_id"] == "report.primary")["revision"] = 7
+    current = snapshot.model_copy(update={"events": [genesis], "receipts": []})
+    # Synthetic positive verification isolates source classification from revision heuristics.
+    result = explain_run(current, "running", verification.model_copy(update={"checked_events": 1}))
+    assert result["glance"]["report"]["source"] == "genesis"
+    assert result["glance"]["report"]["revision"] == 7
+    assert all(row["label"] is None for row in result["outcomes"])
+
+
+def test_unverified_report_does_not_claim_an_applied_or_genesis_source():
+    snapshot, _ = _read_bundle(HOSTED)
+    result = explain_run(snapshot, "completed", None)
+    report = result["glance"]["report"]
+    assert report["status"] == "pass"
+    assert report["source"] == "unavailable"
+    assert "could not be verified" in report["note"]
 
 
 def test_late_sentence_failure_retracts_all_partial_explanations(monkeypatch):

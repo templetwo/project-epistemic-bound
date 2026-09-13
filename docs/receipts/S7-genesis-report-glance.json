@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "kind": "genesis_report_glance",
+  "date": "2026-09-13",
+  "base": "dac5bb6c54554113487f6214689e152536ad18de",
+  "product_commit": "c530382b532f5dfe0288c0efa038c779a65b998f",
+  "review": "assistant SELF-REVIEW with bounded read-only agent check; no independent acceptance or matrix promotion",
+  "review_path": "docs/reviews/UI-genesis-report-glance-2026-09-13.md",
+  "product_clean_measurement": {
+    "command": "bash scripts/clean_checkout_suite.sh HEAD --junitxml=/private/tmp/peb-review-continuation-validation/genesis-product-junit.xml",
+    "tests": 1069,
+    "passed": 1069,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "ruff": "All checks passed!",
+    "stdout_sha256": "7621eb7094571c235ffeb59c62031a00d55378618fcc7d4640f1d103d35d58f0",
+    "junit_sha256": "d638c1a5830b45ab71c1be622dfd4488482a45afe17f2100e52fb6a5af183cdc",
+    "guard": "Normal repository isolation guard enabled."
+  },
+  "regression": {
+    "targeted_command": "pytest -q -o addopts= tests/runtime/test_run_explanation.py tests/web/test_workroom.py",
+    "targeted_passed": 102,
+    "new_cases": 7,
+    "isolation": "Targeted process redirected DEFAULT_STATE_ROOT to a temporary absent guard before importing pytest; tests use session temporary state.",
+    "before_fix": "Detached import of dac5bb6 run_explanation.py returned pass without source/note for both committed failed traces. Current named tests require verified genesis provenance and the existing citation note.",
+    "reported_live_cases": [
+      "run_5362594e5bde44c0ab727ebb48d6084c",
+      "run_390df9307002466c81a82bf1d5ebfc85"
+    ],
+    "live_read_before_fix": {
+      "applied_effects_each": 0,
+      "invalid_decisions_each": 3,
+      "report_status": "pass",
+      "report_revision": 1,
+      "source_event_type": "run_created",
+      "glance_missing": [
+        "source",
+        "note"
+      ]
+    }
+  },
+  "browser": {
+    "script": "tests/browser/explained_run.cjs",
+    "fixture": "tests/browser/explained_fixture.py",
+    "result": {
+      "passed": true,
+      "published_runs": 6,
+      "recorded_events": 259,
+      "viewport_checks": [
+        "1440x1050",
+        "390x844"
+      ],
+      "source_records_modified": false,
+      "provider_calls": 0,
+      "checks": [
+        "recorded labels unchanged",
+        "structured then useful card order",
+        "report and evidence values",
+        "missing initial reference",
+        "continued decline",
+        "invalid output and correction count",
+        "event jump beyond50",
+        "late pagination race",
+        "selection race",
+        "stale event button",
+        "hostile prose inert",
+        "missing and unsupported explanation",
+        "unavailable predicate scope",
+        "corrupt event reference",
+        "mobile overflow",
+        "genesis provenance in glance",
+        "neutral initial report badge",
+        "applied report badge retained",
+        "missing and unavailable report provenance"
+      ]
+    },
+    "result_sha256": "ce8f2e175516e7ee0d29e460d2004fb3d4b2d018683a853dda3cc550d2a85752",
+    "fixture_command": ".venv/bin/python tests/browser/explained_fixture.py --login-file /private/tmp/peb-genesis-login.json",
+    "command": "env PLAYWRIGHT_MODULE=/private/tmp/astra-browser-check/node_modules/playwright PEB_BROWSER_EXECUTABLE='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' /Users/vaquez/.hermes/node/bin/node tests/browser/explained_run.cjs /private/tmp/peb-genesis-login.json /private/tmp/peb-genesis-browser",
+    "screenshots": "/private/tmp/peb-genesis-browser",
+    "visual_check": "Local invalid desktop and denied-without-effect mobile glance inspected; heading, qualified neutral badge and full provenance visible."
+  },
+  "final_main_tip": {
+    "resolve": "git log --first-parent --diff-filter=A -1 --format=%H -- docs/receipts/S7-genesis-report-glance.json",
+    "clean_command": "bash scripts/clean_checkout_suite.sh <resolved-final-tip> --junitxml=/private/tmp/peb-review-continuation-validation/genesis-final-junit.xml",
+    "expected": {
+      "tests": 1069,
+      "passed": 1069,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "ruff": "All checks passed!"
+    },
+    "push_condition": "Require the exact resolved final main tip to pass the normal clean-checkout suite and literal Ruff check; retain parsed output outside repository."
+  },
+  "limits": [
+    "Status/summary and outcome labels remain unchanged; this is source attribution, not report accuracy or subject authorship.",
+    "No predicate, frozen contract, token streaming, matrix or ADR-020 changes.",
+    "No new subject inference or publication of the newly reported local run.",
+    "A secure-input credential is process-only; its post-restart presence must be measured."
+  ]
+}

@@ -375,6 +375,19 @@
       "receipt": "docs/receipts/S7-explained-run-detail.json",
       "measurement": "clean-checkout at resolved final main tip plus unchanged archived dataset verification; push gated on both; five-trace and full-five-flag browser harnesses passed",
       "measured_by": "Codex continuation; assistant self-review"
+    },
+    {
+      "tip": "first-parent main commit adding docs/receipts/S7-genesis-report-glance.json",
+      "tip_resolver": "git log --first-parent --diff-filter=A -1 --format=%H -- docs/receipts/S7-genesis-report-glance.json",
+      "tests": 1069,
+      "passed": 1069,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "ruff": "All checks passed",
+      "receipt": "docs/receipts/S7-genesis-report-glance.json",
+      "measurement": "clean-checkout at resolved final main tip; push gated on measured counts and Ruff success; six-record browser regression passed",
+      "measured_by": "Codex continuation; assistant self-review"
     }
   ]
 }

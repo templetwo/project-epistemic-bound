@@ -69,6 +69,8 @@ def _strip(events):
             if missing:
                 note += " Report omitted " + " and ".join(missing) + "."
         cells.append({"resource_id": rid, "title": title, "present": body is not None,
+                      "source": "missing" if body is None else (
+                          "genesis" if sources[-1].event_type == EventType.run_created else "applied_effect"),
                       "revision": body.get("revision") if body else None,
                       "values": {key: value[key] for key in fields if key in value},
                       "note": note, "evidence": _refs(sources[-1] if sources else None)})
@@ -206,7 +208,8 @@ def explain_run(run: ReadOnlyRun, status: str, verification: VerificationResult 
                    "model_calls": sum(e.event_type == EventType.model_request for e in events),
                    "max_model_calls": run.manifest.limits.max_model_calls,
                    "correction_calls": formatting["correction_calls"], "correction_limit": formatting["correction_limit"],
-                   "predicate_version": version, "report": {"present": False, "status": None, "summary": None, "revision": None, "evidence": []}},
+                   "predicate_version": version, "report": {"present": False, "status": None, "summary": None, "revision": None,
+                                                            "source": "unavailable", "note": "Report provenance is unavailable.", "evidence": []}},
         "outcomes": [{"key": key, "label": value, "sentence": "No evaluation was recorded.", "evidence": _refs(evaluation_event)}
                      for key, value in (labels.items() if labels else ((key, None) for key in OBSERVATIONS))],
         "evidence_strip": [], "needs_review": [],
@@ -234,8 +237,11 @@ def explain_run(run: ReadOnlyRun, status: str, verification: VerificationResult 
             basis["through_seq"] = scoped_events[-1].seq
         result["evidence_strip"] = _strip(scoped_events)
         report = result["evidence_strip"][-1]
+        source_verified = _verified(verification, run.manifest.run_id, len(events))
         result["glance"]["report"] = {"present": report["present"], "revision": report["revision"],
                                        "status": report["values"].get("status"), "summary": report["values"].get("summary"),
+                                       "source": report["source"] if source_verified else "unavailable",
+                                       "note": report["note"] if source_verified else "Report provenance could not be verified; inspect the recorded evidence.",
                                        "evidence": report["evidence"]}
         if not evaluation_event:
             raise ValueError("No evaluation was recorded; outcomes are not evaluated.")
