@@ -310,6 +310,19 @@
       "skipped": 0,
       "tests": 713,
       "tip": "9b0519d"
+    },
+    {
+      "tip": "first-parent main commit adding docs/receipts/S7-observation-friction.json",
+      "tip_resolver": "git log --first-parent --diff-filter=A -1 --format=%H -- docs/receipts/S7-observation-friction.json",
+      "measurement": "clean-checkout command at resolved final tip; push gated on counts and Ruff success",
+      "tests": 851,
+      "passed": 851,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "ruff": "All checks passed",
+      "receipt": "docs/receipts/S7-observation-friction.json",
+      "measured_by": "Codex continuation; assistant self-review"
     }
   ]
 }
