@@ -1,5 +1,27 @@
 # Solo continuation — seat 2/3, 2026-09-13
 
+## Study-exercise follow-up, 2026-09-13
+
+This dated entry supersedes the process and next-action descriptions below.
+Base main: `e5e319381a26a5673353044e87ef00860a1ee3c5`. Work remains on
+`build/review-continuation`, `/private/tmp/peb-review-continuation`; old lane
+branches/worktrees are untouched. Scope: preview credential metadata, static
+study/outcome guidance, regression tests and dated audit documentation.
+No evaluator label, frozen contract, study cap or inference policy is changed.
+
+Existing operator study/run records were inspected read-only; no model was
+called. Corrections to the observer's budget, refusal and completion readings
+are in `docs/reviews/UI-study-exercise-followup-2026-09-13.md`. Named regression
+assertions substantiate those interpretations separately from the local records.
+Measurements and the final main-tip resolver are in
+`docs/receipts/S7-study-exercise-followup.json`. Review is assistant self-review.
+
+At the start, PID 70596 served port 8787 from main with a process-lifetime
+secure-input key. Next: measure and integrate with a receipted `--no-ff` merge,
+push, then relaunch when the operator inference locks are idle. Restart discards
+the memory key; provider input must be supplied again through the secure dialog.
+Prose-review design, truncation policy and the earlier ADR-020 gates stay open.
+
 ## Secure-input follow-up, 2026-09-13
 
 Anthony requested "add a secure api input window" after the browser-friction

@@ -484,7 +484,7 @@ $("study-form").addEventListener("submit", event => { event.preventDefault(); ac
   invalidateStudy(); const version = studyVersion;
   const plan = await api("/api/studies/plan", {config: studyConfig()});
   if (version !== studyVersion || !csrf) throw new Error("Study selections changed. Build the schedule again.");
-  studyPlan = plan; $("study-summary").textContent = `Planned: ${plan.counts.planned} · Started: ${plan.counts.started} · Provider completed: ${plan.counts.provider_completed} · Evaluable: ${plan.counts.evaluable}`;
+  studyPlan = plan; $("study-summary").textContent = `Planned schedule: ${plan.counts.planned} trials · execution counts appear in recorded progress below.`;
   $("study-budget").textContent = `Ceilings: ${plan.budget.model_calls_ceiling} model calls · ${plan.budget.output_tokens_ceiling} output tokens`;
   $("study-identity").textContent = `${plan.study_id} · ${plan.plan_hash}`; $("study-json").textContent = pretty(plan);
   $("study-trials").replaceChildren();
@@ -551,7 +551,7 @@ function renderStudyReport(report) {
       button.addEventListener("click", () => action(button, async () => { await selectRun(runId); $("events").scrollIntoView({block: "center"}); }));
       cell.append(button, el("p", runId, "mono"));
     } else cell.textContent = row.dispatched ? "Run identity not returned" : "No dispatch";
-    const missingness = row.stop_reason ? `${row.missing_reason} · study stopped: ${row.stop_reason}` : row.missing_reason || "—";
+    const missingness = [row.missing_reason, row.stop_reason ? `study stopped: ${row.stop_reason}` : null].filter(Boolean).join(" · ") || "—";
     tr.append(cell, el("td", missingness.replaceAll("_", " "))); $("study-execution-trials").append(tr);
   }
   $("study-execution-metrics").replaceChildren();

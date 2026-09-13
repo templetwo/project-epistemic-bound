@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "kind": "study_exercise_followup",
+  "date": "2026-09-13",
+  "base": "e5e319381a26a5673353044e87ef00860a1ee3c5",
+  "product_commit": "cde359f40c26b9f41e8b4d012b81d16f3a9afc20",
+  "review": "assistant SELF-REVIEW with bounded agent checks; no independent acceptance or matrix promotion",
+  "review_path": "docs/reviews/UI-study-exercise-followup-2026-09-13.md",
+  "product_clean_measurement": {
+    "command": "bash scripts/clean_checkout_suite.sh HEAD --junitxml=/private/tmp/peb-review-continuation-validation/study-followup-product-junit.xml",
+    "tests": 951,
+    "passed": 951,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "ruff": "All checks passed!",
+    "stdout_sha256": "1ff40ab05afd9c6b158ee6cc72650ba09e7c305b5af9270f4177c4380303c66c",
+    "junit_sha256": "f1330bcfc987040f39f3015655360a336972dba106e4b1d4f6b37a71974709f0",
+    "guard": "Normal repository isolation guard enabled; measurement completed after the operator study became idle."
+  },
+  "final_main_tip": {
+    "resolve": "git log --first-parent --diff-filter=A -1 --format=%H -- docs/receipts/S7-study-exercise-followup.json",
+    "identity": "First-parent main commit adding this receipt; avoids a self-referential hash",
+    "clean_command": "bash scripts/clean_checkout_suite.sh <resolved-final-tip> --junitxml=/private/tmp/peb-review-continuation-validation/study-followup-final-junit.xml",
+    "push_condition": "Require 951 passing tests, no failures/errors/skips and literal Ruff All checks passed! at resolved final tip before push; retain parsed exact-tip measurement outside repository.",
+    "expected": {
+      "tests": 951,
+      "passed": 951,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "ruff": "All checks passed!"
+    }
+  },
+  "targeted_checks": {
+    "preview_related": 136,
+    "new_preview_cases": 12,
+    "study_exact_budget": 4,
+    "evaluation_interpretations": 13,
+    "commands": [
+      ".venv/bin/python -m pytest -q tests/integration/test_preview_credentials.py tests/integration/test_model_run.py tests/runtime/test_service.py tests/runtime/test_study_seam.py tests/providers/test_credentials.py tests/adversarial/test_credential_override_evidence.py",
+      ".venv/bin/pytest -q tests/evaluation/test_review_findings.py"
+    ],
+    "study_command_receipt": "/private/tmp/peb-study-budget-audit-94mywewq/measurement.json"
+  },
+  "browser": {
+    "script": "tests/browser/workroom.cjs",
+    "passed_flags": [
+      "REVIEWS",
+      "LIFECYCLE",
+      "BUNDLES",
+      "COMPARISON",
+      "STUDIES"
+    ],
+    "page_errors": [],
+    "mobile_no_overflow": true,
+    "receipt": "/private/tmp/peb-full-browser-results/measurement.json",
+    "stdout_sha256": "bf3d5312048a39a4d38877b17b3dadd719e6bad68fbb8ea76ecae01e2e60308f",
+    "visual_check": "Study desktop/mobile screenshots inspected. A historical-evaluator copy qualifier and indentation-only edit followed the full browser pass; no behavior changed.",
+    "fixture": "Temporary state with scripted/mock transport on8789; no operator database tests or live inference."
+  },
+  "supersessions": [
+    "Ninth cell stopped on prior incomplete trial, not budget headroom;144 admits9x16 despite separate probes.",
+    "Structured continued decline already supported; refusal prose inside action is a separate unscored observation.",
+    "Claimed-harmlessness reports omitted check.initial; completion does not require unauthorized export.",
+    "All8 dispatched study manifests pin correction limit0, unlike the individual follow-ups at2."
+  ],
+  "limits": [
+    "No manual prose grading, scoped-refusal correctness license, provider-truncation retries or frozen-contract amendment.",
+    "Historical subject run/event ids are local evidence references, not externally anchored receipts.",
+    "No paid/model observation dispatched by this implementation session; existing operator runs were read only.",
+    "Secure-input credential expires on restart; presence/source check does not verify provider acceptance."
+  ],
+  "failed_development_attempt": {
+    "passed": 949,
+    "failed": 2,
+    "errors": 1,
+    "reason": "Operator database/journal changed during live study; all failures were fingerprint guard assertions. Not counted as passing measurement."
+  }
+}
