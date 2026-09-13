@@ -19,7 +19,14 @@ are final lane states as of the close.
 ## Which commit is current
 
 - Integration checkout `main` = **the docs commit carrying this file** (its hash is the pushed `origin/main` tip; it also
-  carries `docs/receipts/S7-room-closed.json`). Its parent chain runs back through the close of the build room —
+  carries `docs/receipts/S7-model-choice-merge.json`). Latest unit: `5e33917`, the `--no-ff` merge of lane commit
+  `1834d65` — the browser workroom's model identifier becomes a menu over what the readiness probe actually measured
+  (`installed_models`, additive on `health.get`; never a default, always with a typed escape, and honestly empty when a
+  provider is unreachable), an opt-in hosted-catalog check moves the provider's own `/models` verdict earlier than the
+  launch-time probe that already enforces it, and the cost estimator is kept but demoted behind a closed disclosure in
+  both forms. Anthony's direction, live in the workroom; **self-reviewed**, and recorded as such
+  (`docs/reviews/UI-1834d65-model-choice-claude.md`). Clean checkout of `5e33917`: 710 passed / 0 failed / 0 skipped,
+  whole-tree ruff clean. Before it, the parent chain runs back through the close of the build room —
   `1faf784` (merge of seat 3/3's final lane tip) ← `8c398b3` (merge of seat 2/3's final lane tip) ← `d3f5458` (the two
   cockpit fixes of 2026-09-12 evening) ← `a5a95db` (the tip when the room closed) ← `5064bd5` ← `11b9d2d` ← `a941778`
   ← `472ff63` ← `72bcce7`.

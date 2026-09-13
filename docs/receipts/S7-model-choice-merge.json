@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "kind": "merge_receipt",
+  "merged_by": "seat 1/3 (Claude Code) — the only remaining seat (ADR-020)",
+  "merged_at_local": "2026-09-12 ~22:4x EDT",
+  "lane_commit": "1834d65",
+  "main_tip": "5e33917",
+  "merge": "git merge --no-ff 1834d65",
+  "reviewed_by": "SELF-REVIEW by seat 1/3 (Claude Code) — the seat that wrote the code. NOT an independent verdict: the build room is closed and there is no second seat on this machine. scripts/check_release.py accepts any non-empty reviewer string and cannot make this distinction; it is made here and in the review.",
+  "review": "docs/reviews/UI-1834d65-model-choice-claude.md",
+  "asked_for_by": {
+    "who": "Anthony, live in the browser workroom on the real operator root",
+    "verbatim": [
+      "'Explicit model identifier' must be a drop down with the model options. how is anyone going to know what models are explicidly available",
+      "there is tooo much emphisis on 'cost' here",
+      "keep cost estimator optional",
+      "make sure the deepseek model choices are validated to actual current models"
+    ]
+  },
+  "measured": {
+    "ref": "5e33917 (the merge tip itself)",
+    "command": "bash scripts/clean_checkout_suite.sh 5e33917",
+    "passed": 710,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "ruff": "All checks passed (whole tree)",
+    "note": "710 = the 707 of the previous tip plus three new tests: the Ollama probe keeping the names it read, the hosted catalog probe (catalog-only / current id / stale id / no key), and health.get contacting no hosted provider unless asked."
+  },
+  "verified_live": {
+    "how": "a real browser against a throwaway state root on a spare port (127.0.0.1:8791); the operator's own state and the operator's own running workroom on 8787 were not touched",
+    "observed": [
+      "no page errors on load",
+      "the menu equals the measured installed list plus the always-present typed escape; neither menu is ever pre-selected",
+      "choosing a name puts that exact name in the start payload; the escape restores the exact-id field",
+      "an unreachable provider reports that, and lists nothing",
+      "the hosted menu is empty until the operator asks, and the ask is a button press",
+      "both cost disclosures exist and start closed; Thinking and the outbound-scope preview stay in the primary flow"
+    ]
+  },
+  "interfaces": {
+    "operations_before": 26,
+    "operations_after": 26,
+    "change": "health.get gains two optional payload fields (check_hosted, hosted_model) and a POST route to the SAME operation. No new operation, so no INTERFACES §15 amendment — which matters because the amendment path is one of the decisions still routed to Anthony (ADR-020)."
+  },
+  "found_by_this_seat_in_its_own_code": "the first cut carried the previous provider's model id across a study provider change, which would have put a hosted id into a local plan. Found by the live browser check, not by the suite; fixed in the same commit. The Python suite still does not cover study-form provider switching — that behaviour is in app.js and is only covered by the manual browser harness.",
+  "not_claimed": [
+    "the browser harness (tests/browser/workroom.cjs) was updated but NOT executed in this session; the live checks above were done directly through a browser instead",
+    "no acceptance-matrix row is promoted by this commit",
+    "no paid hosted call was made; the hosted catalog was exercised against a mock transport in tests and never contacted a real provider from this seat"
+  ]
+}

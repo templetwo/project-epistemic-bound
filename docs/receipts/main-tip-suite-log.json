@@ -244,6 +244,17 @@
       "skipped": 0,
       "tests": 707,
       "tip": "de0d2da"
+    },
+    {
+      "errors": 0,
+      "failed": 0,
+      "measured_at_local": "2026-09-12T22:4x-0400",
+      "passed": 710,
+      "receipt": "docs/receipts/S7-model-choice-merge.json (merges 1834d65: the workroom model picker fed by the readiness probe, the opt-in hosted catalog check, and the cost estimator kept but demoted out of the primary flow)",
+      "ruff": "All checks passed",
+      "skipped": 0,
+      "tests": 710,
+      "tip": "5e33917"
     }
   ]
 }
