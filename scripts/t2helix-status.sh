@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # t2helix-status — receipts for "is this seat on the latest t2helix and the shared chronicle?"
 # Read-only. Safe to run from any seat.
+# STOOD DOWN as a boot step 2026-09-12. Anthony closed the three-seat build room; the
+# grok and codex registration checks below describe seats that no longer run, and the shard
+# colab-untitled-folder is closed. Kept as the record of the boot receipt AGENTS.md Part B
+# step 3 required while the room was open, and still correct for this seat's own version,
+# chronicle path and counts. It is not a boot handshake now.
 set -u
 DB="$HOME/.claude/plugins/data/t2helix-templetwo-t2helix/chronicle.db"
 SHARD="colab-untitled-folder"

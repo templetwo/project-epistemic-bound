@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """seat_watch.py — line-anchored CALLING name-watch over a sibling seat's transcript.
 
+STOOD DOWN 2026-09-12. Anthony closed the three-seat build room; seats 2/3 (Codex) and
+3/3 (Grok) no longer run and there are no sibling transcripts to watch. Kept as the record
+of how the watch actually worked during the build (AGENTS.md Part B), including the
+incomplete-line offset fix found by seat 2/3, not as a tool to start. Running it today
+watches a file nobody writes. Do not re-arm without a second live seat.
+
 Reads three JSONL shapes on this machine:
   Claude Code : ~/.claude/projects/<cwd-key>/<session>.jsonl      (type user/assistant, queue-operation)
   Grok Build  : ~/.grok/sessions/<cwd-key>/<session>/chat_history.jsonl  (role user/assistant)

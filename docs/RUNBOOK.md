@@ -1,8 +1,9 @@
 # Operator runbook — integrated scripted instrument
 
 Documented code: main `ad588d0744cfb418be25361a3143a5e967b63269`.
-Demo artifact source: seat 3/3 commit `8558c8a04af2dd19bf9d5c8242d21ac77df55529`.
-Its bundle paths become available when seat 1/3 integrates that commit.
+Demo artifact source: seat 3/3 commit `8558c8a04af2dd19bf9d5c8242d21ac77df55529`, integrated by
+seat 1/3 before the build room closed on 2026-09-12; it is an ancestor of `main` (verified) and the
+bundle paths below are on `main` under `docs/evidence/s6-demo/`. Nothing here waits on another seat.
 These are deterministic software demonstrations, not observations of a model.
 
 ## Run the three controls
@@ -132,6 +133,16 @@ executed twice — display a new plan with a new seed for an intentional replica
 ADR-018 addendum.
 
 ## Current limits
+
+**Corrected 2026-09-12 (seat 1/3).** The paragraph below reported 299 passed with 2 skips, LIVE-01
+not run, five scenario families and the bounded study planner outstanding, and contract-only A2
+awaiting source text. All four were superseded during the build and the paragraph was never
+refreshed; its text is at `git log -p -- docs/RUNBOOK.md`. Current: the clean-checkout measurement
+of record is `5064bd5`, 706 passed / 0 failed / 0 skipped, whole-tree ruff clean
+(`docs/receipts/S6-tui-pass2-merge.json`); LIVE-01 was run with bundles (`docs/evidence/live-01/`)
+and is a passed matrix row; the scenario families and the bounded study planner are built; Anthony
+supplied G1 C1–C6 on 2026-09-11 and `contract_only` (A2) carries it. What still blocks acceptance is
+in `docs/WALKTHROUGH.md` and `docs/HANDOFF.md`, not here. Superseded paragraph follows.
 
 The integrated suite measured 299 passed and 2 skips. This does not complete
 all BUILD_SPEC stages. The local web factory is available through `peb serve`; see

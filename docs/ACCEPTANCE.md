@@ -13,6 +13,18 @@ Mark `passed` only when the entire requirement has measured coverage. Partial
 UI, unimplemented study operations and required skips remain release blockers.
 This tool cannot infer semantic test sufficiency from a file path.
 
+**Independence, after 2026-09-12.** Every row promoted on or before that date was reviewed by a
+seat other than the one that implemented it, and `reviewed_by` names which (e.g. UI-01/02/03:
+"seat 1/3 (independent of the implementer seat 2/3)"). Anthony closed the three-seat build room on
+2026-09-12 (ADR-020) and only seat 1/3 remains. Seat 1/3 is still a genuinely independent reviewer
+of code it did not write — seat 2/3's and seat 3/3's lanes — and may promote those rows under the
+unchanged rule. It is **not** independent of its own lane. A row reviewed by the seat that wrote the
+code must say so in `reviewed_by` — "seat 1/3, self-review, no independent verdict" — and that is a
+weaker standard, not the same one. Rows that need a reader who did not write the code stay
+`needs_review` with the reason recorded, until Anthony rules. The checker requires only a non-empty
+`reviewed_by` and cannot tell a self-review from an independent one, which is exactly why the string
+must.
+
 Run `uv run --locked python scripts/check_release.py --ref HEAD --output
 /private/tmp/peb-release-REVIEW-ID` with a fresh output directory. The checker
 archives that exact commit into temporary storage, installs locked dependencies,

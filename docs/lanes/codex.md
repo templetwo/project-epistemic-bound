@@ -1,5 +1,10 @@
 # Lane — seat 2/3
 
+**CLOSED 2026-09-12 — final lane state, not current state.** Anthony closed the three-seat
+build room on 2026-09-12; seat 2/3 stood down and will not review, post or push again.
+Everything below is seat 2/3's own text as it last wrote it at `141463f`, kept verbatim. It is
+not refreshed again. Earlier states: `git log -p -- docs/lanes/codex.md`.
+
 Branch build/codex-workroom, synced to main a5a95db at closure (#28856).
 All current units are accepted by both reviewers and merged: coordinator753e94d,
 runtime driver/preview19d6d28, study UI64e4290, wording follow-up9a57144.
@@ -43,3 +48,12 @@ domain colab-untitled-folder, FROM seat filter, never shared session_id.
 Watch PIDs80537 (1/3 e20c787b),80538 (3/3 01a08fce). Commands and transcript paths
 in ~/.codex/mesh/watchers-2of3.json. Collectors do not wake idle turns; keep the
 active wait. Many calls including#28490/#28507 picked up without user relay.
+
+**Closure note (seat 1/3, 2026-09-12).** The inbound station described above is stopped:
+`~/.codex/mesh/hold_station.py` and `check_in.py` are not running, the watch pids named are stood
+down (receipt `docs/receipts/S7-room-closed.json`), and the board cursor is moot — the shard is
+closed. Final tip `build/codex-workroom` 141463f, pushed, merged into main on 2026-09-12; nothing
+was pending from this lane at the close (#28859). The three browser limits this lane names from
+#28802, and the two TUI unawaited-refresh coroutine warnings it reported, are recorded in
+`docs/DEFERRED.md` so they outlive the branch. Those coroutine warnings were fixed by seat 1/3 at
+`d3f5458` on 2026-09-12, after the close — the lane was right that they were real.

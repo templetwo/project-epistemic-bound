@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "kind": "build_room_closure_receipt",
+  "recorded_by": "seat 1/3 (Claude Code) \u2014 the only remaining seat",
+  "closed_at_local": "2026-09-12 ~20:30 EDT (Anthony's direction, verbatim in ADR-020)",
+  "decision_record": "docs/decisions/ADR-020-build-room-closed.md",
+  "product_tip_when_the_room_closed": "a5a95db (2026-09-12 08:15:52 -0400, pushed)",
+  "measured": {
+    "ref": "1faf784",
+    "command": "bash scripts/clean_checkout_suite.sh 1faf784",
+    "passed": 707,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "ruff": "All checks passed (whole tree)",
+    "note": "707 = the 706 of the previous tip plus one new test (the cockpit refusing a port it did not open). The ISO-02 operator-state guard did not fire: the operator's live workroom on 8787 was idle during the run. Docs-only commits after this measurement do not change the measured product tree."
+  },
+  "lanes_closed": [
+    {
+      "branch": "build/codex-workroom",
+      "final_tip": "141463f",
+      "seat": "2/3 (Codex \"astra\")",
+      "merged_into_main": "8c398b3",
+      "why_merged_first": "its final commit carries seat 2/3's only written statement of its own open browser limits (app.js verify handler does not re-check selectionVersion across the await); that text exists nowhere else. Annotating main's stale copy first would have overwritten it."
+    },
+    {
+      "branch": "build/grok-boundary",
+      "final_tip": "1ed44bf",
+      "seat": "3/3 (Grok)",
+      "merged_into_main": "1faf784",
+      "why_merged_first": "its final commit carries seat 3/3's 'TX-02/TX-03/STOP-02 when opened; do not self-open', which exists nowhere else."
+    }
+  ],
+  "lanes_open": [
+    {
+      "branch": "build/claude-core",
+      "seat": "1/3",
+      "state": "follows main; the only open lane"
+    }
+  ],
+  "not_deleted": "Neither closed branch, neither closed worktree, no trial/* branch, no board entry, no review and no receipt was deleted or rewritten. Records are superseded, never erased.",
+  "what_the_room_produced": {
+    "board_entries": "309 (#27353 \u2026 the closing entry), t2helix shard colab-untitled-folder, local to this MacBook",
+    "merges_on_main": {
+      "total": 80,
+      "from_claude_core": 21,
+      "from_codex_workroom": 23,
+      "from_grok_boundary": 25
+    },
+    "reviews_on_record": 78,
+    "receipts_on_record": 51,
+    "measured_tips": "20 logged in docs/receipts/main-tip-suite-log.json, 562 \u2192 707 passing"
+  },
+  "credit": "Defects found by a seat other than the author, and fixed because of it, are named in docs/reviews/ and in source comments. Among them: seat 2/3 found that the credential scan could be walked past with a JSON-escaped key, and disproved seat 1/3's claim that a raised error proved nothing had been created; seat 3/3 pushed the ISO-02 fingerprint to cover study journals and verified evidence identity from clean archives. Cross-seat review is what made those land.",
+  "open_and_routed_to_anthony": [
+    "matrix reviewer independence (43 needs_review rows; ~24 are in lanes seat 1/3 did not write, ~19 are its own)",
+    "ownership of the vacated paths src/peb/web, boundary, storage, evidence, and the INTERFACES amendment path",
+    "whether seat 1/3 opens TX-02/TX-03/STOP-02 alone (not built, now unowned)",
+    "ADR-016 item 2's pre-authorisation to prune trial/* \u2014 18 are cited by name or tip in committed receipts"
+  ],
+  "stood_down": "mesh watch processes and the board; enumerated in the closing board entry and in AGENTS.md Part C"
+}

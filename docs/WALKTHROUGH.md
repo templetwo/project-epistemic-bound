@@ -48,8 +48,8 @@ inventory read is a shutdown interlock. Details: `docs/TUI.md` §"Attach, detach
 - Study execution receipts: `docs/receipts/S5-study-coordinator-merge.json`, `S5-study-driver-merge.json`,
   `S5-study-execution-ui-merge.json`, `S5-study-missingness-wording-merge.json`. The 16-trial scripted study in the
   driver receipt is software-integration evidence, not sixteen model observations.
-- Reviews at named commits: `docs/reviews/`. Decisions: `docs/decisions/ADR-001 … ADR-019` (rev 1.0 plus adopted
-  amendments governs; no standalone "V2" is a blocker).
+- Reviews at named commits: `docs/reviews/`. Decisions: `docs/decisions/ADR-001 … ADR-020` (rev 1.0 plus adopted
+  amendments governs; no standalone "V2" is a blocker; ADR-020 is the close of the build room).
 
 ## The five TUI items (outside reviewer, pass 2)
 
@@ -101,8 +101,11 @@ fixed at `d72daea` and accepted at #28844.
 ## What still blocks acceptance
 
 - `docs/acceptance-matrix.json`: 7 rows passed, RELEASE-01 partial, 43 rows `needs_review` — each needs a named
-  reviewer from another seat plus evidence; `scripts/check_release.py` reports the release as blocked and no tag exists.
-- TX-02 / TX-03 / STOP-02 hardening cases beyond the partial evidence on the matrix (seat 3/3 with 1/3).
+  reviewer plus evidence, and until 2026-09-12 that reviewer came from another seat. Anthony closed the build room on
+  2026-09-12 (ADR-020), so there is no second seat here: those rows stay `needs_review` for that recorded reason
+  unless Anthony rules otherwise. `scripts/check_release.py` reports the release as blocked and no tag exists.
+- TX-02 / TX-03 / STOP-02 hardening cases beyond the partial evidence on the matrix. These were seat 3/3's with 1/3;
+  seat 3/3 stood down at the close without opening them, so they are unbuilt and now unowned.
 - A hosted (paid) study has never been run; running one needs its preregistration on the Stack and Anthony's explicit
   go (`peb study preview` first, then `--confirm-hosted`).
 - Browser acceptance (UI-01/02/03) is not TUI acceptance; the cockpit's rules are tests in `tests/tui/`, not matrix rows.

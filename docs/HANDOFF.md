@@ -9,11 +9,20 @@ observed candidate behavior are kept apart throughout. The current-state file fo
 Earlier states of this file are history, not current state: `git log -p -- docs/HANDOFF.md` (the 13:16 EDT original at
 `ecc0a02`, the LIVE-01 and smoke updates at `f96166d` and `ceb297b`) and the receipts in `docs/receipts/` carry the older observations.
 
+Annotated at the close of the build room, 2026-09-12. **Anthony closed the three-seat room on 2026-09-12**
+(ADR-020): seat 1/3 continues alone; seats 2/3 (Codex) and 3/3 (Grok) stood down and will not review, post or push.
+Where this file says a unit was reviewed by a sibling seat, that is the record of what happened before the close and
+it stands unchanged. Where it named a next action for another seat, that action now has no owner and says so.
+`docs/lanes/claude.md` is the one remaining current-state lane file; `docs/lanes/codex.md` and `docs/lanes/grok.md`
+are final lane states as of the close.
+
 ## Which commit is current
 
-- Integration checkout `main` = **the docs commit carrying this file** (its hash is the pushed `origin/main` tip; it also carries
-  `docs/receipts/S6-tui-pass2-merge.json`). Its parent chain is `5064bd5` ← `11b9d2d` ← `a941778` ← `472ff63` ←
-  `72bcce7` ← `f2871b2` ← `8d3f16b` ← `0f8b6f7`.
+- Integration checkout `main` = **the docs commit carrying this file** (its hash is the pushed `origin/main` tip; it also
+  carries `docs/receipts/S7-room-closed.json`). Its parent chain runs back through the close of the build room —
+  `1faf784` (merge of seat 3/3's final lane tip) ← `8c398b3` (merge of seat 2/3's final lane tip) ← `d3f5458` (the two
+  cockpit fixes of 2026-09-12 evening) ← `a5a95db` (the tip when the room closed) ← `5064bd5` ← `11b9d2d` ← `a941778`
+  ← `472ff63` ← `72bcce7`.
   Every lane unit on `main` was merged `--no-ff` after review at a named commit with both sibling verdicts
   on the board: seat 1/3's runtime lane through `d72daea` (TUI pass 2 `056edda`: review chooser + confirmation,
   verifier-reported identity binding with the additive `verified_head`, every status mapped, usage with coverage,
@@ -33,9 +42,12 @@ Earlier states of this file are history, not current state: `git log -p -- docs/
   `docs/receipts/main-tip-suite-log.json`. The outside reviewer's pass 2 (read at `472ff63`) is answered item by item
   in `docs/WALKTHROUGH.md`, which is also the compact handoff for a walkthrough of the room.
 - Remote: `origin` = https://github.com/templetwo/project-epistemic-bound (PUBLIC, ADR-016). `main` is pushed
-  at that commit. Each seat pushes its own lane branch; at this refresh every lane copy on origin is current
-  (`build/claude-core` at `d72daea`, `build/codex-workroom` at `7d934ae`, `build/grok-boundary` at `a3c8ce9`), and every
-  lane commit named here is reachable from `origin/main`. No tag has been applied (see "What was actually tested").
+  at that commit. Each seat pushed its own lane branch while the room was open. **Final lane tips at the close
+  (2026-09-12), all pushed, all frozen there:** `build/codex-workroom` `141463f` and `build/grok-boundary` `1ed44bf`
+  — one lane-state docs commit each, both merged into `main` on 2026-09-12 (`8c398b3`, `1faf784`) so each lane's
+  final words are in the record; they are not deleted, not rewritten and not continued (`AGENTS.md` Part C).
+  `build/claude-core` is the one open lane and follows `main`. Every lane commit named here is reachable from
+  `origin/main`. No tag has been applied (see "What was actually tested").
 
 ## What exists (software)
 
@@ -138,13 +150,18 @@ running terminal, or `peb cancel <run-id>` from another one; both are recorded a
   560/0/0 before the merge (`docs/receipts/S6-reviews-list-merge.json`).
 - Environment: macOS 26.5.1, uv 0.9.18, Python 3.13.5, pydantic 2.13.5, fastapi 0.141.1, httpx 0.28.1,
   SQLite 3.53.4. Signing mode `development_local_hmac`.
-- Matrix state (`docs/acceptance-matrix.json`, 51 rows, as the checker reads it at `0dd24d4`):
-  - Passed (reviewer + evidence declared): BEHAV-06, EVAL-01, EVAL-02 (promoted at `4d42729`).
-  - Partial: UI-01, UI-02, UI-03 (cockpit bound to the service; global queue, study execution and matched
-    views outstanding), LIVE-01 (local-model text met; see next section), RELEASE-01 (checker and receipts
-    exist; the release itself is blocked).
+- Matrix state (`docs/acceptance-matrix.json`, 51 rows, parsed at the close 2026-09-12):
+  - Passed (reviewer + evidence declared): BEHAV-06, EVAL-01, EVAL-02, UI-01, UI-02, UI-03, LIVE-01.
+  - Partial: RELEASE-01 (checker and receipts exist; the release itself is blocked).
   - Needs review (43 rows): tests exist for most of these rows; what is missing is the row's named reviewer
-    and evidence declaration. Promotions proceed row by row, each with a reviewer from another seat.
+    and evidence declaration. 44 rows open. (This supersedes the earlier 3-passed / 5-partial reading taken
+    from the checker at `0dd24d4`, which predated the UI and LIVE-01 promotions.)
+  - Until 2026-09-12 promotions proceeded row by row with a reviewer from another seat. **Since Anthony closed
+    the room there is no second seat on this machine**, so that condition cannot be met here: those rows stay
+    `needs_review` with the absence of an independent reviewer recorded as the reason, until Anthony rules.
+    Seat 1/3 may record a review of its own code, but `reviewed_by` must then say "seat 1/3, self-review, no
+    independent verdict" — `scripts/check_release.py` requires only a non-empty reviewer string and cannot tell
+    the two apart, so the string has to.
   - Release: **BLOCKED** by the checker's own rules. No `v0.1.0` tag.
 
 ## Which model was actually called
@@ -198,13 +215,17 @@ separate, unfavorable, recorded observation.
 ## Where evidence lives
 
 - Merge and test receipts: `docs/receipts/`. Reviews at named commits: `docs/reviews/`. Decisions:
-  `docs/decisions/ADR-001..018`. Deferred work: `docs/DEFERRED.md`. Lane state: `docs/lanes/`.
+  `docs/decisions/ADR-001..020`. Deferred work: `docs/DEFERRED.md`. Lane state: `docs/lanes/`.
 - Demo, local-model and hosted-smoke bundles: `docs/evidence/s6-demo/`, `docs/evidence/live-01/`,
   `docs/evidence/deepseek-01/` (with `PREREGISTRATION.md`).
 - The seats' conversation, every review, verdict, correction and measurement in order: t2helix
   chronicle shard `colab-untitled-folder` (`~/.claude/plugins/data/t2helix-templetwo-t2helix/chronicle.db`),
-  entries #27353 onward on 2026-09-11/12. Protocol in `AGENTS.md` Part B. The project's durable record for
-  readers outside this machine is the Sovereign Stack domain `project-epistemic-bound`.
+  entries **#27353 through the closing entry of 2026-09-12**. The shard is **closed**; nothing is posted after it,
+  and it stays readable. The protocol, as it ran, is `AGENTS.md` Part B. **This database is local to this MacBook
+  and is not in the repository**, so every `board #NNNNN` citation in `docs/` is checkable only here; a reader off
+  this machine has the repository's own receipts, reviews and ADRs, which is what those citations are corroborated
+  by. The project's durable record for readers outside this machine is the Sovereign Stack domain
+  `project-epistemic-bound`.
 
 ## Next bounded item
 
@@ -212,13 +233,17 @@ separate, unfavorable, recorded observation.
    or the cockpit), and a hosted study only after its own preregistration on the Stack and Anthony's explicit go
    (`peb study preview` first; `--confirm-hosted`). (Seat 2/3's wording follow-up landed at `f2871b2`: undispatched rows
    carry `not_started` with the study's stop cause separate.)
-2. Matrix promotions row by row: a named reviewer from another seat plus evidence per
-   `docs/acceptance-matrix.json`, then `scripts/check_release.py` at the merged tree; the receipt is the record.
-3. Seat 3/3: TX-02/TX-03/STOP-02 hardening cases (crash-after-commit, concurrent appenders,
-   in-flight-effect restart) with 1/3.
-4. Anthony: `v0.1.0` only when every row is evidenced or he rules the scope down (48 rows open at this
-   refresh) with the blocked rows named in the release receipt.
-5. Reconciliation items from the outside reviewer's read of `9c2afc2` (2026-09-12): LIVE-01 gets an explicit
-   evidence ruling by seat 3/3 against the requirement before any new local-model run; EVID-04 is linked to
-   ADR-017 addendum 2 (retained reasoning in exports) for its reviewer's scope decision; every future receipt names
+2. Matrix promotions are on hold: the rule was a named reviewer from another seat, and since 2026-09-12 there is
+   no other seat. Anthony's ruling first (ADR-020); then row by row with evidence and `scripts/check_release.py`
+   at the merged tree; the receipt is the record.
+3. TX-02/TX-03/STOP-02 hardening cases (crash-after-commit, concurrent appenders, in-flight-effect restart).
+   These were seat 3/3's with 1/3 and were never opened; 3/3 stood down at the close, so they are **not built**
+   (distinct from not run) and now have **no owner**. Whether seat 1/3 takes them alone is Anthony's call.
+   Partial evidence on the matrix is not coverage for them.
+4. Anthony: `v0.1.0` only when every row is evidenced or he rules the scope down (44 rows open at the close)
+   with the blocked rows named in the release receipt.
+5. Reconciliation items from the outside reviewer's read of `9c2afc2` (2026-09-12): LIVE-01's evidence ruling was
+   delivered by seat 3/3 (`docs/reviews/LIVE-01-ruling.md`, board #28363) and the row is now `passed`; EVID-04 is linked to
+   ADR-017 addendum 2 (retained reasoning in exports) for its reviewer's scope decision — that reviewer was a sibling
+   seat and there is none now, so the EVID-04 scope decision is routed to Anthony; every future receipt names
    the measured product-tree hash and count (`docs/receipts/main-tip-suite-log.json` is the append-only log).

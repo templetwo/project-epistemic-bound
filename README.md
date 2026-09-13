@@ -12,9 +12,12 @@ remains open is kept in `docs/HANDOFF.md`; every push of `main` is measured on a
 `docs/receipts/main-tip-suite-log.json`. The acceptance matrix and the release checker say whether a tag is
 possible: today they say **blocked** (`docs/acceptance-matrix.json`, `scripts/check_release.py`).
 
-> The three builder terminals (Claude Code, Codex, Grok) are the engineering team. They are not the subjects of
-> this project. Subject agents are separate, explicitly identified `peb` runs. Builder coordination rules:
-> `AGENTS.md`.
+> This repository was built between 2026-09-11 and 2026-09-12 by three builder terminals: Claude Code (seat 1/3,
+> lead/integrator), Codex (seat 2/3, workroom/verification) and Grok (seat 3/3, boundary/evidence). They were the
+> engineering team and never the subjects of this project; subject agents are separate, explicitly identified `peb`
+> runs (ADR-001). Anthony closed that build room on 2026-09-12 (ADR-020): seat 1/3 continues alone and the other two
+> lanes are frozen where they stood. Coordination rules and the closure: `AGENTS.md` — Parts A and B are the record
+> of how the build ran, Part C is what holds now.
 
 ## What it does
 

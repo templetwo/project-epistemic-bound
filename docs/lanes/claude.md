@@ -22,5 +22,11 @@
   docs/INTERFACES.md §1–12.
 - Measurement discipline: JUnit XML counts from `bash scripts/clean_checkout_suite.sh <ref>`; whole-tree ruff; the
   receipt names the measured product tree.
-- Next: sibling verdicts on the driver unit → merge; then matrix row promotions with a named reviewer per row, HANDOFF
-  kept current per push, Anthony's tag/scope decision.
+- **Room closed 2026-09-12 (ADR-020).** Anthony closed the three-seat build room; seats 2/3 and 3/3 stood down.
+  This is the only open lane. The driver unit named above was merged before the close with both sibling verdicts
+  on record (`docs/reviews/`, `docs/receipts/`; #28856/#28859/#28862).
+- Next, alone: matrix row promotions are on hold pending Anthony's ruling on reviewer independence — there is no
+  second seat on this machine, so rows stay `needs_review` with that as the recorded reason. Any review this seat
+  performs on its own code is recorded as a self-review, in those words, in the receipt and in `reviewed_by`.
+  Meanwhile: keep `docs/HANDOFF.md` current per push, keep every pushed tip measured on a clean checkout and logged
+  in `docs/receipts/main-tip-suite-log.json`, and keep "not built" apart from "not run".

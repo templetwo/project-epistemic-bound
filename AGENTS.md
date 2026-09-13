@@ -1,9 +1,18 @@
 # AGENTS.md — builder rules for project-epistemic-bound
 
-Read `BUILD_SPEC.md` (rev 1.0, 2026-09-11) first; it is authoritative. This file
-is the working agreement for the three builder terminals and the cross-seat
-communication protocol. Grok and Codex read it natively; Claude Code imports it
-from `CLAUDE.md`.
+**Room closed 2026-09-12.** Anthony closed the three-seat build room on 2026-09-12:
+"we are going to be working from this seat alone tonight". Seat 1/3 (Claude Code)
+continues alone; seat 2/3 (Codex "astra") and seat 3/3 (Grok) have stood down — they
+will not review, will not post, will not push. Everything below that reads as a live
+instruction to coordinate with another seat is history as of that date: it is true
+about 2026-09-11/12 and is kept, not deleted, because the build actually ran that
+way. Part B is a closed channel — read it as the record of how cross-seat comms
+worked, never as an instruction to post. What a single seat does now is **Part C**.
+
+Read `BUILD_SPEC.md` (rev 1.0, 2026-09-11) first; it is authoritative, amended by
+`docs/decisions/` (the closure itself is ADR-020). This file was the working
+agreement for the three builder terminals and the cross-seat communication
+protocol. Grok and Codex read it natively; Claude Code imports it from `CLAUDE.md`.
 
 ## Part A — the build (BUILD_SPEC §§2–4, §21)
 
@@ -54,6 +63,14 @@ processes, blockers, next action. Review receipts go in `docs/reviews/`, test
 receipts in `docs/receipts/`.
 
 ## Part B — cross-seat communication: t2helix is the room
+
+**Closed 2026-09-12.** This part is the record of how the three seats actually
+talked to each other while the room was open (2026-09-11 → 2026-09-12). It is not
+an instruction to anyone now: do not boot into it, do not post to the shard, do not
+issue `CALLING` lines, do not wait for an ack. The shard `colab-untitled-folder` is
+closed and stays readable as the build's conversation. Kept verbatim below because
+the protocol is part of what was built here, and because every `board #NNNNN`
+receipt in `docs/` points into it.
 
 Anthony, 2026-09-11: "i want all cross seat comms handled by the t2helix."
 Lane files in `docs/lanes/` are durable per-lane state; the **t2helix board is
@@ -135,3 +152,55 @@ and never describe it as enforced.
 **Sovereign Stack (HQ) is not the seat-to-seat channel** and is not a build
 dependency (§1.2). This machine is Anthony's MacBook Pro, not HQ. Durable
 lineage writes, if any, use `source_instance = "MacBook seat (<model>)"`.
+
+
+## Part C — after the room closed (2026-09-12)
+
+Anthony closed the build room on 2026-09-12. Seat 1/3 works alone from that date.
+Parts A and B describe how the build ran and are kept as that record; they are not
+instructions to a seat reading this today. The closure, and what it amends in
+BUILD_SPEC, is ADR-020.
+
+**What still holds, alone.**
+- Records are superseded, never rewritten or deleted. A correction is a new dated
+  entry that names what it supersedes.
+- A claim without a checkable receipt does not stand. Receipts in `docs/receipts/`,
+  reviews in `docs/reviews/`, decisions in `docs/decisions/`.
+- "Not built" stays apart from "not run". A suite total is not acceptance.
+- Every pushed tip is measured on a clean checkout (`scripts/clean_checkout_suite.sh`)
+  and logged in `docs/receipts/main-tip-suite-log.json`.
+- Builders are still not subjects (ADR-001). That rule did not close with the room.
+- The S1-frozen modules stay frozen whether or not their owner is still seated:
+  `contracts.py`, `boundary/canonical.py`, the `evidence/events.py` hash rule,
+  `docs/INTERFACES.md` §§1–12.
+- Staging discipline, state discipline and the initiative rule (Part A, §4.2,
+  §6/§9.1, §0/§3.3) are unchanged.
+
+**Solo-seat measurement rule.** With no sibling reader, no property claim may enter
+HANDOFF, a receipt or the acceptance matrix unless the same commit carries a named
+assertion or a recorded command that would fail if the claim were false. The
+precedent is board #28059 → #28117: an announced export property that one
+independent ACCEPT (#28064) did not catch and a second reader did.
+
+**What changed.**
+- There is no second reviewer on this machine. A matrix row that needs an
+  independent reviewer is not promoted by this seat alone: it stays `needs_review`
+  with that as the recorded reason, until Anthony rules. A self-review may be
+  recorded — as a self-review, in those words, never as an independent verdict.
+  `scripts/check_release.py` cannot tell the two apart: it requires only a non-empty
+  `reviewed_by` string and resolvable evidence paths, so the string must.
+- Do not post to the shard, do not wait for a sibling verdict, do not issue
+  `CALLING` lines. `scripts/seat_watch.py` and `scripts/t2helix-status.sh` are stood
+  down and kept as the method record.
+- The lanes stop where they stood: `build/codex-workroom` 141463f and
+  `build/grok-boundary` 1ed44bf, pushed, frozen, never deleted, both merged into
+  `main` at the close so each seat's last words are in the record. Their worktrees
+  stay on disk untouched.
+- New work by this seat goes on `build/claude-core` and reaches `main` by the same
+  measured, receipted `--no-ff` merge — with the review named honestly as this
+  seat's own. (Exception on the record: the two cockpit fixes of 2026-09-12 evening,
+  `d3f5458`, landed directly on `main` during the close-out itself, before this part
+  existed. Recorded here rather than tidied away.)
+- The vacated paths (`src/peb/web/`, `src/peb/boundary/`, `src/peb/storage/`,
+  `src/peb/evidence/`) have no owner. Lanes are assigned by Anthony; this seat does
+  not self-assign. Until he rules, it does not edit them.

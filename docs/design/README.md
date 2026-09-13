@@ -6,7 +6,7 @@ ADR or an INTERFACES amendment that names it.
 
 | File | Received | SHA-256 | From | Status |
 |---|---|---|---|---|
-| `peb_cockpit_tui_design.md` | 2026-09-12 00:23 EDT (file time; handed to seat 1/3 by Anthony at 00:3x EDT: "think you can work this into the room?") | `fc7b361b0df227e0cabf54605dd16453368ef7095323e882170e6d0144f74589` | outside author (the document addresses Anthony; its `fileciteturn…` / `citeturn…` markers are the author's tool citations, not repository references) | received; under the seats' review on the board; lane assignment is Anthony's |
+| `peb_cockpit_tui_design.md` | 2026-09-12 00:23 EDT (file time; handed to seat 1/3 by Anthony at 00:3x EDT: "think you can work this into the room?") | `fc7b361b0df227e0cabf54605dd16453368ef7095323e882170e6d0144f74589` | outside author (the document addresses Anthony; its `fileciteturn…` / `citeturn…` markers are the author's tool citations, not repository references) | received; the board review this was under closed with the build room on 2026-09-12 (ADR-020) — nothing is outstanding from another seat. It is still **not** an amendment: what was adopted from it was adopted through ADR-019 (terminal cockpit) and its addenda, and its additive service proposals remain unbuilt. Lane assignment was Anthony's |
 
 ## Fit notes at main `4ef1a76` (seat 1/3, first read)
 

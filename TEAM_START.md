@@ -1,8 +1,15 @@
 # project-epistemic-bound — start the three builders
 
+> **Historical launch document. The room it started closed on 2026-09-12.**
+> These are the prompts Anthony actually used to start the three builder terminals on 2026-09-11. They ran; the
+> build is in this repository. Anthony closed the build room on 2026-09-12 (ADR-020) and seats 2/3 (Codex) and 3/3
+> (Grok) stood down. **Do not paste these prompts to start a seat.** The file is kept unaltered below because it is
+> the source of the lane assignments cited by `AGENTS.md` Part A and BUILD_SPEC §3.1, and because the record of how
+> the team was started is part of what this project is. For what holds now, with one seat: `AGENTS.md` Part C.
+
 **Owner:** Anthony Vasquez Sr.  
 **Assignment:** build the project defined in `BUILD_SPEC.md`.  
-**Team:** Claude Code, Grok, Codex. **These are builders, not experimental subjects.**
+**Team (2026-09-11 → 2026-09-12):** Claude Code, Grok, Codex. **These were builders, not experimental subjects.**
 
 Place `BUILD_SPEC.md` and this file in the intended starting project folder. The inherited starting location is `~/Desktop/untitled`; Claude must inspect it before changing it. Do not manually create three separate repositories.
 

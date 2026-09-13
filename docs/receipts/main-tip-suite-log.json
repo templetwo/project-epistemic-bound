@@ -222,6 +222,17 @@
       "skipped": 0,
       "tests": 706,
       "tip": "5064bd5"
+    },
+    {
+      "errors": 0,
+      "failed": 0,
+      "measured_at_local": "2026-09-12T21:0x-0400",
+      "passed": 707,
+      "receipt": "docs/receipts/S7-room-closed.json \u2014 the build room closed (ADR-020). Product tree = d3f5458 (two cockpit fixes) plus the two closed lanes' final docs commits; the closure documentation commit on top is docs-only.",
+      "ruff": "All checks passed",
+      "skipped": 0,
+      "tests": 707,
+      "tip": "1faf784"
     }
   ]
 }

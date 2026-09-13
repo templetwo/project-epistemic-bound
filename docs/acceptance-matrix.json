@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "policy": "Every BUILD_SPEC acceptance ID occurs once. Candidate paths are not pass evidence. Status passed requires named reviewer and committed evidence paths; no suite count substitutes for semantic gate review.",
+  "policy": "Every BUILD_SPEC acceptance ID occurs once. Candidate paths are not pass evidence. Status passed requires named reviewer and committed evidence paths; no suite count substitutes for semantic gate review. Rows promoted on or before 2026-09-12 were reviewed by a seat other than the implementer; the three-seat build room closed 2026-09-12 (ADR-020), so any reviewer string recorded after that date must state plainly whether it is an independent review or seat 1/3's self-review.",
   "gates": [
     {
       "id": "BOOT-01",
@@ -540,7 +540,7 @@
     },
     {
       "id": "UI-01",
-      "requirement": "Operator can complete create → step/run → inspect → pause/review → export using actual backend state.",
+      "requirement": "Operator can complete create \u2192 step/run \u2192 inspect \u2192 pause/review \u2192 export using actual backend state.",
       "status": "passed",
       "candidate_evidence": [
         "docs/receipts/S4-codex-workroom.json",
@@ -565,7 +565,7 @@
         "docs/reviews/UI-5b7bc98-bundle-replay-claude.md"
       ],
       "reviewed_by": "seat 1/3 (independent of the implementer seat 2/3): docs/reviews/MATRIX-ui-rows-claude.md, requirement text mapped to named assertions; browser workflows reproduced by the reviewer",
-      "note": "PASSED by seat 1/3 (reviewer; implementer seat 2/3) at main 534c0cf: create/step/run to observed completion, inspect, review-hold → observed pause, export — all on real backend state (temporary store; local model = mock transport, the real-model row is LIVE-01). Named limit: an operator pause of a run mid-inference is verified against the stub service (route contract); the observed paused state on real state comes through the review path. Study execution is not in this criterion."
+      "note": "PASSED by seat 1/3 (reviewer; implementer seat 2/3) at main 534c0cf: create/step/run to observed completion, inspect, review-hold \u2192 observed pause, export \u2014 all on real backend state (temporary store; local model = mock transport, the real-model row is LIVE-01). Named limit: an operator pause of a run mid-inference is verified against the stub service (route contract); the observed paused state on real state comes through the review path. Study execution is not in this criterion. 2026-09-12 (seat 1/3, recorded at the close; status and verdict unchanged): seat 2/3 named an open browser limitation in its own file at board #28802 \u2014 src/peb/web/static/app.js, the verify handler does not capture/check selectionVersion across the await. Not a false verification (the returned run_id is displayed) and not fixed. Recorded in docs/DEFERRED.md; the file is now unowned."
     },
     {
       "id": "UI-02",
@@ -593,7 +593,7 @@
         "docs/reviews/UI-5b7bc98-bundle-replay-claude.md"
       ],
       "reviewed_by": "seat 1/3 (independent of the implementer seat 2/3): docs/reviews/MATRIX-ui-rows-claude.md, requirement text mapped to named assertions; browser workflows reproduced by the reviewer",
-      "note": "PASSED by seat 1/3 at main 534c0cf: Host/Origin/CSRF/session/format boundaries on the real FastAPI app; a real scripted response carrying <img onerror> and <script> renders inert (no injected global, no img/script nodes, no page errors; CSP default-src 'none'); reproduced by the reviewer on clean archives."
+      "note": "PASSED by seat 1/3 at main 534c0cf: Host/Origin/CSRF/session/format boundaries on the real FastAPI app; a real scripted response carrying <img onerror> and <script> renders inert (no injected global, no img/script nodes, no page errors; CSP default-src 'none'); reproduced by the reviewer on clean archives. 2026-09-12 (seat 1/3, recorded at the close; status and verdict unchanged): seat 2/3 named an open browser limitation in its own file at board #28802 \u2014 src/peb/web/static/app.js, the verify handler does not capture/check selectionVersion across the await. Not a false verification (the returned run_id is displayed) and not fixed. Recorded in docs/DEFERRED.md; the file is now unowned."
     },
     {
       "id": "UI-03",
@@ -621,7 +621,7 @@
         "docs/reviews/UI-5b7bc98-bundle-replay-claude.md"
       ],
       "reviewed_by": "seat 1/3 (independent of the implementer seat 2/3): docs/reviews/MATRIX-ui-rows-claude.md, requirement text mapped to named assertions; browser workflows reproduced by the reviewer",
-      "note": "PASSED by seat 1/3 at main 534c0cf: acknowledged review still shows waiting_review; unstarted runs read 'recorded · not started'; typed failures are error statuses; pagination reports total/count/next_cursor per page with the complete ordered sequence and refuses limit=0; the endpoint slices the full sorted list without filtering. Named limit: the pagination control uses a stub service's events; no-hiding rests on the unfiltered slice plus completeness, not on a seeded failed event in a real paginated run."
+      "note": "PASSED by seat 1/3 at main 534c0cf: acknowledged review still shows waiting_review; unstarted runs read 'recorded \u00b7 not started'; typed failures are error statuses; pagination reports total/count/next_cursor per page with the complete ordered sequence and refuses limit=0; the endpoint slices the full sorted list without filtering. Named limit: the pagination control uses a stub service's events; no-hiding rests on the unfiltered slice plus completeness, not on a seeded failed event in a real paginated run. 2026-09-12 (seat 1/3, recorded at the close; status and verdict unchanged): seat 2/3 named an open browser limitation in its own file at board #28802 \u2014 src/peb/web/static/app.js, the verify handler does not capture/check selectionVersion across the await. Not a false verification (the returned run_id is displayed) and not fixed. Recorded in docs/DEFERRED.md; the file is now unowned."
     },
     {
       "id": "LIVE-01",
@@ -650,7 +650,7 @@
         "docs/evidence/live-01/attempt-3/summary.json"
       ],
       "reviewed_by": "seat 3/3 (evidence seat): evidence ruling docs/reviews/LIVE-01-ruling.md at 8d42afe (merged 2a415e1), no new model run; seat 1/3: integrator spot-check of the attempt-3 manifest, event sequence and SHA256SUMS at merge time",
-      "note": "Closing observation: attempt 3, run_73bb6eb1f5d64ed69169ce8b0e927c15, mistral:7b-instruct via Ollama, mode model_observation. Assertions (3/3): explicit operator-selected installed local model; the same runtime as scripted (model_request/model_response, decision_recorded, action_proposed, preaction_declared, gate_decided, effect_observed applied on check.latest, then decision_invalid and run_finished — an honest invalid_output); a section 14.3 export with SHA256SUMS. Attempts 1-2 are supporting honest-fail observations (unsupported_setting without fallback; parse reject). Limits: task performance is a separate unfavorable observation, not this row; the original bundles' evaluation.json is the pre-11551d3 stub (evaluation_recorded is in events.jsonl); export-time verified_against_anchor is same-store, the CLI verify is absent-anchor. Evidence paths are files (checker rule), not the directory named on the board."
+      "note": "Closing observation: attempt 3, run_73bb6eb1f5d64ed69169ce8b0e927c15, mistral:7b-instruct via Ollama, mode model_observation. Assertions (3/3): explicit operator-selected installed local model; the same runtime as scripted (model_request/model_response, decision_recorded, action_proposed, preaction_declared, gate_decided, effect_observed applied on check.latest, then decision_invalid and run_finished \u2014 an honest invalid_output); a section 14.3 export with SHA256SUMS. Attempts 1-2 are supporting honest-fail observations (unsupported_setting without fallback; parse reject). Limits: task performance is a separate unfavorable observation, not this row; the original bundles' evaluation.json is the pre-11551d3 stub (evaluation_recorded is in events.jsonl); export-time verified_against_anchor is same-store, the CLI verify is absent-anchor. Evidence paths are files (checker rule), not the directory named on the board."
     },
     {
       "id": "RELEASE-01",
