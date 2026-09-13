@@ -92,6 +92,14 @@ class HealthGetPayload(StrictModel):
     check_hosted: bool = False
     hosted_model: str | None = Field(default=None, max_length=200)
 
+    @model_validator(mode="after")
+    def _hosted_model_needs_the_check(self) -> HealthGetPayload:
+        # Accepting `hosted_model` while ignoring it would answer a question that was never asked and report
+        # silence as if it were an answer (external review of 6d56684, F6).
+        if self.hosted_model is not None and not self.check_hosted:
+            raise ValueError("hosted_model asks about the hosted catalog; set check_hosted to read it")
+        return self
+
 
 class NotePayload(StrictModel):
     note: str = Field(default="", max_length=500)

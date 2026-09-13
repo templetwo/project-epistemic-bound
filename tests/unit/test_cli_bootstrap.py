@@ -134,6 +134,12 @@ def test_hosted_catalog_is_the_providers_own_current_list_and_only_on_request(st
     stale = asyncio.run(cli.probe_hosted_catalog(cfg, "deepseek-v2-imagined", transport=httpx.MockTransport(catalog)))
     assert stale["status"] == "unknown_model" and stale["available_models"] == ["deepseek-chat", "deepseek-reasoner"]
 
+    # An entry with no id is not a model called "None" (review F6).
+    def ragged(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"data": [{"id": "deepseek-chat"}, {"object": "model"}, {"id": ""}]})
+
+    assert asyncio.run(cli.probe_hosted_catalog(cfg, None, transport=httpx.MockTransport(ragged)))["available_models"] == ["deepseek-chat"]
+
     # The key is never returned, only whether one is present.
     assert set(listed) & {"key", "endpoint_host"} == {"key", "endpoint_host"}
     assert "not-a-real-key-for-this-test" not in json.dumps(listed)

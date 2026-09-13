@@ -144,7 +144,9 @@ class DeepSeekProvider:
         if not isinstance(data, list):
             # An object with a list `data` is the only shape the catalog may take; anything else is a typed failure.
             return {**base, "status": "transport", "detail": "malformed /models body"}
-        ids = sorted(str(m.get("id")) for m in data if isinstance(m, dict))
+        # An entry carrying no id is not a model named "None": it is an entry this adapter cannot name, and
+        # putting it in the catalog would offer the operator a model that does not exist (review F6).
+        ids = sorted(str(m["id"]) for m in data if isinstance(m, dict) and m.get("id"))
         if self.model not in ids:
             return {**base, "status": "unknown_model", "available_models": ids[:50]}
         return {**base, "status": "ok", "available_models": ids[:50]}

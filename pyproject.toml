@@ -34,7 +34,12 @@ addopts = "-q"
 # Work that is created and never awaited is work silently dropped, not a style warning: the cockpit hands
 # coroutines to Textual workers, and an exclusive worker cancelled before it starts must not leave one behind.
 # Exactly that class fails the suite; every other warning stays a warning.
-filterwarnings = ["error:coroutine .* was never awaited:RuntimeWarning"]
+# The first entry alone does NOT catch the dropped-worker case: an un-awaited coroutine is collected by the
+# garbage collector, so the warning arrives through the unraisable hook wrapped as
+# PytestUnraisableExceptionWarning and never passes through this filter. Shown empirically on 2026-09-13
+# by restoring the pre-d3f5458 dispatch: 45/45 TUI tests still passed. The second entry is the real guard.
+filterwarnings = ["error:coroutine .* was never awaited:RuntimeWarning",
+                  "error::pytest.PytestUnraisableExceptionWarning"]
 
 [tool.ruff]
 line-length = 100
