@@ -324,3 +324,14 @@ resolver: a service's request snapshot takes precedence over the existing named
 environment variable. No new secret-bearing model/provider dataclass field is
 serialized. Clearing/replacing the stored override affects new requests; an
 already constructed provider retains its credential for its in-flight operation.
+
+**2026-09-13 exercise follow-up:** `run.preview` and each `study.preview`
+condition's scope additionally expose `credential: {key, source, observed_at,
+note}`. `key` is presence only (`present|absent`, or `none` for loopback), and
+`source` is `secure_input|environment|absent` (or `none` for loopback).
+`observed_at` is the literal `preview`: it describes that request's scoped
+credential snapshot, not a promise that a later launch uses the same source.
+The existing human-readable `key` field now reflects that observation too.
+No credential value enters this object, normalized start payload or preview
+ticket. Preview makes no network request or operator-state change; its temporary
+composition is discarded. These fields do not change budgets or authorize a run.

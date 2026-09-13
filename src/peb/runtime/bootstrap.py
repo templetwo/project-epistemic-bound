@@ -885,6 +885,26 @@ def outbound_scope(*, provider_kind: str, endpoint: str, model: str, profile_id:
         cost["rates_provenance"] = str(rates.get("provenance", "supplied by the operator; not verified by this software"))
     else:
         cost = {"total_usd_worst_case": None, "note": "rates not supplied (input_cache_miss_per_mtok, output_per_mtok per 1M tokens); cost not computed"}
+    if provider_kind == "deepseek":
+        from ..providers.credentials import credential_status, resolve_credential
+
+        status = credential_status(resolve_credential())
+        credential = {
+            "key": status["key"], "source": status["source"], "observed_at": "preview",
+            "note": "Presence and source observed for this preview request. A later launch captures its own "
+                    "credential snapshot; clearing or changing a key does not change an active request's snapshot. "
+                    "The key value is not included in this report or run settings.",
+        }
+        key_description = {
+            "secure_input": "present at preview; source: secure_input (this server's memory)",
+            "environment": "present at preview; source: environment (configured variable; default DEEPSEEK_API_KEY)",
+            "absent": "absent at preview; no secure input override or configured environment key (default DEEPSEEK_API_KEY)",
+        }[str(status["source"])]
+        key_description += "; a later launch captures its own snapshot; sent only in the Authorization header; never recorded"
+    else:
+        credential = {"key": "none", "source": "none", "observed_at": "preview",
+                      "note": "The loopback provider does not use a DeepSeek credential."}
+        key_description = "none (loopback provider)"
     return {
         "provider": provider_kind, "endpoint_host": urlparse(endpoint).hostname, "endpoint_scheme": urlparse(endpoint).scheme,
         "model": model, "profile_id": profile.profile_id, "arm": profile.arm, "task_id": task_id, "frame": frame,
@@ -917,6 +937,6 @@ def outbound_scope(*, provider_kind: str, endpoint: str, model: str, profile_id:
                      "count as output tokens against max_output_tokens and are recorded from usage when reported)")
                     if provider_kind == "deepseek" else "n/a",
         "network": "none for this report; a real run first probes the provider's model list, then makes at most max_model_calls requests",
-        "key": ("read from the DEEPSEEK_API_KEY environment variable at run time; never sent anywhere but the Authorization "
-                "header; never recorded" if provider_kind == "deepseek" else "none (loopback provider)"),
+        "key": key_description,
+        "credential": credential,
     }

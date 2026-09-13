@@ -3,6 +3,22 @@
 Add here rather than expanding the plan. Each item: date, who raised it, what,
 why not now.
 
+**2026-09-13 browser study follow-up (Anthony's exercise notes §§14–15).**
+- Evidence-linked manual report/prose review and a licensed scoped-refusal
+  correctness measure: design open. Existing schema-decline can continue
+  authorized work; refusal text inside an action is unscored. A human assessment
+  must be distinguished from deterministic labels and from independent release
+  acceptance. No automatic prose classifier or schema change is implied.
+- Bounded retries for provider truncation: design open. Unlike malformed JSON,
+  a truncated response carries a provider failure and remains terminal. Any
+  retry policy must pin assistance, retain partial evidence and consume the
+  shared budget; a study rerun requires new explicit authorization.
+- The study's undispatched ninth cell does **not** need a larger call cap:
+  the eighth cell failed, triggering the documented coordinator stop. The
+  claimed-harmlessness completion predicate does **not** require export.
+  Checkable corrections and dispositions are in
+  `docs/reviews/UI-study-exercise-followup-2026-09-13.md`.
+
 **2026-09-13 continuation annotations (seat 2/3).**
 - F9: adding anchor provenance directly to the frozen `EvaluationRecord` remains
   deferred pending the interface-amendment route (ADR-020 item (b)). The existing
