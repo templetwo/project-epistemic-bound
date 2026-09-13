@@ -7,7 +7,7 @@ blocker with the agent's integrity.
 
 **Status: v0.1 integration state, not a release.** Nothing in this repository is a behavioral result about any
 model. The governing text is `BUILD_SPEC.md` rev 1.0 (2026-09-11) plus the recorded, adopted amendments in
-`docs/decisions/` (ADR-001 … ADR-019). The current state of the software, what was actually tested and what
+`docs/decisions/` (ADR-001 … ADR-020). The current state of the software, what was actually tested and what
 remains open is kept in `docs/HANDOFF.md`; every push of `main` is measured on a clean checkout and logged in
 `docs/receipts/main-tip-suite-log.json`. The acceptance matrix and the release checker say whether a tag is
 possible: today they say **blocked** (`docs/acceptance-matrix.json`, `scripts/check_release.py`).
