@@ -1,0 +1,30 @@
+{
+  "scope": "Second approved two-call diagnostic plus local structured-output repair; no live qualification",
+  "source_sha256": "9d3f00417345b825c10a9dd0b64de1d4df5d07d8fd127688ab827308b20369c0",
+  "approved_calls_completed": 2,
+  "conversation_paid_attempts_completed": 24,
+  "plant_effects": 0,
+  "minimal_duration_ms": 1955,
+  "plant_duration_ms": 6148,
+  "plant_input_tokens": 8917,
+  "plant_output_tokens": 315,
+  "within_12_seconds": true,
+  "structurally_valid": false,
+  "failure": "Prose preceding JSON rejected by unchanged strict Decision.parse",
+  "structured_output_paid_validation": "not_run",
+  "local_tests": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "tests": "29",
+    "time": "1.844",
+    "timestamp": "2026-09-19T05:22:56.627178-04:00",
+    "hostname": "Anthonys-MacBook-Pro.local"
+  },
+  "ruff": "passed",
+  "diff_check": "passed",
+  "schema_optional_parameters": 3,
+  "schema_union_nodes": 3,
+  "reviewer_status": "self_review_only; needs_review"
+}

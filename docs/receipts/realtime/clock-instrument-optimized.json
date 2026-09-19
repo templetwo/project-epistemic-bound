@@ -1,0 +1,9 @@
+{
+  "scope": "60-second instrument-only smoke; not RT31 model-active qualification",
+  "model_calls": 0,
+  "samples": 119,
+  "within_100ms": 119,
+  "p99_ms": 74,
+  "max_ms": 89,
+  "kernel_manifest_hash": "05458629939b2a428aa322e209ef4369b1a759a9a90de97f25e9692641b96c66"
+}

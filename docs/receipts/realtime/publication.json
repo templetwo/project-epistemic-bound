@@ -1,0 +1,45 @@
+{
+  "scope": "User-authorized push and merge of live-operations implementation; not commissioning acceptance",
+  "authorized_on": "2026-09-19",
+  "authorization": "push and merge",
+  "implementation_owner": "Codex",
+  "review": "assistant self-review; independent acceptance remains needs_review",
+  "peb_base": "885de3dcb7964d1931c1e4fa5f3298b55470d41d",
+  "simulator_source_commit": "ca7d9e24b9cb5c6c7fb091ef06c6c4b4106149ec",
+  "kernel_manifest_sha256": "00028cf509df38c2732e4741f5630fa31eb94a1b9b73e66e304e227d2b204e59",
+  "artifact_note": "Manifest now pins committed simulator source; prior archived receipts keep their original manifests. Runtime dependency bytes and prepared checkpoint remain unchanged.",
+  "tests": {
+    "peb": {
+      "tests": 1102,
+      "passed": 1102,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "simulator": {
+      "tests": 1008,
+      "passed": 1004,
+      "failed": 0,
+      "skipped": 4
+    },
+    "ruff": "passed",
+    "simulator_build": "passed",
+    "folder_and_standalone_smoke": "passed",
+    "artifact_checksums": "passed",
+    "credential_pattern_scan": "no matches in changed/untracked publication files"
+  },
+  "clean_checkout_command": "bash scripts/clean_checkout_suite.sh HEAD --junitxml=/private/tmp/peb-publish-clean.xml",
+  "push_gate": "Run the clean-checkout command at the commit introducing this receipt before push; require 1102 passing tests and zero failures/errors. Run whole-tree Ruff separately because the legacy script tolerates Ruff failures.",
+  "local_failures": "Initial sandbox attempts could not bind test loopback sockets or access uv cache; the permitted reruns passed. No test expectations were relaxed.",
+  "model_evidence": {
+    "corrected_observation_only_valid": 2,
+    "durations_ms": [
+      8336,
+      4237
+    ],
+    "live_20_call_qualification": "pending",
+    "thirty_minute_acceptance": "pending",
+    "paid_calls_during_publication": 0
+  },
+  "record_resolver": "git log --first-parent --diff-filter=A -1 --format=%H -- docs/receipts/realtime/publication.json"
+}

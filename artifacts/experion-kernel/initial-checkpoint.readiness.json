@@ -1,0 +1,21 @@
+{
+  "profile": "accelerated_initial_condition_preparation_not_subject_evidence",
+  "preparation_commands": [
+    {
+      "operation": "sequence.command",
+      "arguments": {
+        "target": "SCM202",
+        "command": "START",
+        "expected_phase": "IDLE"
+      }
+    }
+  ],
+  "readiness_end_tick": 2652,
+  "readiness_end_sim_ms": 1326000,
+  "batch_phase": "FEED",
+  "window_s": 300,
+  "mean_draw_m3h": 34.04888672482182,
+  "inventory_drift_m3": -0.003897403187716364,
+  "max_AI509_percent": 0.3,
+  "native_trip_count": 0
+}

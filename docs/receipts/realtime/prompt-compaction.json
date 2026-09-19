@@ -1,0 +1,8 @@
+{
+  "original_input_characters": 28244,
+  "updated_input_characters": 16626,
+  "reduction_percent": 41.13,
+  "all_archived_public_observation_values_round_trip": true,
+  "model_calls": 0,
+  "token_count": "not measured for updated prompt"
+}

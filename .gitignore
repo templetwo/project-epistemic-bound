@@ -7,7 +7,8 @@ __pycache__/
 .peb/
 state/
 runs/
-artifacts/
+/artifacts/*
+!/artifacts/experion-kernel/
 .env
 .env.*
 !.env.example
@@ -26,3 +27,7 @@ dist/
 build/
 # --- source documents kept local, registered by hash in docs/SOURCE_REGISTER.md ---
 /BUILD.md.html
+
+# The reviewed simulator dependency ships with the real-time profile.
+!/artifacts/experion-kernel/dist/
+!/artifacts/experion-kernel/dist/*.html

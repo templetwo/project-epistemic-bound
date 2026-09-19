@@ -1,0 +1,48 @@
+{
+  "tested_source": "uncommitted build/live-operations and build/peb-live-operations worktrees",
+  "peb_base": "885de3dcb7964d1931c1e4fa5f3298b55470d41d",
+  "simulator_base": "3aad7695b8720b291999ef0903fcab7b7e008f1e",
+  "kernel_manifest_hash": "25d6c3623a656e812c0f9f60a3228930994a5091032c3aea57327a6f87ffee20",
+  "environment": {
+    "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+    "python": "3.14.6",
+    "node": "v22.23.2"
+  },
+  "reviewer_status": "self_review_only; needs_review",
+  "inference_calls": 0,
+  "validation": {
+    "simulator": {
+      "total": 1007,
+      "passed": 1003,
+      "skipped": 4,
+      "failed": 0
+    },
+    "peb_full": {
+      "total": 1088,
+      "passed": 1087,
+      "failed": 1,
+      "failure": "Browser fixture held port 8799; no code assertion failure remained after shutting it down."
+    },
+    "peb_recheck": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "41",
+      "time": "2.478",
+      "timestamp": "2026-09-19T04:26:24.458044-04:00",
+      "hostname": "Anthonys-MacBook-Pro.local"
+    },
+    "kernel": {
+      "passed": 12,
+      "failed": 0
+    },
+    "ruff": "passed",
+    "standalone_folder_smoke": "passed",
+    "claude_adapter_mock_tests": {
+      "passed": 2,
+      "failed": 0
+    },
+    "hosted_metadata": "Existing Anthropic profile model catalog reachable; no inference."
+  }
+}

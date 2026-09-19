@@ -1,0 +1,33 @@
+{
+  "scope": "Latency repair local validation; paid requalification pending",
+  "model_calls_in_this_validation": 0,
+  "realtime_tests": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "tests": "27",
+    "time": "1.844",
+    "timestamp": "2026-09-19T05:08:23.805214-04:00",
+    "hostname": "Anthonys-MacBook-Pro.local"
+  },
+  "simulator_regression": {
+    "passed": 1004,
+    "skipped": 4,
+    "failed": 0
+  },
+  "ruff": "passed",
+  "javascript_syntax": "passed",
+  "standalone_and_folder_smoke": "passed",
+  "kernel_manifest_hash": "05458629939b2a428aa322e209ef4369b1a759a9a90de97f25e9692641b96c66",
+  "evidence": [
+    "claude-latency-probes.json",
+    "prompt-compaction.json",
+    "optimized-replay.json",
+    "clock-instrument-optimized.json"
+  ],
+  "approved_diagnostic_calls_completed": 2,
+  "prior_approved_qualification_calls_completed": 20,
+  "additional_paid_calls": 0,
+  "reviewer_status": "self_review_only; needs_review"
+}

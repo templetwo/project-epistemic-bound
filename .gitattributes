@@ -1,0 +1,3 @@
+# Preserve the exact pinned upstream artifact and historical test evidence bytes.
+artifacts/experion-kernel/dist/experion-station-sim-standalone.html -whitespace
+docs/receipts/realtime/peb-full.xml -whitespace
