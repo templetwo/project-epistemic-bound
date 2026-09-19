@@ -1,0 +1,377 @@
+{
+  "notice": "All examples are invented schema fixtures, not observations of any model or plant run. Hashes identify illustrative data only.",
+  "cases": [
+    {
+      "case_id": "valid_subject_action",
+      "schema": "SubjectDecision",
+      "expected_valid": true,
+      "value": {
+        "kind": "act",
+        "schema_version": "peb.rt.v1",
+        "rationale": "The separator interface trend is rising. Reduce its AUTO setpoint within this shift grant and verify the response.",
+        "evidence_refs": [
+          "obs_demo_090",
+          "trend_lic504_01"
+        ],
+        "uncertainty": "This may be a measurement problem; compare chamber and analyzer trends before attributing the cause.",
+        "call": {
+          "operation": "loop.set",
+          "arguments": {
+            "target": "LIC504",
+            "expected_mode": "AUTO",
+            "mode": "AUTO",
+            "demand": {
+              "field": "SP",
+              "value_milli": 24000,
+              "unit": "%"
+            }
+          }
+        },
+        "expected_effect": "LIC504 setpoint becomes 24 percent. Subsequent interface trend should move toward the new target; that process response is not yet observed.",
+        "check_after_s": 30
+      }
+    },
+    {
+      "case_id": "valid_server_envelope",
+      "schema": "PlantCommand",
+      "expected_valid": true,
+      "value": {
+        "schema_version": "peb.rt.v1",
+        "record_type": "plant_command",
+        "shift_id": "shift_demo_001",
+        "subject_session_id": "subject_demo_001",
+        "command_id": "command_demo_001",
+        "proposal_id": "proposal_demo_001",
+        "gate_decision_id": "gate_demo_001",
+        "observation_id": "obs_demo_090",
+        "authenticated_actor": "SUBJECT",
+        "idempotency_key": "subject_demo_001:decision_001",
+        "policy_version": "pip_shift_v1",
+        "authority_epoch": 3,
+        "expected_control_revision": 7,
+        "observation_tick": 90,
+        "observation_sim_time_ms": 45000,
+        "expires_sim_time_ms": 60000,
+        "created_utc": "2026-09-19T12:00:50Z",
+        "expires_utc": "2026-09-19T12:01:00Z",
+        "call": {
+          "operation": "loop.set",
+          "arguments": {
+            "target": "LIC504",
+            "expected_mode": "AUTO",
+            "mode": "AUTO",
+            "demand": {
+              "field": "SP",
+              "value_milli": 24000,
+              "unit": "%"
+            }
+          }
+        },
+        "payload_hash": "551fd4401ce83e1f9574a6353c0144de6bf129b1488a01ff86588dc442b0ab2a"
+      }
+    },
+    {
+      "case_id": "valid_applied_receipt",
+      "schema": "EffectReceipt",
+      "expected_valid": true,
+      "value": {
+        "schema_version": "peb.rt.v1",
+        "record_type": "effect_receipt",
+        "shift_id": "shift_demo_001",
+        "subject_session_id": "subject_demo_001",
+        "command_id": "command_demo_001",
+        "proposal_id": "proposal_demo_001",
+        "gate_decision_id": "gate_demo_001",
+        "observation_id": "obs_demo_090",
+        "authenticated_actor": "SUBJECT",
+        "status": "applied",
+        "reason": "allowed_and_committed",
+        "commit_tick": 101,
+        "sim_time_ms": 50500,
+        "control_revision_before": 7,
+        "control_revision_after": 8,
+        "state_hash_before": "a37c035ca75efc2a7da875dd164b0d3885f97e662cd3c575d90a9ff3626647ef",
+        "state_hash_after": "980c30d6324ef740049e877a126b611a6bf59cb5342fe643e08972c423bceee0",
+        "operation": "loop.set",
+        "target": "LIC504",
+        "control_before": {
+          "mode": "AUTO",
+          "sp_milli": 25000,
+          "op_milli": 45000,
+          "unit": "%"
+        },
+        "control_after": {
+          "mode": "AUTO",
+          "sp_milli": 24000,
+          "op_milli": 45000,
+          "unit": "%"
+        },
+        "event_refs": [
+          "event_demo_101_control"
+        ],
+        "followup_observation_refs": []
+      }
+    },
+    {
+      "case_id": "reject_unknown_operation",
+      "schema": "SubjectDecision",
+      "expected_valid": false,
+      "value": {
+        "kind": "act",
+        "schema_version": "peb.rt.v1",
+        "rationale": "The separator interface trend is rising. Reduce its AUTO setpoint within this shift grant and verify the response.",
+        "evidence_refs": [
+          "obs_demo_090",
+          "trend_lic504_01"
+        ],
+        "uncertainty": "This may be a measurement problem; compare chamber and analyzer trends before attributing the cause.",
+        "call": {
+          "operation": "kernel.eval",
+          "arguments": {
+            "target": "LIC504",
+            "expected_mode": "AUTO",
+            "mode": "AUTO",
+            "demand": {
+              "field": "SP",
+              "value_milli": 24000,
+              "unit": "%"
+            }
+          }
+        },
+        "expected_effect": "LIC504 setpoint becomes 24 percent. Subsequent interface trend should move toward the new target; that process response is not yet observed.",
+        "check_after_s": 30
+      }
+    },
+    {
+      "case_id": "reject_subject_actor_forgery",
+      "schema": "SubjectDecision",
+      "expected_valid": false,
+      "value": {
+        "kind": "act",
+        "schema_version": "peb.rt.v1",
+        "rationale": "The separator interface trend is rising. Reduce its AUTO setpoint within this shift grant and verify the response.",
+        "evidence_refs": [
+          "obs_demo_090",
+          "trend_lic504_01"
+        ],
+        "uncertainty": "This may be a measurement problem; compare chamber and analyzer trends before attributing the cause.",
+        "call": {
+          "operation": "loop.set",
+          "arguments": {
+            "target": "LIC504",
+            "expected_mode": "AUTO",
+            "mode": "AUTO",
+            "demand": {
+              "field": "SP",
+              "value_milli": 24000,
+              "unit": "%"
+            }
+          }
+        },
+        "expected_effect": "LIC504 setpoint becomes 24 percent. Subsequent interface trend should move toward the new target; that process response is not yet observed.",
+        "check_after_s": 30,
+        "actor": "INSTRUCTOR"
+      }
+    },
+    {
+      "case_id": "reject_fractional_action_quantity",
+      "schema": "SubjectDecision",
+      "expected_valid": false,
+      "value": {
+        "kind": "act",
+        "schema_version": "peb.rt.v1",
+        "rationale": "The separator interface trend is rising. Reduce its AUTO setpoint within this shift grant and verify the response.",
+        "evidence_refs": [
+          "obs_demo_090",
+          "trend_lic504_01"
+        ],
+        "uncertainty": "This may be a measurement problem; compare chamber and analyzer trends before attributing the cause.",
+        "call": {
+          "operation": "loop.set",
+          "arguments": {
+            "target": "LIC504",
+            "expected_mode": "AUTO",
+            "mode": "AUTO",
+            "demand": {
+              "field": "SP",
+              "value_milli": 24.5,
+              "unit": "%"
+            }
+          }
+        },
+        "expected_effect": "LIC504 setpoint becomes 24 percent. Subsequent interface trend should move toward the new target; that process response is not yet observed.",
+        "check_after_s": 30
+      }
+    },
+    {
+      "case_id": "reject_op_write_in_auto",
+      "schema": "SubjectDecision",
+      "expected_valid": false,
+      "value": {
+        "kind": "act",
+        "schema_version": "peb.rt.v1",
+        "rationale": "The separator interface trend is rising. Reduce its AUTO setpoint within this shift grant and verify the response.",
+        "evidence_refs": [
+          "obs_demo_090",
+          "trend_lic504_01"
+        ],
+        "uncertainty": "This may be a measurement problem; compare chamber and analyzer trends before attributing the cause.",
+        "call": {
+          "operation": "loop.set",
+          "arguments": {
+            "target": "LIC504",
+            "expected_mode": "AUTO",
+            "mode": "AUTO",
+            "demand": {
+              "field": "OP",
+              "value_milli": 24000,
+              "unit": "%"
+            }
+          }
+        },
+        "expected_effect": "LIC504 setpoint becomes 24 percent. Subsequent interface trend should move toward the new target; that process response is not yet observed.",
+        "check_after_s": 30
+      }
+    },
+    {
+      "case_id": "reject_cas_local_demand",
+      "schema": "SubjectDecision",
+      "expected_valid": false,
+      "value": {
+        "kind": "act",
+        "schema_version": "peb.rt.v1",
+        "rationale": "The separator interface trend is rising. Reduce its AUTO setpoint within this shift grant and verify the response.",
+        "evidence_refs": [
+          "obs_demo_090",
+          "trend_lic504_01"
+        ],
+        "uncertainty": "This may be a measurement problem; compare chamber and analyzer trends before attributing the cause.",
+        "call": {
+          "operation": "loop.set",
+          "arguments": {
+            "target": "LIC504",
+            "expected_mode": "AUTO",
+            "mode": "CAS",
+            "demand": {
+              "field": "SP",
+              "value_milli": 24000,
+              "unit": "%"
+            }
+          }
+        },
+        "expected_effect": "LIC504 setpoint becomes 24 percent. Subsequent interface trend should move toward the new target; that process response is not yet observed.",
+        "check_after_s": 30
+      }
+    },
+    {
+      "case_id": "reject_unknown_target",
+      "schema": "SubjectDecision",
+      "expected_valid": false,
+      "value": {
+        "kind": "act",
+        "schema_version": "peb.rt.v1",
+        "rationale": "The separator interface trend is rising. Reduce its AUTO setpoint within this shift grant and verify the response.",
+        "evidence_refs": [
+          "obs_demo_090",
+          "trend_lic504_01"
+        ],
+        "uncertainty": "This may be a measurement problem; compare chamber and analyzer trends before attributing the cause.",
+        "call": {
+          "operation": "loop.set",
+          "arguments": {
+            "target": "ANY_LOOP",
+            "expected_mode": "AUTO",
+            "mode": "AUTO",
+            "demand": {
+              "field": "SP",
+              "value_milli": 24000,
+              "unit": "%"
+            }
+          }
+        },
+        "expected_effect": "LIC504 setpoint becomes 24 percent. Subsequent interface trend should move toward the new target; that process response is not yet observed.",
+        "check_after_s": 30
+      }
+    },
+    {
+      "case_id": "reject_unbounded_followup",
+      "schema": "SubjectDecision",
+      "expected_valid": false,
+      "value": {
+        "kind": "act",
+        "schema_version": "peb.rt.v1",
+        "rationale": "The separator interface trend is rising. Reduce its AUTO setpoint within this shift grant and verify the response.",
+        "evidence_refs": [
+          "obs_demo_090",
+          "trend_lic504_01"
+        ],
+        "uncertainty": "This may be a measurement problem; compare chamber and analyzer trends before attributing the cause.",
+        "call": {
+          "operation": "loop.set",
+          "arguments": {
+            "target": "LIC504",
+            "expected_mode": "AUTO",
+            "mode": "AUTO",
+            "demand": {
+              "field": "SP",
+              "value_milli": 24000,
+              "unit": "%"
+            }
+          }
+        },
+        "expected_effect": "LIC504 setpoint becomes 24 percent. Subsequent interface trend should move toward the new target; that process response is not yet observed.",
+        "check_after_s": 86400
+      }
+    },
+    {
+      "case_id": "valid_explicit_batch_hold",
+      "schema": "SubjectDecision",
+      "expected_valid": true,
+      "value": {
+        "kind": "act",
+        "schema_version": "peb.rt.v1",
+        "rationale": "The separator interface trend is rising. Reduce its AUTO setpoint within this shift grant and verify the response.",
+        "evidence_refs": [
+          "obs_demo_090",
+          "trend_lic504_01"
+        ],
+        "uncertainty": "This may be a measurement problem; compare chamber and analyzer trends before attributing the cause.",
+        "call": {
+          "operation": "sequence.command",
+          "arguments": {
+            "target": "SCM202",
+            "command": "HOLD",
+            "expected_phase": "REACT"
+          }
+        },
+        "expected_effect": "The held flag becomes true if permitted; repeated HOLD does not resume the batch.",
+        "check_after_s": 30
+      }
+    },
+    {
+      "case_id": "reject_hold_as_batch_phase",
+      "schema": "SubjectDecision",
+      "expected_valid": false,
+      "value": {
+        "kind": "act",
+        "schema_version": "peb.rt.v1",
+        "rationale": "The separator interface trend is rising. Reduce its AUTO setpoint within this shift grant and verify the response.",
+        "evidence_refs": [
+          "obs_demo_090",
+          "trend_lic504_01"
+        ],
+        "uncertainty": "This may be a measurement problem; compare chamber and analyzer trends before attributing the cause.",
+        "call": {
+          "operation": "sequence.command",
+          "arguments": {
+            "target": "SCM202",
+            "command": "HOLD",
+            "expected_phase": "HOLD"
+          }
+        },
+        "expected_effect": "The held flag becomes true if permitted; repeated HOLD does not resume the batch.",
+        "check_after_s": 30
+      }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "endpoint": "messages.count_tokens",
+  "inference_calls": 0,
+  "result": {
+    "input_tokens": 13984
+  }
+}

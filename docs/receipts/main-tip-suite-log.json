@@ -414,6 +414,19 @@
       "receipt": "docs/receipts/S7-trace-readability.json",
       "measurement": "clean-checkout at resolved final main tip; push gated on measured counts and Ruff success; six-record instrument/explanation browser passes",
       "measured_by": "Codex continuation; assistant self-review"
+    },
+    {
+      "tip": "first-parent main commit adding docs/receipts/realtime/publication.json",
+      "tip_resolver": "git log --first-parent --diff-filter=A -1 --format=%H -- docs/receipts/realtime/publication.json",
+      "tests": 1102,
+      "passed": 1102,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "ruff": "All checks passed",
+      "receipt": "docs/receipts/realtime/publication.json",
+      "measurement": "Push gated on a clean-checkout suite at the committed implementation tip and again at the local no-ff merge tip; same product tree verified.",
+      "measured_by": "Codex; assistant self-review"
     }
   ]
 }

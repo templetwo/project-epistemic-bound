@@ -821,6 +821,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    rt_argv = list(sys.argv[1:] if argv is None else argv)
+    if rt_argv and rt_argv[0] == "rt":
+        from .runtime.realtime.cli import main as realtime_main
+        return realtime_main(rt_argv[1:])
     parser = build_parser()
     args = parser.parse_args(argv)
     try:

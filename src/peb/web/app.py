@@ -50,6 +50,7 @@ class WorkroomService(Protocol):
 class _Session:
     csrf: str
     expires: float
+    role: str = "operator"
 
 
 class _WebError(PebError):
@@ -129,6 +130,7 @@ ROUTES = (
 def create_workroom(
     service: WorkroomService, operator_secret: str, *, origin: str = "http://127.0.0.1:8787",
     session_ttl: int = 3600, clock: Callable[[], float] = time.monotonic,
+    observer_secret: str | None = None,
 ) -> FastAPI:
     """Caller binds Uvicorn to the same loopback origin, with one service owner.
 
@@ -156,9 +158,15 @@ def create_workroom(
 
     def csrf(request: Request) -> None:
         current = session(request)
+        if current.role != "operator":
+            raise _WebError(403, "Observer sessions cannot mutate the plant or authority.")
         supplied = request.headers.get("x-peb-csrf", "")
         if not secrets.compare_digest(supplied.encode(), current.csrf.encode()):
             raise _WebError(403, "Invalid CSRF token.")
+
+    # Additive profiles reuse this exact session and CSRF boundary.
+    app.state.operator_session = session
+    app.state.operator_csrf = csrf
 
     @app.middleware("http")
     async def origin_boundary(request: Request, call_next):
@@ -173,10 +181,15 @@ def create_workroom(
         else:
             response = await call_next(request)
         response.headers.update({
-            "Content-Security-Policy": CSP, "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": (CSP + "; frame-src 'self'") if request.url.path.startswith("/rt") else CSP, "X-Content-Type-Options": "nosniff",
             "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer",
             "Cache-Control": "no-store", "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
         })
+        if request.url.path.startswith("/rt/station/"):
+            # The pinned legacy dc renderer evaluates its own embedded template code.
+            # This relaxation applies only to the authenticated station artifact.
+            response.headers["Content-Security-Policy"] = "default-src 'self' data:; script-src 'self' blob: 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src blob:; frame-ancestors 'self'"
+            response.headers["X-Frame-Options"] = "SAMEORIGIN"
         return response
 
     @app.exception_handler(PebError)
@@ -192,7 +205,8 @@ def create_workroom(
         body = await _json_body(request)
         if set(body) != {"secret"} or not isinstance(body["secret"], str):
             raise _WebError(400, "Expected an operator secret.", ErrorCode.invalid_input)
-        if not secrets.compare_digest(body["secret"].encode(), operator_secret.encode()):
+        role = "observer" if observer_secret and secrets.compare_digest(body["secret"].encode(), observer_secret.encode()) else "operator"
+        if role == "operator" and not secrets.compare_digest(body["secret"].encode(), operator_secret.encode()):
             raise _WebError(401, "Invalid operator secret.")
         # Successful login replaces any session presented by this browser.
         sessions.pop(request.cookies.get(COOKIE, ""), None)
@@ -202,7 +216,7 @@ def create_workroom(
         if len(sessions) >= 32:
             sessions.pop(next(iter(sessions)))
         token = secrets.token_urlsafe(32)
-        current = _Session(secrets.token_urlsafe(32), clock() + session_ttl)
+        current = _Session(secrets.token_urlsafe(32), clock() + session_ttl, role)
         sessions[token] = current
         response = JSONResponse({"authenticated": True, "csrf_token": current.csrf})
         response.set_cookie(COOKIE, token, httponly=True, samesite="strict", secure=False,

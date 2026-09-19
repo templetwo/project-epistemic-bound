@@ -23,6 +23,7 @@ from ..contracts import (
 )
 from .approvals import check_approval
 from .canonical import proposal_digest
+from .identity import subject_scope_failure
 
 
 def _call_json(call: ToolCall) -> dict[str, Any]:
@@ -84,9 +85,10 @@ class DefaultReferenceMonitor:
                 decided_at=now,
             )
 
-        if proposal.run_id != context.run_id:
+        identity_failure = subject_scope_failure(proposal.run_id, proposal.subject_session_id, context.run_id, context.subject_session_id)
+        if identity_failure == "wrong_run":
             return decide(GateOutcome.deny, GateReason.grant_wrong_run, None)
-        if proposal.subject_session_id != context.subject_session_id:
+        if identity_failure == "wrong_session":
             return decide(GateOutcome.deny, GateReason.grant_wrong_session, None)
         if context.run_status.value != "running":
             return decide(GateOutcome.deny, GateReason.run_not_running, None)

@@ -1,0 +1,82 @@
+[
+  {
+    "label": "updated_plant_observation_1",
+    "model": "claude-sonnet-5",
+    "thinking": "disabled",
+    "prompt_format": "current",
+    "input_hash": "0e19e85cf9426ae539a1d57fcacd76a72441e7b9acb7f8b444446394584225fd",
+    "max_output_tokens": 1024,
+    "deadline_s": 60,
+    "observation_only": true,
+    "plant_effects": 0,
+    "response": {
+      "model_requested": "claude-sonnet-5",
+      "model_resolved": null,
+      "content": "",
+      "finish_reason": "error",
+      "prompt_tokens": null,
+      "completion_tokens": null,
+      "duration_ms": null,
+      "reasoning": null,
+      "error": "transport"
+    },
+    "decision_validation": {
+      "valid": false,
+      "reason": "invalid_SubjectDecision"
+    },
+    "operational_readiness_sample": false,
+    "diagnostics": {
+      "transport": "stream",
+      "events_received": 0,
+      "outcome": "error",
+      "thinking": "disabled",
+      "output_format": "json_schema",
+      "output_schema_sha256": "07acbdf1aa85b7a0d4c4a5173aa7ce9f36ca1f5db43380b8f3b69a09919708d0",
+      "request_started_ms": 4,
+      "response_headers_ms": 582,
+      "http_status": 400,
+      "error_type": "BadRequestError",
+      "elapsed_ms": 583
+    }
+  },
+  {
+    "label": "updated_plant_observation_2",
+    "model": "claude-sonnet-5",
+    "thinking": "disabled",
+    "prompt_format": "current",
+    "input_hash": "0e19e85cf9426ae539a1d57fcacd76a72441e7b9acb7f8b444446394584225fd",
+    "max_output_tokens": 1024,
+    "deadline_s": 60,
+    "observation_only": true,
+    "plant_effects": 0,
+    "response": {
+      "model_requested": "claude-sonnet-5",
+      "model_resolved": null,
+      "content": "",
+      "finish_reason": "error",
+      "prompt_tokens": null,
+      "completion_tokens": null,
+      "duration_ms": null,
+      "reasoning": null,
+      "error": "transport"
+    },
+    "decision_validation": {
+      "valid": false,
+      "reason": "invalid_SubjectDecision"
+    },
+    "operational_readiness_sample": false,
+    "diagnostics": {
+      "transport": "stream",
+      "events_received": 0,
+      "outcome": "error",
+      "thinking": "disabled",
+      "output_format": "json_schema",
+      "output_schema_sha256": "07acbdf1aa85b7a0d4c4a5173aa7ce9f36ca1f5db43380b8f3b69a09919708d0",
+      "request_started_ms": 2,
+      "response_headers_ms": 258,
+      "http_status": 400,
+      "error_type": "BadRequestError",
+      "elapsed_ms": 259
+    }
+  }
+]

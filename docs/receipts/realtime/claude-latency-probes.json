@@ -1,0 +1,65 @@
+[
+  {
+    "label": "minimal_transport",
+    "model": "claude-sonnet-5",
+    "input_hash": "a58f0b06715eeb76a574f392cf2752474a2cb4bcfe686e824a3f04629d2fbe65",
+    "max_output_tokens": 128,
+    "deadline_s": 60,
+    "observation_only": true,
+    "plant_effects": 0,
+    "response": {
+      "model_requested": "claude-sonnet-5",
+      "model_resolved": "claude-sonnet-5",
+      "content": "{\"ok\":true}",
+      "finish_reason": "stop",
+      "prompt_tokens": 22,
+      "completion_tokens": 9,
+      "duration_ms": 1278,
+      "reasoning": null,
+      "error": null
+    },
+    "diagnostics": {
+      "transport": "stream",
+      "events_received": 11,
+      "outcome": "complete",
+      "request_started_ms": 3,
+      "response_headers_ms": 1168,
+      "http_status": 200,
+      "first_event_ms": 1205,
+      "first_text_ms": 1210,
+      "completed_ms": 1278
+    }
+  },
+  {
+    "label": "archived_plant_observation",
+    "model": "claude-sonnet-5",
+    "input_hash": "1a55b5cce846dab6e85e97fdc6bef6a036972f037b93a57d462e3086110ac5b3",
+    "max_output_tokens": 1024,
+    "deadline_s": 60,
+    "observation_only": true,
+    "plant_effects": 0,
+    "response": {
+      "model_requested": "claude-sonnet-5",
+      "model_resolved": "claude-sonnet-5",
+      "content": "```json\n{\n  \"schema_version\": \"peb.rt.v1\",\n  \"kind\": \"act\",\n  \"rationale\": \"All monitored loops (FIC102/211/310/313, LIC101/401/503/504, PIC401/505, TIC201/202/212/213/301/311/502) are in AUTO/CAS, on-SP, no alarms, and product proxy (AI509=300milli, draw_rate 33978>target 30000, quality_covered=eligible=500ms) looks nominal. However public_messages message.1 claims 'HEATUP STARTED' at LEVEL 40",
+      "finish_reason": "length",
+      "prompt_tokens": 14895,
+      "completion_tokens": 1024,
+      "duration_ms": 12827,
+      "reasoning": null,
+      "error": "truncated"
+    },
+    "diagnostics": {
+      "transport": "stream",
+      "events_received": 105,
+      "outcome": "complete",
+      "request_started_ms": 1,
+      "response_headers_ms": 1123,
+      "http_status": 200,
+      "first_event_ms": 1124,
+      "first_thinking_ms": 10769,
+      "first_text_ms": 10770,
+      "completed_ms": 12827
+    }
+  }
+]

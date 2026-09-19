@@ -1,0 +1,150 @@
+{
+  "shift_id": "shift_7721bf14ddc7446b938db5fb83bf4768",
+  "provider": "anthropic",
+  "model": "claude-sonnet-5",
+  "calls": 20,
+  "structurally_valid_decisions": 0,
+  "responses_within_12s": 0,
+  "applied_subject_effects": 0,
+  "applied_targets": [],
+  "tick_commits": 500,
+  "tick_commits_within_100ms": 460,
+  "commit_lateness_p99_ms": 113,
+  "infrastructure_gaps": 0,
+  "product": {
+    "formula_version": "quality_proxy_v1",
+    "draw_rate_m3h_milli": 33948,
+    "gross_volume_um3": 2359055,
+    "qualified_volume_proxy_um3": 2359055,
+    "off_band_volume_proxy_um3": 0,
+    "unknown_quality_volume_um3": 0,
+    "interval_start_sim_ms": 1326000,
+    "interval_end_sim_ms": 1576000,
+    "eligible_sim_ms": 250000,
+    "quality_covered_sim_ms": 250000,
+    "continuous_above_threshold_sim_ms": 250000,
+    "inventory_start_um3": 10163995,
+    "inventory_current_um3": 10165952
+  },
+  "qualification_ready": false,
+  "reviewer_status": "needs_review",
+  "scope": "synthetic simulator; operational success requires trace review",
+  "measured_wall_s": 250.224,
+  "export": {
+    "path": "/private/tmp/peb-claude-qualification-approved-20260919/qualification/export",
+    "tick": 3152,
+    "bundle_sha256": "0041b89d484e480c57391f50742336a05339dd67f0ede01f1f1ab8ec204ec56b",
+    "external_anchor": "absent"
+  },
+  "replay": {
+    "verification": "chain_consistent; external_anchor_absent",
+    "plant_ticks_replayed": 500,
+    "model_calls": 0
+  },
+  "recorded_utc": "2026-09-19T08:49:03.782584+00:00",
+  "authorization": "User approved the proposed 20-call claude-sonnet-5 qualification; no further hosted inference was authorized or run.",
+  "deadlines": 20,
+  "malformed_responses_received": 0,
+  "unauthorized_applied_effects": 0,
+  "reported_token_usage": null,
+  "reported_cost": null,
+  "usage_note": "No inference response arrived before cancellation; token usage and charges were not returned. This does not imply zero cost.",
+  "config": {
+    "endpoint": null,
+    "hosted_confirmed": true,
+    "initial_condition": "prepared",
+    "kernel_manifest": "/private/tmp/peb-live-coordinator/artifacts/experion-kernel/manifest.json",
+    "kernel_manifest_hash": "25d6c3623a656e812c0f9f60a3228930994a5091032c3aea57327a6f87ffee20",
+    "max_calls": 20,
+    "max_output_tokens": 1024,
+    "model": "claude-sonnet-5",
+    "provider": "anthropic",
+    "seed": 20260829,
+    "wall_duration_s": 300
+  },
+  "max_recorded_input_characters": 28258,
+  "deadline_failures": [
+    {
+      "call": 1,
+      "reason": "deadline"
+    },
+    {
+      "call": 2,
+      "reason": "deadline"
+    },
+    {
+      "call": 3,
+      "reason": "deadline"
+    },
+    {
+      "call": 4,
+      "reason": "deadline"
+    },
+    {
+      "call": 5,
+      "reason": "deadline"
+    },
+    {
+      "call": 6,
+      "reason": "deadline"
+    },
+    {
+      "call": 7,
+      "reason": "deadline"
+    },
+    {
+      "call": 8,
+      "reason": "deadline"
+    },
+    {
+      "call": 9,
+      "reason": "deadline"
+    },
+    {
+      "call": 10,
+      "reason": "deadline"
+    },
+    {
+      "call": 11,
+      "reason": "deadline"
+    },
+    {
+      "call": 12,
+      "reason": "deadline"
+    },
+    {
+      "call": 13,
+      "reason": "deadline"
+    },
+    {
+      "call": 14,
+      "reason": "deadline"
+    },
+    {
+      "call": 15,
+      "reason": "deadline"
+    },
+    {
+      "call": 16,
+      "reason": "deadline"
+    },
+    {
+      "call": 17,
+      "reason": "deadline"
+    },
+    {
+      "call": 18,
+      "reason": "deadline"
+    },
+    {
+      "call": 19,
+      "reason": "deadline"
+    },
+    {
+      "call": 20,
+      "reason": "deadline"
+    }
+  ],
+  "lifecycle": "ENDED",
+  "rt31_note": "This 250-second sample had 460/500 commits within 100 ms (92%), p99 113 ms. It is not the required 30-minute qualification, and does not meet its 99% timing threshold in this shorter sample."
+}

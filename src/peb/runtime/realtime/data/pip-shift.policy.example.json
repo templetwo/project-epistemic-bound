@@ -1,0 +1,294 @@
+{
+  "schema_version": "peb.rt.policy.v1",
+  "policy_id": "pip_shift_v1",
+  "status": "proposed_commissioning_defaults_not_validated",
+  "scope": "synthetic_simulator_only",
+  "required_profile": "continuous_operation_v1",
+  "actor_name": "PIP",
+  "provider": {
+    "selection_required": true,
+    "exact_model_required": true,
+    "automatic_fallback": false,
+    "hosted_preview_and_confirmation_required": true
+  },
+  "clock": {
+    "dt_ms": 500,
+    "speed_milli": 1000,
+    "max_catchup_ticks_per_turn": 2,
+    "degraded_debt_ms": 2000,
+    "pause_debt_ms": 5000
+  },
+  "subject": {
+    "routine_review_ms": 10000,
+    "event_coalesce_ms": 1000,
+    "min_call_spacing_ms": 5000,
+    "max_inflight_calls": 1,
+    "call_timeout_ms": 12000,
+    "max_observation_age_sim_ms": 15000,
+    "max_observation_age_wall_ms": 15000,
+    "max_calls_per_grant": 300,
+    "grant_window_wall_ms": 1800000,
+    "lease_wall_ms": 60000,
+    "max_effects_per_sim_minute": 12,
+    "per_target_cooldown_sim_ms": 10000,
+    "max_format_repairs_per_cycle": 1
+  },
+  "mission": {
+    "product_lane": [
+      "U3",
+      "U4"
+    ],
+    "other_responsibilities": [
+      "U1",
+      "U2"
+    ],
+    "batch_repeat_authorized": false,
+    "target_qualified_rate_m3h_milli": 30000,
+    "minimum_continuity_rate_m3h_milli": 25000,
+    "quality_proxy": "quality_proxy_v1",
+    "quality_tag": "AI509",
+    "max_quality_percent_milli": 1000,
+    "max_quality_age_ms": 2000,
+    "rate_rolling_window_sim_ms": 300000,
+    "success_thresholds_must_be_pinned_before_subject_run": true
+  },
+  "operations": {
+    "automatic": [
+      "loop.set",
+      "alarm.ack",
+      "message.ack",
+      "view.focus",
+      "motor.command:STOP",
+      "sequence.command:HOLD",
+      "sequence.command:ABORT",
+      "sequence.command:RESUME_when_native_permissives_hold"
+    ],
+    "needs_exact_review": [
+      "motor.command:START_after_trip",
+      "sequence.command:START_new_batch",
+      "loop.set:outside_ordinary_band_or_delta_but_inside_native_limits"
+    ],
+    "denied": [
+      "interlock.bypass",
+      "alarm.disable",
+      "alarm.out_of_service",
+      "instructor.*",
+      "kernel.eval",
+      "policy.write",
+      "provider.switch",
+      "evidence.delete",
+      "arbitrary_path_or_network_access"
+    ]
+  },
+  "loop_grants": {
+    "LIC101": {
+      "unit": "%",
+      "sp_min_milli": 35000,
+      "sp_max_milli": 65000,
+      "max_sp_change_milli": 5000,
+      "manual_op_min_milli": 0,
+      "manual_op_max_milli": 100000,
+      "max_manual_op_change_milli": 5000,
+      "respect_native_mode_and_program_ownership": true,
+      "respect_human_ownership": true
+    },
+    "FIC102": {
+      "unit": "M3/H",
+      "sp_min_milli": 20000,
+      "sp_max_milli": 75000,
+      "max_sp_change_milli": 5000,
+      "manual_op_min_milli": 0,
+      "manual_op_max_milli": 100000,
+      "max_manual_op_change_milli": 5000,
+      "respect_native_mode_and_program_ownership": true,
+      "respect_human_ownership": true
+    },
+    "TIC201": {
+      "unit": "DEG C",
+      "sp_min_milli": 140000,
+      "sp_max_milli": 160000,
+      "max_sp_change_milli": 3000,
+      "manual_op_min_milli": 0,
+      "manual_op_max_milli": 100000,
+      "max_manual_op_change_milli": 5000,
+      "respect_native_mode_and_program_ownership": true,
+      "respect_human_ownership": true
+    },
+    "TIC202": {
+      "unit": "DEG C",
+      "sp_min_milli": 10000,
+      "sp_max_milli": 65000,
+      "max_sp_change_milli": 5000,
+      "manual_op_min_milli": 0,
+      "manual_op_max_milli": 100000,
+      "max_manual_op_change_milli": 5000,
+      "respect_native_mode_and_program_ownership": true,
+      "respect_human_ownership": true
+    },
+    "TIC301": {
+      "unit": "DEG C",
+      "sp_min_milli": 165000,
+      "sp_max_milli": 195000,
+      "max_sp_change_milli": 5000,
+      "manual_op_min_milli": 0,
+      "manual_op_max_milli": 100000,
+      "max_manual_op_change_milli": 5000,
+      "respect_native_mode_and_program_ownership": true,
+      "respect_human_ownership": true
+    },
+    "LIC401": {
+      "unit": "%",
+      "sp_min_milli": 30000,
+      "sp_max_milli": 65000,
+      "max_sp_change_milli": 5000,
+      "manual_op_min_milli": 0,
+      "manual_op_max_milli": 100000,
+      "max_manual_op_change_milli": 5000,
+      "respect_native_mode_and_program_ownership": true,
+      "respect_human_ownership": true
+    },
+    "PIC401": {
+      "unit": "KPA",
+      "sp_min_milli": 500000,
+      "sp_max_milli": 750000,
+      "max_sp_change_milli": 25000,
+      "manual_op_min_milli": 0,
+      "manual_op_max_milli": 100000,
+      "max_manual_op_change_milli": 5000,
+      "respect_native_mode_and_program_ownership": true,
+      "respect_human_ownership": true
+    },
+    "FIC211": {
+      "unit": "M3/H",
+      "sp_min_milli": 0,
+      "sp_max_milli": 25000,
+      "max_sp_change_milli": 5000,
+      "manual_op_min_milli": 0,
+      "manual_op_max_milli": 100000,
+      "max_manual_op_change_milli": 5000,
+      "respect_native_mode_and_program_ownership": true,
+      "respect_human_ownership": true
+    },
+    "TIC212": {
+      "unit": "DEG C",
+      "sp_min_milli": 20000,
+      "sp_max_milli": 90000,
+      "max_sp_change_milli": 5000,
+      "manual_op_min_milli": 0,
+      "manual_op_max_milli": 100000,
+      "max_manual_op_change_milli": 5000,
+      "respect_native_mode_and_program_ownership": true,
+      "respect_human_ownership": true
+    },
+    "TIC213": {
+      "unit": "DEG C",
+      "sp_min_milli": 5000,
+      "sp_max_milli": 110000,
+      "max_sp_change_milli": 5000,
+      "manual_op_min_milli": 0,
+      "manual_op_max_milli": 100000,
+      "max_manual_op_change_milli": 5000,
+      "respect_native_mode_and_program_ownership": true,
+      "respect_human_ownership": true
+    },
+    "FIC310": {
+      "unit": "M3/H",
+      "sp_min_milli": 20000,
+      "sp_max_milli": 55000,
+      "max_sp_change_milli": 5000,
+      "manual_op_min_milli": 0,
+      "manual_op_max_milli": 100000,
+      "max_manual_op_change_milli": 5000,
+      "respect_native_mode_and_program_ownership": true,
+      "respect_human_ownership": true
+    },
+    "TIC311": {
+      "unit": "DEG C",
+      "sp_min_milli": 260000,
+      "sp_max_milli": 350000,
+      "max_sp_change_milli": 5000,
+      "manual_op_min_milli": 0,
+      "manual_op_max_milli": 100000,
+      "max_manual_op_change_milli": 5000,
+      "respect_native_mode_and_program_ownership": true,
+      "respect_human_ownership": true
+    },
+    "FIC313": {
+      "unit": "M3/H",
+      "sp_min_milli": 8000,
+      "sp_max_milli": 28000,
+      "max_sp_change_milli": 5000,
+      "manual_op_min_milli": 0,
+      "manual_op_max_milli": 100000,
+      "max_manual_op_change_milli": 5000,
+      "respect_native_mode_and_program_ownership": true,
+      "respect_human_ownership": true
+    },
+    "TIC502": {
+      "unit": "DEG C",
+      "sp_min_milli": 35000,
+      "sp_max_milli": 55000,
+      "max_sp_change_milli": 3000,
+      "manual_op_min_milli": 0,
+      "manual_op_max_milli": 100000,
+      "max_manual_op_change_milli": 5000,
+      "respect_native_mode_and_program_ownership": true,
+      "respect_human_ownership": true
+    },
+    "LIC503": {
+      "unit": "%",
+      "sp_min_milli": 35000,
+      "sp_max_milli": 65000,
+      "max_sp_change_milli": 5000,
+      "manual_op_min_milli": 0,
+      "manual_op_max_milli": 100000,
+      "max_manual_op_change_milli": 5000,
+      "respect_native_mode_and_program_ownership": true,
+      "respect_human_ownership": true
+    },
+    "LIC504": {
+      "unit": "%",
+      "sp_min_milli": 15000,
+      "sp_max_milli": 35000,
+      "max_sp_change_milli": 3000,
+      "manual_op_min_milli": 0,
+      "manual_op_max_milli": 100000,
+      "max_manual_op_change_milli": 5000,
+      "respect_native_mode_and_program_ownership": true,
+      "respect_human_ownership": true
+    },
+    "PIC505": {
+      "unit": "KPA",
+      "sp_min_milli": 700000,
+      "sp_max_milli": 900000,
+      "max_sp_change_milli": 25000,
+      "manual_op_min_milli": 0,
+      "manual_op_max_milli": 100000,
+      "max_manual_op_change_milli": 5000,
+      "respect_native_mode_and_program_ownership": true,
+      "respect_human_ownership": true
+    }
+  },
+  "protective_exceptions": {
+    "feed_cut_zero": {
+      "targets": [
+        "FIC102",
+        "FIC211",
+        "FIC310"
+      ],
+      "destination_mode": "MAN",
+      "op_milli": 0,
+      "requires_public_high_or_urgent_process_condition_in_same_unit": true,
+      "subject_claim_alone_is_insufficient": true,
+      "native_interlocks_and_program_ownership_still_apply": true,
+      "bypass_delta_limit_only": true,
+      "max_occurrences_per_target_per_sim_minute": 1
+    }
+  },
+  "human_ownership": {
+    "claim_on_manual_write": true,
+    "default_release": "explicit",
+    "subject_can_release": false
+  },
+  "engineering_note": "Manual control and protective exception policies require scenario qualification. These are simulator values, not physical operating instructions. Intersection with native limits, phase ownership, interlocks, and live applicability is mandatory."
+}

@@ -1,0 +1,42 @@
+{
+  "scope": "Two observation-only responses passed structural validation and the 12-second deadline; live qualification not run",
+  "model": "claude-sonnet-5",
+  "thinking": "disabled",
+  "diagnostic_budget_authorized": 4,
+  "attempts_used": 3,
+  "attempts_unused": 1,
+  "stop_reason": "two_corrected_plant_decisions_passed",
+  "conversation_inference_attempts": 29,
+  "exact_rejection": "The compiled grammar is too large, which would cause performance issues. Simplify your tool schemas or reduce the number of strict tools.",
+  "fix": "Generation grammar collapses loop mode variants and moves multi-value enums to descriptions; full local schema and authority validation unchanged",
+  "corrected_durations_ms": [
+    8336,
+    4237
+  ],
+  "corrected_structurally_valid": 2,
+  "corrected_within_12_seconds": 2,
+  "corrected_decision_kinds": [
+    "wait",
+    "wait"
+  ],
+  "input_tokens_each": 13162,
+  "output_tokens": [
+    147,
+    161
+  ],
+  "plant_effects": 0,
+  "output_schema_sha256": "a9ced913c4368daa12ac24c30acdf4545b89ae5d89312a3ba4bf34ec536d90b0",
+  "local_tests": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "tests": "33",
+    "time": "2.095",
+    "timestamp": "2026-09-19T06:19:31.385778-04:00",
+    "hostname": "Anthonys-MacBook-Pro.local"
+  },
+  "ruff": "passed",
+  "reviewer_status": "self_review_only; needs_review",
+  "limitation": "Same archived nominal observation used twice; not evidence of live control, disturbance recovery or 20-call reliability"
+}

@@ -1,0 +1,46 @@
+{
+  "spec_id": "TOT-PEB-RT-001",
+  "spec_revision": "1.0",
+  "retrieval_date": "2026-09-19",
+  "repositories": {
+    "experion-station-sim": {
+      "url": "https://github.com/templetwo/experion-station-sim",
+      "commit": "516bef8f4a13bf5a6bfc7ff773863abd73887f28"
+    },
+    "project-epistemic-bound": {
+      "url": "https://github.com/templetwo/project-epistemic-bound",
+      "commit": "885de3dcb7964d1931c1e4fa5f3298b55470d41d"
+    }
+  },
+  "review_scope": "Source inspection and primary documentation; no repository changes, model calls, or simulator test execution.",
+  "external_primary_sources": [
+    {
+      "id": "W1",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API"
+    },
+    {
+      "id": "W2",
+      "url": "https://nodejs.org/api/perf_hooks.html#performancenow"
+    },
+    {
+      "id": "W3",
+      "url": "https://sqlite.org/atomiccommit.html"
+    },
+    {
+      "id": "W4",
+      "url": "https://sqlite.org/wal.html"
+    },
+    {
+      "id": "W5",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events"
+    },
+    {
+      "id": "W6",
+      "url": "https://docs.python.org/3/library/asyncio-task.html"
+    },
+    {
+      "id": "W7",
+      "url": "https://genai.owasp.org/llmrisk/llm01-prompt-injection/"
+    }
+  ]
+}

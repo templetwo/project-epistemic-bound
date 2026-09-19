@@ -1,0 +1,39 @@
+{
+  "scope": "Two approved structured-output attempts rejected before generation; root cause not established",
+  "attempts_completed": 2,
+  "conversation_inference_attempts": 26,
+  "http_statuses": [
+    400,
+    400
+  ],
+  "generated_decisions": 0,
+  "plant_effects": 0,
+  "provider_token_usage": "not returned; do not infer billing",
+  "exact_rejection_reason": "not retained by old adapter; cannot recover from these receipts",
+  "free_token_count_preflight": {
+    "inference_calls": 0,
+    "input_tokens": 13984,
+    "does_not_establish_generation_schema_acceptance": true
+  },
+  "read_only_model_lookup": {
+    "command": ".venv/bin/python /private/tmp/peb-model-capabilities.py",
+    "model": "claude-sonnet-5",
+    "capabilities.structured_outputs.supported": true,
+    "inference_calls": 0
+  },
+  "repair": "Credential-screened owner API error detail and stop-on-400; generation schema unchanged pending exact cause",
+  "local_tests": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "tests": "32",
+    "time": "1.629",
+    "timestamp": "2026-09-19T05:31:17.136913-04:00",
+    "hostname": "Anthonys-MacBook-Pro.local"
+  },
+  "ruff": "passed",
+  "diff_check": "passed",
+  "new_inference_after_approved_pair": 0,
+  "reviewer_status": "self_review_only; needs_review"
+}

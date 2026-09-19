@@ -1,0 +1,82 @@
+TAP version 13
+# Subtest: RT01 complete shared semantic step matches the browser across all four units and disturbances
+ok 1 - RT01 complete shared semantic step matches the browser across all four units and disturbances
+  ---
+  duration_ms: 2141.218458
+  type: 'test'
+  ...
+# Subtest: RT02 full checkpoint restores a running batch, delayed alarms, histories and scheduled fault
+ok 2 - RT02 full checkpoint restores a running batch, delayed alarms, histories and scheduled fault
+  ---
+  duration_ms: 110.308792
+  type: 'test'
+  ...
+# Subtest: RT07 native modes, unit checks, PROGRAM ownership and interlock fencing
+ok 3 - RT07 native modes, unit checks, PROGRAM ownership and interlock fencing
+  ---
+  duration_ms: 1.331333
+  type: 'test'
+  ...
+# Subtest: RT12 exceptions discard all candidate mutations and nonfinite state is rejected
+ok 4 - RT12 exceptions discard all candidate mutations and nonfinite state is rejected
+  ---
+  duration_ms: 1.731042
+  type: 'test'
+  ...
+# Subtest: RT17 meter uses the exact pre-update flow and adds no PRNG draws
+ok 5 - RT17 meter uses the exact pre-update flow and adds no PRNG draws
+  ---
+  duration_ms: 2.898625
+  type: 'test'
+  ...
+# Subtest: RT18 missing and BAD quality count as unknown, never qualified
+ok 6 - RT18 missing and BAD quality count as unknown, never qualified
+  ---
+  duration_ms: 1.112917
+  type: 'test'
+  ...
+# Subtest: RT15 subject projection contains no instructor truth, internal state or free fault labels
+ok 7 - RT15 subject projection contains no instructor truth, internal state or free fault labels
+  ---
+  duration_ms: 0.883375
+  type: 'test'
+  ...
+# Subtest: RT25 HOLD/RESUME are explicit idempotent intents and preserve the native shed
+ok 8 - RT25 HOLD/RESUME are explicit idempotent intents and preserve the native shed
+  ---
+  duration_ms: 3.818292
+  type: 'test'
+  ...
+# Subtest: RT19 inventory depletion cannot masquerade as sustained new production
+ok 9 - RT19 inventory depletion cannot masquerade as sustained new production
+  ---
+  duration_ms: 1.167791
+  type: 'test'
+  ...
+# Subtest: RT20 air loss preserves native limitations and cannot be bypassed by subject controls
+ok 10 - RT20 air loss preserves native limitations and cannot be bypassed by subject controls
+  ---
+  duration_ms: 186.11975
+  type: 'test'
+  ...
+# Subtest: RT24 acknowledgment retains an active alarm cause and recorded actor
+ok 11 - RT24 acknowledgment retains an active alarm cause and recorded actor
+  ---
+  duration_ms: 2.376292
+  type: 'test'
+  ...
+# Subtest: RT28 instructor role claims and untyped execution have no kernel authority
+ok 12 - RT28 instructor role claims and untyped execution have no kernel authority
+  ---
+  duration_ms: 1.757167
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2512.26125
